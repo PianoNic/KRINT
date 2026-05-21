@@ -42,7 +42,25 @@ Verify with `dotnet user-secrets list --project src/KRINT.API`.
 
 > **Don't rotate `Vault:MasterKey` while you have encrypted secrets in the DB** — anything written with the old key becomes unreadable. There's no key-rotation flow yet.
 
-## 2. Dev infrastructure (Postgres + Keycloak)
+## 2. Application config — `krint.yaml`
+
+Non-secret app config lives in **`krint.yaml`** at the repo root. The API loads it via `IConfigurationBuilder.AddKrintYaml(env)` (see `src/KRINT.API/Extensions/KrintConfigExtensions.cs`), which walks up from the content root to find the file. Override the path with the `KRINT_CONFIG` environment variable.
+
+Currently used to declare which host ports each engine is allowed to bind:
+
+```yaml
+krint:
+  port_ranges:
+    postgres: 30000-30199
+    mysql:    30200-30399
+    mariadb:  30400-30599
+    mssql:    30600-30799
+    mongo:    30800-30999
+```
+
+Bind into a handler via `IOptions<KrintOptions>` (in `KRINT.Application/Options/`). The file is reload-on-change, so edits are picked up without a restart.
+
+## 3. Dev infrastructure (Postgres + Keycloak)
 
 ```powershell
 docker compose -f compose.dev.yml up -d
@@ -53,20 +71,22 @@ docker compose -f compose.dev.yml up -d
 
 Stop with `docker compose -f compose.dev.yml down`. Volumes (`postgres-data-dev`, `keycloak-data-dev`) persist across restarts; drop them with `-v` if you want a clean slate.
 
-## 3. Backend
+## 4. Backend
 
 ```powershell
 dotnet run --project src/KRINT.API --launch-profile http
 ```
 
-The API binds to `http://localhost:5165`. OpenAPI document: `http://localhost:5165/openapi/v1.json` (Development only, `AllowAnonymous`).
+The API binds to `http://localhost:5165`. In Development:
+- OpenAPI document: `http://localhost:5165/openapi/v1.json` (`AllowAnonymous`)
+- Scalar API reference UI: `http://localhost:5165/scalar/v1` — click **Authenticate** to redirect to Keycloak (authorization code + PKCE against the `krint` realm/client). On return, Scalar attaches the bearer token to every request you fire from the UI.
 
 On startup the API:
 1. Applies any pending EF migrations to the dev DB (`ApplyMigrations()`).
 2. Runs seeders (`ApplySeedsAsync()` — currently a no-op placeholder).
 3. Talks to the local **Docker socket** via `DockerService` (Windows named pipe / Unix socket auto-detected by Docker.DotNet).
 
-## 4. Frontend — first run
+## 5. Frontend — first run
 
 ```powershell
 cd src/KRINT.Frontend
@@ -89,7 +109,7 @@ bun start
 
 Frontend on `http://localhost:4200`.
 
-## 5. Tests
+## 6. Tests
 
 ```powershell
 dotnet run --project src/KRINT.Tests
@@ -103,7 +123,7 @@ TUnit 1.x test runner. Current coverage:
 
 Vault tests use `Microsoft.EntityFrameworkCore.InMemory` so they don't need a running Postgres.
 
-## 6. EF migrations
+## 7. EF migrations
 
 Migrations live in `src/KRINT.Infrastructure/Migrations/` and are auto-applied at API startup via `ApplyMigrations()`. To add a new one after changing entities:
 
@@ -116,7 +136,8 @@ dotnet ef migrations add <Name> -p src/KRINT.Infrastructure -s src/KRINT.API
 ## Notes
 
 - **Keycloak theme**: `keycloak/krint-realm.json` references `loginTheme: krint`. The theme source lives in `keycloak/keycloakify/`. Build the JAR with `bun run build-keycloak-theme` inside `keycloak/keycloakify/` (Apache Maven must be on `PATH`); the dev compose mounts the JAR into Keycloak. Until you build it, dev Keycloak falls back to the default theme.
-- **No Swagger UI**: the API exposes only the raw OpenAPI JSON. Use the generated `typescript-angular` client, Postman, or any spec-aware tool to explore.
+- **API exploration**: use the Scalar UI at `/scalar/v1`, the generated `typescript-angular` client, or any spec-aware tool against `/openapi/v1.json`. No Swagger UI is mounted.
+- **Scalar auth wiring**: `OAuth2SecuritySchemeTransformer` declares an OAuth2 authorization-code scheme on the OpenAPI doc (derived from `Oidc:Authority`); `MapScalarApiReference` pre-fills `ClientId` + PKCE. The `krint` Keycloak client whitelists `http://localhost:5165/scalar/v1/oauth2-redirect.html` as a valid redirect URI — if you add another API origin or path, update `keycloak/krint-realm.json` and re-import the realm (drop the `keycloak-data-dev` volume).
 - **Docker socket**: `DockerService` connects to the local Docker daemon. On Windows this is the Docker Desktop named pipe `npipe://./pipe/docker_engine`; on Linux it's `unix:///var/run/docker.sock`. When the API runs *inside* a container (prod compose), the host's socket must be mounted into it (`/var/run/docker.sock:/var/run/docker.sock`).
 - **Architecture quick map**:
   - `KRINT.Domain` — entities (`Secret`, `BaseEntity`), no dependencies

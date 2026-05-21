@@ -10,7 +10,7 @@
 import { DatabaseInstanceDtoPort } from './databaseInstanceDtoPort';
 
 
-export interface ProvisionedDatabaseDto { 
+export interface DatabaseInstanceDto { 
     id: string;
     engine: string;
     version: string;
@@ -19,8 +19,6 @@ export interface ProvisionedDatabaseDto {
     port: DatabaseInstanceDtoPort;
     username: string;
     databaseName: string;
-    password: string;
-    connectionString: string;
     createdAt: string;
 }
 

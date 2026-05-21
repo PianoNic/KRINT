@@ -11,9 +11,10 @@ git_push.sh
 index.ts
 model/appDto.ts
 model/createDatabaseDto.ts
+model/databaseInstanceDto.ts
+model/databaseInstanceDtoPort.ts
 model/models.ts
 model/provisionedDatabaseDto.ts
-model/provisionedDatabaseDtoPort.ts
 model/supportedDatabaseDto.ts
 param.ts
 provide-api.ts

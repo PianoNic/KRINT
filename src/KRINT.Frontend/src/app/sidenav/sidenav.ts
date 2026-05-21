@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronsUpDown,
+  lucideDatabase,
   lucideLogOut,
   lucideMonitor,
   lucideMoon,
@@ -17,10 +18,11 @@ import { ThemeService, ThemeMode } from '../shared/services/theme.service';
 
 @Component({
   selector: 'app-sidenav',
-  imports: [HlmSidebarImports, HlmDropdownMenuImports, HlmAvatarImports, NgIcon, RouterLink],
+  imports: [HlmSidebarImports, HlmDropdownMenuImports, HlmAvatarImports, NgIcon, RouterLink, RouterLinkActive],
   providers: [
     provideIcons({
       lucideChevronsUpDown,
+      lucideDatabase,
       lucideLogOut,
       lucideSun,
       lucideMoon,

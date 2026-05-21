@@ -1,0 +1,7 @@
+krint:
+  port_ranges:
+    postgres: 30000-30199
+    mysql:    30200-30399
+    mariadb:  30400-30599
+    mssql:    30600-30799
+    mongo:    30800-30999

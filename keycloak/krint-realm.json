@@ -162,7 +162,8 @@
     "alwaysDisplayInConsole": false,
     "clientAuthenticatorType": "client-secret",
     "redirectUris": [
-      "http://localhost:4200/*"
+      "http://localhost:4200/*",
+      "http://localhost:5165/*"
     ],
     "webOrigins": [
       "http://localhost:5165",

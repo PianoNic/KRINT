@@ -14,7 +14,16 @@
       </ul>
     </hlm-sidebar-header>
 
-    <hlm-sidebar-content></hlm-sidebar-content>
+    <hlm-sidebar-content>
+      <ul hlmSidebarMenu>
+        <li hlmSidebarMenuItem>
+          <a hlmSidebarMenuButton routerLink="/databases" routerLinkActive="data-[active=true]">
+            <ng-icon name="lucideDatabase" />
+            <span>Databases</span>
+          </a>
+        </li>
+      </ul>
+    </hlm-sidebar-content>
 
     <hlm-sidebar-footer>
       <ul hlmSidebarMenu>

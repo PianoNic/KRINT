@@ -92,9 +92,9 @@ constructor({ accessToken, apiKeys, basePath, credentials, encodeParam, encoder,
         this.encodeParam = encodeParam ?? (param => this.defaultEncodeParam(param));
         this.credentials = credentials ?? {};
 
-        // init default Bearer credential
-        if (!this.credentials['Bearer']) {
-            this.credentials['Bearer'] = () => {
+        // init default OAuth2 credential
+        if (!this.credentials['OAuth2']) {
+            this.credentials['OAuth2'] = () => {
                 return typeof this.accessToken === 'function'
                     ? this.accessToken()
                     : this.accessToken;

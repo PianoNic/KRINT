@@ -1,19 +1,21 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
 using KRINT.API.Extensions;
 using KRINT.API.OpenApi;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddKrintConfig(builder.Environment);
 
 builder.Services.AddControllers();
 
 builder.Services.AddOpenApi(options =>
 {
-    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    options.AddDocumentTransformer<OAuth2SecuritySchemeTransformer>();
 });
 
 builder.Services.AddMediator(options => { options.ServiceLifetime = ServiceLifetime.Scoped; });
@@ -61,9 +63,18 @@ await app.ApplySeedsAsync();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference(options =>
+    {
+        options
+            .AddPreferredSecuritySchemes("OAuth2")
+            .AddAuthorizationCodeFlow("OAuth2", flow =>
+            {
+                flow.ClientId = builder.Configuration["Oidc:ClientId"];
+                flow.Pkce = Pkce.Sha256;
+                flow.SelectedScopes = ["openid", "profile", "email", "roles"];
+            });
+    }).AllowAnonymous();
 }
-
-app.UseHttpsRedirection();
 
 app.UseCors();
 
