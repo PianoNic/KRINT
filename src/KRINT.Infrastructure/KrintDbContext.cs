@@ -6,6 +6,9 @@ namespace KRINT.Infrastructure
 {
     public class KrintDbContext(DbContextOptions<KrintDbContext> options) : DbContext(options)
     {
+        public DbSet<Secret> Secrets => Set<Secret>();
+        public DbSet<DatabaseInstance> DatabaseInstances => Set<DatabaseInstance>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(KrintDbContext).Assembly);

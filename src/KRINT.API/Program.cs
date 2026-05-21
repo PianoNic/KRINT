@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using KRINT.API.Extensions;
 using KRINT.API.OpenApi;
 using KRINT.Infrastructure;
+using KRINT.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +20,12 @@ builder.Services.AddMediator(options => { options.ServiceLifetime = ServiceLifet
 
 builder.Services.AddDbContext<KrintDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("KrintDatabase")));
+
+builder.Services.AddDocker(builder.Configuration);
+
+builder.Services.AddSecrets();
+
+builder.Services.AddCatalog();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? throw new InvalidOperationException("Cors:AllowedOrigins not configured");
@@ -46,6 +54,9 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+
+app.ApplyMigrations();
+await app.ApplySeedsAsync();
 
 if (app.Environment.IsDevelopment())
 {
