@@ -24,6 +24,7 @@ services:
       - "8080:8080"
     volumes:
       - ./keycloak/krint-realm.json:/opt/keycloak/data/import/krint-realm.json:ro
+      - ./keycloak/keycloakify/dist_keycloak/keycloak-theme-for-kc-all-other-versions.jar:/opt/keycloak/providers/krint-keycloak-theme.jar:ro
       - keycloak-data-dev:/opt/keycloak/data
 
 volumes:

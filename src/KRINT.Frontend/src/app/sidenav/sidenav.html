@@ -1,0 +1,68 @@
+<div hlmSidebarWrapper>
+  <hlm-sidebar variant="inset">
+    <hlm-sidebar-header>
+      <ul hlmSidebarMenu>
+        <li hlmSidebarMenuItem>
+          <a hlmSidebarMenuButton size="lg" routerLink="/">
+            <img src="icon.svg" alt="KRINT" class="size-8" />
+            <div class="grid flex-1 text-left text-sm leading-tight">
+              <span class="truncate font-medium">KRINT</span>
+              <span class="truncate text-xs">Beta</span>
+            </div>
+          </a>
+        </li>
+      </ul>
+    </hlm-sidebar-header>
+
+    <hlm-sidebar-content></hlm-sidebar-content>
+
+    <hlm-sidebar-footer>
+      <ul hlmSidebarMenu>
+        <li hlmSidebarMenuItem>
+          <button hlmSidebarMenuButton size="lg" [hlmDropdownMenuTrigger]="userMenu" [side]="menuSide()" align="end">
+            <hlm-avatar class="rounded-full">
+              @if (user().avatar) {
+                <img [src]="user().avatar" [alt]="user().name" hlmAvatarImage />
+              }
+              <span hlmAvatarFallback>{{ user().name.charAt(0).toUpperCase() }}</span>
+            </hlm-avatar>
+            <div class="grid flex-1 text-left text-sm leading-tight">
+              <span class="truncate font-medium">{{ user().name }}</span>
+              <span class="truncate text-xs">{{ user().email }}</span>
+            </div>
+            <ng-icon name="lucideChevronsUpDown" class="ml-auto" />
+          </button>
+
+          <ng-template #userMenu>
+            <hlm-dropdown-menu class="min-w-64">
+              <hlm-dropdown-menu-label>{{ user().email }}</hlm-dropdown-menu-label>
+
+              <hlm-dropdown-menu-separator />
+
+              <hlm-dropdown-menu-group>
+                @for (option of themeOptions; track option.mode) {
+                  <button hlmDropdownMenuItem (click)="setTheme(option.mode)">
+                    <ng-icon [name]="option.icon" />
+                    {{ option.label }}
+                    @if (themeMode() === option.mode) {
+                      <span class="ml-auto text-xs text-muted-foreground">✓</span>
+                    }
+                  </button>
+                }
+              </hlm-dropdown-menu-group>
+
+              <hlm-dropdown-menu-separator />
+
+              <button hlmDropdownMenuItem (click)="logout()">
+                <ng-icon name="lucideLogOut" />
+                Log out
+              </button>
+            </hlm-dropdown-menu>
+          </ng-template>
+        </li>
+      </ul>
+    </hlm-sidebar-footer>
+  </hlm-sidebar>
+
+  <ng-content></ng-content>
+</div>
