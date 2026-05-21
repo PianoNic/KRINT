@@ -19,5 +19,13 @@ namespace KRINT.Infrastructure.Interfaces
         Task StopContainerAsync(string id, CancellationToken cancellationToken = default);
 
         Task RemoveContainerAsync(string id, bool force = false, CancellationToken cancellationToken = default);
+
+        Task RemoveVolumeAsync(string name, bool force = false, CancellationToken cancellationToken = default);
+
+        /// <summary>Runs a command inside a running container and returns its stdout as raw bytes.</summary>
+        Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default);
+
+        /// <summary>Runs a command inside a container, streaming <paramref name="stdin"/> to its stdin and capturing stderr.</summary>
+        Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default);
     }
 }

@@ -1,21 +1,28 @@
 import { computed, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { signalStore, withComputed, withHooks, withMethods, withState, patchState } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { forkJoin, pipe, switchMap, tap } from 'rxjs';
+import { EMPTY, forkJoin, pipe, switchMap, tap } from 'rxjs';
 import { DatabaseService } from '../../api/api/database.service';
 import { CreateDatabaseDto } from '../../api/model/createDatabaseDto';
 import { DatabaseInstanceDto } from '../../api/model/databaseInstanceDto';
+import { InnerUserPasswordDto } from '../../api/model/innerUserPasswordDto';
 import { ProvisionedDatabaseDto } from '../../api/model/provisionedDatabaseDto';
 import { SupportedDatabaseDto } from '../../api/model/supportedDatabaseDto';
-import { environment } from '../environments/environment';
 
 type DatabasesState = {
   instances: ReadonlyArray<DatabaseInstanceDto>;
   supported: ReadonlyArray<SupportedDatabaseDto>;
   details: ProvisionedDatabaseDto | null;
+  innerDatabases: ReadonlyArray<string>;
+  users: ReadonlyArray<string>;
+  lastCredential: InnerUserPasswordDto | null;
   loading: boolean;
   loadingDetails: boolean;
+  loadingInner: boolean;
+  loadingUsers: boolean;
+  mutatingInner: boolean;
+  mutatingUsers: boolean;
+  deleting: string | null;
   creating: boolean;
   error: string | null;
 };
@@ -24,8 +31,16 @@ const initialState: DatabasesState = {
   instances: [],
   supported: [],
   details: null,
+  innerDatabases: [],
+  users: [],
+  lastCredential: null,
   loading: false,
   loadingDetails: false,
+  loadingInner: false,
+  loadingUsers: false,
+  mutatingInner: false,
+  mutatingUsers: false,
+  deleting: null,
   creating: false,
   error: null,
 };
@@ -36,7 +51,7 @@ export const DatabasesStore = signalStore(
   withComputed((store) => ({
     isEmpty: computed(() => !store.loading() && store.instances().length === 0),
   })),
-  withMethods((store, api = inject(DatabaseService), http = inject(HttpClient)) => ({
+  withMethods((store, api = inject(DatabaseService)) => ({
     load: rxMethod<void>(
       pipe(
         tap(() => patchState(store, { loading: true, error: null })),
@@ -59,7 +74,7 @@ export const DatabasesStore = signalStore(
       pipe(
         tap(() => patchState(store, { loadingDetails: true, details: null, error: null })),
         switchMap((id) =>
-          http.get<ProvisionedDatabaseDto>(`${environment.apiBaseUrl}/api/Database/${id}`).pipe(
+          api.apiDatabaseIdGet(id).pipe(
             tap({
               next: (details) => patchState(store, { details, loadingDetails: false }),
               error: (err: unknown) =>
@@ -69,7 +84,132 @@ export const DatabasesStore = signalStore(
         ),
       ),
     ),
-    clearDetails: () => patchState(store, { details: null }),
+    clearDetails: () => patchState(store, { details: null, innerDatabases: [], users: [], lastCredential: null }),
+    clearLastCredential: () => patchState(store, { lastCredential: null }),
+    deleteInstance: rxMethod<string>(
+      pipe(
+        tap((id) => patchState(store, { deleting: id, error: null })),
+        switchMap((id) =>
+          api.apiDatabaseIdDelete(id).pipe(
+            switchMap(() => api.apiDatabaseGet()),
+            tap({
+              next: (instances) => patchState(store, { instances, deleting: null }),
+              error: (err: unknown) =>
+                patchState(store, { deleting: null, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    loadUsers: rxMethod<string>(
+      pipe(
+        tap(() => patchState(store, { loadingUsers: true, error: null })),
+        switchMap((id) =>
+          api.apiDatabaseIdUsersGet(id).pipe(
+            tap({
+              next: (users) => patchState(store, { users, loadingUsers: false }),
+              error: (err: unknown) =>
+                patchState(store, { loadingUsers: false, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    createUser: rxMethod<{ id: string; name: string }>(
+      pipe(
+        tap(() => patchState(store, { mutatingUsers: true, error: null, lastCredential: null })),
+        switchMap(({ id, name }) =>
+          api.apiDatabaseIdUsersPost(id, { name }).pipe(
+            switchMap((credential) =>
+              api.apiDatabaseIdUsersGet(id).pipe(
+                tap((users) => patchState(store, { users, mutatingUsers: false, lastCredential: credential })),
+              ),
+            ),
+            tap({
+              error: (err: unknown) =>
+                patchState(store, { mutatingUsers: false, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    deleteUser: rxMethod<{ id: string; name: string }>(
+      pipe(
+        tap(() => patchState(store, { mutatingUsers: true, error: null })),
+        switchMap(({ id, name }) =>
+          api.apiDatabaseIdUsersNameDelete(id, name).pipe(
+            switchMap(() => api.apiDatabaseIdUsersGet(id)),
+            tap({
+              next: (users) => patchState(store, { users, mutatingUsers: false }),
+              error: (err: unknown) => {
+                patchState(store, { mutatingUsers: false, error: messageOf(err) });
+                return EMPTY;
+              },
+            }),
+          ),
+        ),
+      ),
+    ),
+    resetUserPassword: rxMethod<{ id: string; name: string }>(
+      pipe(
+        tap(() => patchState(store, { mutatingUsers: true, error: null, lastCredential: null })),
+        switchMap(({ id, name }) =>
+          api.apiDatabaseIdUsersNameResetPasswordPost(id, name).pipe(
+            tap({
+              next: (credential) => patchState(store, { mutatingUsers: false, lastCredential: credential }),
+              error: (err: unknown) =>
+                patchState(store, { mutatingUsers: false, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    loadInner: rxMethod<string>(
+      pipe(
+        tap(() => patchState(store, { loadingInner: true, error: null })),
+        switchMap((id) =>
+          api.apiDatabaseIdDatabasesGet(id).pipe(
+            tap({
+              next: (innerDatabases) => patchState(store, { innerDatabases, loadingInner: false }),
+              error: (err: unknown) =>
+                patchState(store, { loadingInner: false, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    createInner: rxMethod<{ id: string; name: string }>(
+      pipe(
+        tap(() => patchState(store, { mutatingInner: true, error: null })),
+        switchMap(({ id, name }) =>
+          api.apiDatabaseIdDatabasesPost(id, { name }).pipe(
+            switchMap(() => api.apiDatabaseIdDatabasesGet(id)),
+            tap({
+              next: (innerDatabases) => patchState(store, { innerDatabases, mutatingInner: false }),
+              error: (err: unknown) =>
+                patchState(store, { mutatingInner: false, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    dropInner: rxMethod<{ id: string; name: string }>(
+      pipe(
+        tap(() => patchState(store, { mutatingInner: true, error: null })),
+        switchMap(({ id, name }) =>
+          api.apiDatabaseIdDatabasesNameDelete(id, name).pipe(
+            switchMap(() => api.apiDatabaseIdDatabasesGet(id)),
+            tap({
+              next: (innerDatabases) => patchState(store, { innerDatabases, mutatingInner: false }),
+              error: (err: unknown) => {
+                patchState(store, { mutatingInner: false, error: messageOf(err) });
+                return EMPTY;
+              },
+            }),
+          ),
+        ),
+      ),
+    ),
     create: rxMethod<CreateDatabaseDto>(
       pipe(
         tap(() => patchState(store, { creating: true, error: null })),

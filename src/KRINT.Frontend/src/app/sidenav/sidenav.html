@@ -12,16 +12,31 @@
           </a>
         </li>
       </ul>
+
+      <ul hlmSidebarMenu>
+        <li hlmSidebarMenuItem>
+          <a hlmSidebarMenuButton routerLink="/create" class="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground">
+            <ng-icon name="lucidePlus" />
+            <span>Create</span>
+          </a>
+        </li>
+      </ul>
     </hlm-sidebar-header>
 
     <hlm-sidebar-content>
       <ul hlmSidebarMenu>
-        <li hlmSidebarMenuItem>
-          <a hlmSidebarMenuButton routerLink="/databases" routerLinkActive="data-[active=true]">
-            <ng-icon name="lucideDatabase" />
-            <span>Databases</span>
-          </a>
-        </li>
+        @for (item of navItems; track item.route) {
+          <li hlmSidebarMenuItem>
+            <a
+              hlmSidebarMenuButton
+              [routerLink]="item.route"
+              routerLinkActive="data-[active=true]"
+            >
+              <ng-icon [name]="item.icon" />
+              <span>{{ item.label }}</span>
+            </a>
+          </li>
+        }
       </ul>
     </hlm-sidebar-content>
 

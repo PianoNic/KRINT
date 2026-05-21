@@ -4,12 +4,18 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideActivity,
+  lucideArchive,
   lucideChevronsUpDown,
   lucideDatabase,
   lucideLogOut,
   lucideMonitor,
   lucideMoon,
+  lucidePlus,
+  lucideServer,
+  lucideSettings,
   lucideSun,
+  lucideTable,
 } from '@ng-icons/lucide';
 import { HlmSidebarImports, HlmSidebarService } from '@spartan-ng/helm/sidebar';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
@@ -18,15 +24,28 @@ import { ThemeService, ThemeMode } from '../shared/services/theme.service';
 
 @Component({
   selector: 'app-sidenav',
-  imports: [HlmSidebarImports, HlmDropdownMenuImports, HlmAvatarImports, NgIcon, RouterLink, RouterLinkActive],
+  imports: [
+    HlmSidebarImports,
+    HlmDropdownMenuImports,
+    HlmAvatarImports,
+    NgIcon,
+    RouterLink,
+    RouterLinkActive,
+  ],
   providers: [
     provideIcons({
+      lucideActivity,
+      lucideArchive,
       lucideChevronsUpDown,
       lucideDatabase,
       lucideLogOut,
+      lucidePlus,
+      lucideServer,
+      lucideSettings,
       lucideSun,
       lucideMoon,
       lucideMonitor,
+      lucideTable,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,6 +58,14 @@ export class Sidenav {
   private readonly theme = inject(ThemeService);
 
   protected readonly themeMode = this.theme.mode;
+  protected readonly navItems: ReadonlyArray<{ route: string; label: string; icon: string }> = [
+    { route: '/instances', label: 'Instances', icon: 'lucideServer' },
+    { route: '/browser',   label: 'Browser',   icon: 'lucideTable' },
+    { route: '/backups',   label: 'Backups',   icon: 'lucideArchive' },
+    { route: '/activity',  label: 'Activity',  icon: 'lucideActivity' },
+    { route: '/settings',  label: 'Settings',  icon: 'lucideSettings' },
+  ];
+
   protected readonly themeOptions: ReadonlyArray<{ mode: ThemeMode; label: string; icon: string }> = [
     { mode: 'light', label: 'Light', icon: 'lucideSun' },
     { mode: 'dark', label: 'Dark', icon: 'lucideMoon' },

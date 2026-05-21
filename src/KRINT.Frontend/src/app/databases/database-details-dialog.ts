@@ -24,7 +24,7 @@ type DialogContext = { id: string };
     <hlm-dialog-header>
       <h3 hlmDialogTitle>Instance details</h3>
       <p hlmDialogDescription>
-        Connection string and credentials for the provisioned database.
+        Read-only view of the connection string and credentials.
       </p>
     </hlm-dialog-header>
 

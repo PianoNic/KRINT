@@ -8,11 +8,12 @@ using KRINT.Application.Dtos;
 using KRINT.Application.Options;
 using KRINT.Domain;
 using KRINT.Infrastructure;
+using KRINT.Infrastructure.Extensions;
 using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command
 {
-    public record CreateDatabaseCommand(string Engine, string Version) : ICommand<ProvisionedDatabaseDto>;
+    public record CreateDatabaseCommand(string Engine, string Version, string? DatabaseName = null) : ICommand<ProvisionedDatabaseDto>;
 
     public class CreateDatabaseCommandHandler : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
@@ -23,24 +24,32 @@ namespace KRINT.Application.Command
         private readonly ISecretsVaultService _vault;
         private readonly KrintDbContext _db;
         private readonly KrintOptions _options;
+        private readonly IActivityLogger _activity;
+        private readonly IInnerDatabaseServiceResolver _innerDbs;
 
         public CreateDatabaseCommandHandler(
             IDockerService docker,
             ISecretGeneratorService secretGenerator,
             ISecretsVaultService vault,
             KrintDbContext db,
-            IOptions<KrintOptions> options)
+            IOptions<KrintOptions> options,
+            IActivityLogger activity,
+            IInnerDatabaseServiceResolver innerDbs)
         {
             _docker = docker;
             _secretGenerator = secretGenerator;
             _vault = vault;
             _db = db;
             _options = options.Value;
+            _activity = activity;
+            _innerDbs = innerDbs;
         }
 
         public async ValueTask<ProvisionedDatabaseDto> Handle(CreateDatabaseCommand command, CancellationToken cancellationToken)
         {
             var spec = ResolveEngineSpec(command.Engine, command.Version);
+
+            var databaseName = ResolveDatabaseName(command.Engine, command.DatabaseName, spec.DefaultDatabase);
 
             var instanceId = Guid.NewGuid();
             var instanceIdShort = instanceId.ToString("N")[..8];
@@ -57,7 +66,7 @@ namespace KRINT.Application.Command
             {
                 Image = $"{spec.Image}:{command.Version}",
                 Name = containerName,
-                Env = BuildEnv(command.Engine, password),
+                Env = BuildEnv(command.Engine, password, databaseName, spec.DefaultDatabase),
                 ExposedPorts = new Dictionary<string, EmptyStruct>
                 {
                     [$"{spec.InternalPort}/tcp"] = default,
@@ -84,6 +93,14 @@ namespace KRINT.Application.Command
 
             await _vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
+            // Wait for the engine inside the container to accept connections. Postgres especially
+            // needs a few seconds to initialise PGDATA on first start; without this poll the next
+            // op races into a still-booting server and Npgsql sees EOF on the SSL probe.
+            var readinessTarget = new InnerDatabaseTarget(
+                command.Engine, Host, hostPort,
+                spec.DefaultUsername, password, databaseName);
+            await WaitForReadyAsync(readinessTarget, cancellationToken);
+
             var instance = new DatabaseInstance
             {
                 Id = instanceId,
@@ -94,10 +111,18 @@ namespace KRINT.Application.Command
                 Host = Host,
                 Port = hostPort,
                 Username = spec.DefaultUsername,
-                DatabaseName = spec.DefaultDatabase,
+                DatabaseName = databaseName,
             };
             _db.DatabaseInstances.Add(instance);
             await _db.SaveChangesAsync(cancellationToken);
+
+            await _activity.LogAsync(
+                "instance.create",
+                containerName,
+                instance.Id,
+                command.Engine,
+                $"version={command.Version}, port={hostPort}",
+                cancellationToken);
 
             var connectionString = ConnectionStringBuilder.Build(command.Engine, instance.Host, hostPort, instance.Username, password, instance.DatabaseName);
 
@@ -151,15 +176,30 @@ namespace KRINT.Application.Command
             return int.TryParse(head, out var major) ? major : null;
         }
 
-        private static List<string> BuildEnv(string engine, string password)
+        private static string ResolveDatabaseName(string engine, string? requested, string defaultName)
+        {
+            if (string.IsNullOrWhiteSpace(requested)) return defaultName;
+            KRINT.Infrastructure.Services.InnerDatabaseNameValidator.Require(requested);
+            return requested;
+        }
+
+        private static List<string> BuildEnv(string engine, string password, string databaseName, string defaultDatabaseName)
         {
             switch (engine)
             {
                 case "postgres":
-                    return new List<string> { $"POSTGRES_PASSWORD={password}" };
+                    var pgEnv = new List<string> { $"POSTGRES_PASSWORD={password}" };
+                    if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
+                        pgEnv.Add($"POSTGRES_DB={databaseName}");
+                    return pgEnv;
                 case "mysql":
-                    return new List<string> { $"MYSQL_ROOT_PASSWORD={password}" };
+                    var mysqlEnv = new List<string> { $"MYSQL_ROOT_PASSWORD={password}" };
+                    if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
+                        mysqlEnv.Add($"MYSQL_DATABASE={databaseName}");
+                    return mysqlEnv;
                 case "mongo":
+                    // Mongo creates databases lazily; the env vars only seed the root user/auth db.
+                    // The chosen databaseName is recorded in the connection string but not pre-created.
                     return new List<string>
                     {
                         "MONGO_INITDB_ROOT_USERNAME=admin",
@@ -168,6 +208,31 @@ namespace KRINT.Application.Command
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
+        }
+
+        private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
+        {
+            var inner = _innerDbs.Resolve(target.Engine);
+            var deadline = DateTime.UtcNow.AddSeconds(45);
+            var delayMs = 500;
+            Exception? last = null;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    await inner.ListAsync(target, cancellationToken);
+                    return;
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    last = ex;
+                    await Task.Delay(delayMs, cancellationToken);
+                    delayMs = Math.Min(delayMs * 2, 3000);
+                }
+            }
+            throw new InvalidOperationException(
+                $"{target.Engine} container did not become ready within 45s.", last);
         }
 
         private async Task<int> AllocateHostPortAsync(string engine, CancellationToken cancellationToken)

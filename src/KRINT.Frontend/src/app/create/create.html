@@ -1,0 +1,298 @@
+<app-content-header />
+
+<section class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
+  @if (result(); as res) {
+    <!-- ===== Success view ===== -->
+    <section hlmCard class="border-primary/30">
+      <div hlmCardHeader>
+        <h2 hlmCardTitle class="flex items-center gap-2">
+          <ng-icon name="lucideRocket" />
+          Instance ready
+        </h2>
+        <p hlmCardDescription>
+          <code class="font-mono">{{ res.instance.containerName }}</code> is up on
+          <code class="font-mono">{{ res.instance.host }}:{{ res.instance.port }}</code>.
+        </p>
+      </div>
+
+      <div hlmCardContent class="flex flex-col gap-4">
+        <div class="flex flex-col gap-2">
+          <span class="text-muted-foreground text-sm">Connection string (root)</span>
+          <div class="flex items-start gap-2">
+            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{ res.instance.connectionString }}</code>
+            <app-copy-button [value]="res.instance.connectionString" />
+          </div>
+        </div>
+
+        @if (res.databases.length > 0) {
+          <div class="flex flex-col gap-2">
+            <span class="text-muted-foreground text-sm">Databases created</span>
+            <ul class="divide-border divide-y rounded-md border">
+              @for (db of res.databases; track db) {
+                <li class="px-3 py-2 font-mono text-sm">{{ db }}</li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (res.users.length > 0) {
+          <div class="flex flex-col gap-2">
+            <span class="text-muted-foreground text-sm">Users — save these passwords, they won't be shown again</span>
+            <ul class="divide-border divide-y rounded-md border">
+              @for (u of res.users; track u.name) {
+                <li class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm">
+                  <span class="font-mono">{{ u.name }}</span>
+                  <code class="font-mono break-all text-xs">{{ u.password }}</code>
+                  <app-copy-button [value]="u.password" />
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </div>
+
+      <div hlmCardFooter class="justify-end gap-2">
+        <button hlmBtn variant="outline" (click)="goToInstances()">Go to Instances</button>
+      </div>
+    </section>
+  } @else {
+    <!-- ===== Stepper header ===== -->
+    <ol class="flex items-center gap-2 text-sm">
+      @for (s of steps; track s.n; let last = $last) {
+        <li class="flex items-center gap-2">
+          <span
+            class="inline-flex size-7 items-center justify-center rounded-full text-xs font-medium"
+            [class.bg-primary]="step() === s.n"
+            [class.text-primary-foreground]="step() === s.n"
+            [class.bg-muted]="step() !== s.n"
+            [class.text-muted-foreground]="step() !== s.n"
+          >
+            @if (step() > s.n) {
+              <ng-icon name="lucideCheck" size="14" />
+            } @else {
+              {{ s.n }}
+            }
+          </span>
+          <span [class.font-medium]="step() === s.n" [class.text-muted-foreground]="step() !== s.n">{{ s.label }}</span>
+          @if (!last) {
+            <span class="bg-border h-px w-6"></span>
+          }
+        </li>
+      }
+    </ol>
+
+    <section hlmCard>
+      <div hlmCardContent class="pt-6">
+        <!-- ===== Step 1: Engine ===== -->
+        @if (step() === 1) {
+          <div class="flex flex-col gap-4">
+            <h2 class="text-xl font-semibold">Pick an engine</h2>
+            <p class="text-muted-foreground text-sm">Choose the database engine you want to provision.</p>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              @for (s of supported(); track s.key) {
+                <button
+                  type="button"
+                  class="hover:border-primary hover:bg-muted/50 flex flex-col items-center gap-3 rounded-lg border p-6 text-center transition-colors active:translate-y-px"
+                  [class.border-primary]="engine() === s.key"
+                  [class.bg-muted]="engine() === s.key"
+                  (click)="selectEngine(s.key)"
+                >
+                  <ng-icon [name]="engineIcon(s.key)" size="40" />
+                  <span class="font-medium">{{ s.displayName }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- ===== Step 2: Basics ===== -->
+        @if (step() === 2) {
+          <div class="flex flex-col gap-4">
+            <h2 class="text-xl font-semibold">Version &amp; default database</h2>
+            <p class="text-muted-foreground text-sm">Pick the engine version. Optionally rename the default database.</p>
+
+            <div class="flex flex-col gap-2">
+              <label hlmLabel>Version</label>
+              <hlm-select [value]="version()" (valueChange)="version.set($event)">
+                <hlm-select-trigger class="w-full">
+                  <hlm-select-value placeholder="Select a version" />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  @for (v of versions(); track v) {
+                    <hlm-select-item [value]="v">{{ v }}</hlm-select-item>
+                  }
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label hlmLabel for="default-db">
+                Default database name <span class="text-muted-foreground">(optional)</span>
+              </label>
+              <input
+                hlmInput
+                id="default-db"
+                [placeholder]="defaultDbPlaceholder()"
+                [value]="defaultDbName()"
+                (input)="defaultDbName.set($any($event.target).value)"
+              />
+              <span class="text-muted-foreground text-xs">
+                Leave blank to use the engine's default name.
+              </span>
+            </div>
+          </div>
+        }
+
+        <!-- ===== Step 3: Databases ===== -->
+        @if (step() === 3) {
+          <div class="flex flex-col gap-4">
+            <h2 class="text-xl font-semibold">Logical databases</h2>
+            <p class="text-muted-foreground text-sm">
+              Add more databases on top of the default. Skip if you only need one.
+            </p>
+
+            @if (databases().length === 0) {
+              <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+                No extra databases yet.
+              </p>
+            }
+
+            @for (name of databases(); track $index) {
+              <div class="flex items-center gap-2">
+                <input
+                  hlmInput
+                  class="flex-1"
+                  placeholder="my_database"
+                  [value]="name"
+                  (input)="updateDatabase($index, $any($event.target).value)"
+                />
+                <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeDatabase($index)" aria-label="Remove">
+                  <ng-icon name="lucideTrash2" size="16" />
+                </button>
+              </div>
+            }
+
+            <button hlmBtn variant="outline" type="button" (click)="addDatabase()" class="self-start">
+              <ng-icon name="lucidePlus" size="16" />
+              Add database
+            </button>
+          </div>
+        }
+
+        <!-- ===== Step 4: Users ===== -->
+        @if (step() === 4) {
+          <div class="flex flex-col gap-4">
+            <h2 class="text-xl font-semibold">Users</h2>
+            <p class="text-muted-foreground text-sm">
+              Define login users. Tick which databases each user can access — a fresh password is generated on launch.
+            </p>
+
+            @if (users().length === 0) {
+              <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+                No users yet. The root account always exists.
+              </p>
+            }
+
+            @for (u of users(); track $index; let userIdx = $index) {
+              <div class="flex flex-col gap-3 rounded-md border p-4">
+                <div class="flex items-center gap-2">
+                  <input
+                    hlmInput
+                    class="flex-1"
+                    placeholder="alice"
+                    [value]="u.name"
+                    (input)="updateUserName(userIdx, $any($event.target).value)"
+                  />
+                  <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeUser(userIdx)" aria-label="Remove user">
+                    <ng-icon name="lucideTrash2" size="16" />
+                  </button>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <span class="text-muted-foreground text-xs">Grant access to:</span>
+                  @for (db of allDbNames(); track db) {
+                    <label
+                      class="flex cursor-pointer items-center gap-2 text-sm"
+                      [attr.data-testid]="'grant-' + userIdx + '-' + db"
+                      (click)="toggleUserGrant(userIdx, db, !userHasGrant(userIdx, db)); $event.preventDefault()"
+                    >
+                      <hlm-checkbox
+                        [attr.aria-label]="'Grant ' + db"
+                        [checked]="userHasGrant(userIdx, db)"
+                      />
+                      <code class="font-mono">{{ db }}</code>
+                    </label>
+                  }
+                </div>
+              </div>
+            }
+
+            <button hlmBtn variant="outline" type="button" (click)="addUser()" class="self-start">
+              <ng-icon name="lucidePlus" size="16" />
+              Add user
+            </button>
+          </div>
+        }
+
+        <!-- ===== Step 5: Review ===== -->
+        @if (step() === 5) {
+          <div class="flex flex-col gap-4">
+            <h2 class="text-xl font-semibold">Review &amp; launch</h2>
+
+            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt class="text-muted-foreground">Engine</dt>
+              <dd class="flex items-center gap-2 font-mono">
+                <ng-icon [name]="engineIcon(engine()!)" size="16" />
+                {{ engine() }} {{ version() }}
+              </dd>
+              <dt class="text-muted-foreground">Default DB</dt>
+              <dd class="font-mono">{{ defaultDbName().trim() || defaultDbPlaceholder() }}</dd>
+              <dt class="text-muted-foreground">Databases</dt>
+              <dd class="font-mono">{{ allDbNames().join(', ') }}</dd>
+              <dt class="text-muted-foreground">Users</dt>
+              <dd>
+                @if (users().length === 0) {
+                  <span class="text-muted-foreground">none (root only)</span>
+                } @else {
+                  <ul class="flex flex-col gap-1">
+                    @for (u of users(); track u.name) {
+                      <li class="font-mono">
+                        {{ u.name }}
+                        <span class="text-muted-foreground">
+                          → {{ u.grantDatabases.length === 0 ? 'no grants' : u.grantDatabases.join(', ') }}
+                        </span>
+                      </li>
+                    }
+                  </ul>
+                }
+              </dd>
+            </dl>
+
+            @if (error(); as err) {
+              <p class="text-destructive text-sm">{{ err }}</p>
+            }
+          </div>
+        }
+      </div>
+
+      <div hlmCardFooter class="justify-between">
+        <button hlmBtn variant="outline" type="button" (click)="back()" [disabled]="step() === 1 || submitting()">
+          <ng-icon name="lucideArrowLeft" size="16" />
+          Back
+        </button>
+
+        @if (step() < 5) {
+          <button hlmBtn type="button" (click)="next()" [disabled]="!canNext()">
+            Next
+            <ng-icon name="lucideArrowRight" size="16" />
+          </button>
+        } @else {
+          <button hlmBtn type="button" (click)="launch()" [disabled]="submitting()">
+            <ng-icon name="lucideRocket" size="16" />
+            {{ submitting() ? 'Launching…' : 'Launch' }}
+          </button>
+        }
+      </div>
+    </section>
+  }
+</section>

@@ -14,6 +14,7 @@
         "@angular/router": "^21.0.0",
         "@ng-icons/core": ">=32.0.0 <34.0.0",
         "@ng-icons/lucide": ">=32.0.0 <34.0.0",
+        "@ng-icons/simple-icons": "^33.2.2",
         "@ngrx/signals": "^21.1.0",
         "@spartan-ng/brain": "^0.0.1-alpha.695",
         "angular-auth-oidc-client": "^21.0.2",
@@ -610,6 +611,8 @@
     "@ng-icons/core": ["@ng-icons/core@33.2.2", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular-devkit/schematics": ">=21.0.0", "@angular/common": ">=21.0.0", "@angular/core": ">=21.0.0", "@schematics/angular": ">=21.0.0", "rxjs": "^6.5.3 || ^7.4.0" } }, "sha512-MwxREFbCx5p+x+Lx26V1FkHFpqHR/6g1TmBG7aYx+FFe1DIfrxUVXM+LW/Mviv3dN5sLE/Fi0ULP79Gz9uG0SQ=="],
 
     "@ng-icons/lucide": ["@ng-icons/lucide@33.2.2", "", { "dependencies": { "tslib": "^2.3.0" } }, "sha512-/jse2Z6fnk4WbW3HDH+jSfE/ihBskVr+RHltk5KfxohgQRhqqQ2FOxTP0IhU3xYV1pMwpziH3WpIR+gKkGcryg=="],
+
+    "@ng-icons/simple-icons": ["@ng-icons/simple-icons@33.2.2", "", { "dependencies": { "tslib": "^2.3.0" } }, "sha512-1KIGUr5g++t54WgjYLeNWot0k3GOGXn+dma2juymgRKyhFj+OjFPln7stUuIozkeVsCj1QJ3VatWiOeMucxCeQ=="],
 
     "@ngrx/signals": ["@ngrx/signals@21.1.0", "", { "dependencies": { "tslib": "^2.3.0" }, "peerDependencies": { "@angular/core": "^21.0.0", "rxjs": "^6.5.3 || ^7.4.0" }, "optionalPeers": ["rxjs"] }, "sha512-eDGaBs6sssEZe2cLGwDdRnfTwyx9TKD+zpLW8yDov6acWzyi0nW5qxUWjpMRwmIU1i+o0t5MMpQaF/rFMmtHSg=="],
 

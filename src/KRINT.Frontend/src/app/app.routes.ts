@@ -3,6 +3,11 @@ import { autoLoginPartialRoutesGuard } from 'angular-auth-oidc-client';
 import { AppLayout } from './shared/layouts/app-layout/app-layout';
 import { Home } from './home/home';
 import { Databases } from './databases/databases';
+import { Create } from './create/create';
+import { Browser } from './browser/browser';
+import { Backups } from './backups/backups';
+import { Activity } from './activity/activity';
+import { Settings } from './settings/settings';
 
 export const routes: Routes = [
   {
@@ -11,7 +16,14 @@ export const routes: Routes = [
     canActivateChild: [autoLoginPartialRoutesGuard],
     children: [
       { path: '', component: Home },
-      { path: 'databases', component: Databases },
+      { path: 'create', component: Create },
+      { path: 'instances', component: Databases },
+      { path: 'browser', component: Browser },
+      { path: 'backups', component: Backups },
+      { path: 'activity', component: Activity },
+      { path: 'settings', component: Settings },
+      // legacy alias
+      { path: 'databases', redirectTo: 'instances' },
     ],
   },
   { path: '**', redirectTo: '' },

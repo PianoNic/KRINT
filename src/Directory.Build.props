@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Centralised NuGet audit suppressions.
+
+    GHSA-6c8g-7p36-r338 (CVE-2026-44788) — SharpCompress directory-traversal in WriteToDirectory.
+    Pulled in transitively by MongoDB.Driver 3.8.1 → SharpCompress 0.30.1. We do NOT call
+    IArchive.WriteToDirectory anywhere in our code (grep verified); MongoDB.Driver only uses
+    SharpCompress for wire-protocol compression (snappy/zstd), not archive extraction, so the
+    vulnerable code path is unreachable from this app. The advisory has no patched version yet,
+    so there is nothing to upgrade to. Revisit this when SharpCompress publishes a fix.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-6c8g-7p36-r338" />
+  </ItemGroup>
+
+</Project>

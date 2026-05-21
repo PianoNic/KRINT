@@ -16,6 +16,19 @@ namespace KRINT.API.Controllers
         public async Task<IActionResult> Get(CancellationToken cancellationToken)
         {
             var result = await mediator.Send(new AppQuery(), cancellationToken);
+
+            // The redirect target must match whatever URL the browser is currently on —
+            // important when the bundled image is reached via a host-assigned random port
+            // (Testcontainers) or behind a proxy. Falling back to the configured value
+            // would only work for the one canonical URL we hardcoded.
+            var request = HttpContext.Request;
+            var origin = $"{request.Scheme}://{request.Host.Value}/";
+            result = result with
+            {
+                RedirectUri = origin,
+                PostLogoutRedirectUri = origin,
+            };
+
             return Ok(result);
         }
     }

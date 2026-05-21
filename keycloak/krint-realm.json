@@ -123,6 +123,23 @@
   "clientAuthenticationFlow": "clients",
   "dockerAuthenticationFlow": "docker auth",
   "firstBrokerLoginFlow": "first broker login",
+  "users": [
+    {
+      "username": "e2e_runner",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "E2E",
+      "lastName": "Runner",
+      "email": "e2e_runner@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Test1234!",
+          "temporary": false
+        }
+      ]
+    }
+  ],
   "attributes": {
     "cibaBackchannelTokenDeliveryMode": "poll",
     "cibaAuthRequestedUserHint": "login_hint",
@@ -163,11 +180,14 @@
     "clientAuthenticatorType": "client-secret",
     "redirectUris": [
       "http://localhost:4200/*",
-      "http://localhost:5165/*"
+      "http://localhost:5165/*",
+      "http://localhost/*",
+      "http://host.docker.internal:*/*"
     ],
     "webOrigins": [
       "http://localhost:5165",
-      "http://localhost:4200"
+      "http://localhost:4200",
+      "+"
     ],
     "notBefore": 0,
     "bearerOnly": false,

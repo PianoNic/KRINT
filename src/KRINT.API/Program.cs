@@ -11,6 +11,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddKrintConfig(builder.Environment);
 
+// When the Angular dist is baked into the image (production), serve it from wwwroot/browser
+// (Angular CLI's default output path). In dev we don't add this — the frontend runs separately
+// on its own port. The RootPath is only consulted in production.
+builder.Services.AddSpaStaticFiles(opts => { opts.RootPath = "wwwroot/browser"; });
+
 builder.Services.AddControllers();
 
 builder.Services.AddOpenApi(options =>
@@ -26,6 +31,8 @@ builder.Services.AddDbContext<KrintDbContext>(options =>
 builder.Services.AddDocker(builder.Configuration);
 
 builder.Services.AddSecrets();
+
+builder.Services.AddInnerDatabases();
 
 builder.Services.AddCatalog();
 
@@ -82,5 +89,15 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Serve the bundled Angular SPA. In dev (no wwwroot/browser) this is a no-op; in the
+// bundled image the multi-stage Dockerfile copies the dist into wwwroot/browser and any
+// non-API path falls through to index.html so client-side routing works.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseStaticFiles();
+    app.UseSpaStaticFiles();
+    app.MapFallbackToFile("index.html");
+}
 
 app.Run();

@@ -10,6 +10,8 @@ namespace KRINT.Infrastructure.Extensions
         {
             services.AddSingleton<ISecretGeneratorService, SecretGeneratorService>();
             services.AddScoped<ISecretsVaultService, SecretsVaultService>();
+            services.AddScoped<IActivityLogger, ActivityLogger>();
+            services.AddSingleton<IBackupStorage, FileSystemBackupStorage>();
             return services;
         }
     }

@@ -8,6 +8,8 @@ namespace KRINT.Infrastructure
     {
         public DbSet<Secret> Secrets => Set<Secret>();
         public DbSet<DatabaseInstance> DatabaseInstances => Set<DatabaseInstance>();
+        public DbSet<ActivityEntry> ActivityEntries => Set<ActivityEntry>();
+        public DbSet<BackupEntry> BackupEntries => Set<BackupEntry>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

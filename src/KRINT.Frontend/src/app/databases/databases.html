@@ -7,7 +7,7 @@
       <p hlmCardDescription>Spin up a managed instance — one click, one key.</p>
     </div>
 
-    <div hlmCardContent class="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+    <div hlmCardContent class="grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
       <div class="flex flex-col gap-2">
         <label hlmLabel for="engine">Engine</label>
         <hlm-select
@@ -42,6 +42,18 @@
             }
           </hlm-select-content>
         </hlm-select>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label hlmLabel for="db-name">Database name <span class="text-muted-foreground">(optional)</span></label>
+        <input
+          hlmInput
+          id="db-name"
+          [placeholder]="databaseNamePlaceholder()"
+          [value]="databaseName()"
+          (input)="databaseName.set($any($event.target).value)"
+          [disabled]="store.creating()"
+        />
       </div>
 
       <button hlmBtn type="button" [disabled]="!canCreate()" (click)="create()">
@@ -79,16 +91,19 @@
                 <th hlmTableHead>Container</th>
                 <th hlmTableHead>Host</th>
                 <th hlmTableHead class="text-right">Port</th>
-                <th hlmTableHead>Database</th>
+                <th hlmTableHead>Default DB</th>
                 <th hlmTableHead>User</th>
-                <th hlmTableHead class="w-12 text-right"></th>
+                <th hlmTableHead class="w-24 text-right">Actions</th>
               </tr>
             </thead>
             <tbody hlmTableBody>
               @for (db of store.instances(); track db.id) {
                 <tr hlmTableRow>
                   <td hlmTableCell>
-                    <span hlmBadge variant="secondary">{{ db.engine }}</span>
+                    <span class="inline-flex items-center gap-3 leading-none">
+                      <ng-icon [name]="engineIcon(db.engine)" size="18" class="shrink-0" />
+                      <span class="text-sm">{{ db.engine }}</span>
+                    </span>
                   </td>
                   <td hlmTableCell>{{ db.version }}</td>
                   <td hlmTableCell class="font-mono text-xs">{{ db.containerName }}</td>
@@ -97,16 +112,43 @@
                   <td hlmTableCell>{{ db.databaseName }}</td>
                   <td hlmTableCell>{{ db.username }}</td>
                   <td hlmTableCell class="text-right">
-                    <button
-                      hlmBtn
-                      variant="ghost"
-                      size="icon"
-                      type="button"
-                      aria-label="View details"
-                      (click)="viewDetails(db.id)"
-                    >
-                      <ng-icon name="lucideEye" size="16" />
-                    </button>
+                    <div class="flex items-center justify-end gap-1">
+                      <button
+                        hlmBtn
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        aria-label="View details"
+                        (click)="viewDetails(db.id)"
+                      >
+                        <ng-icon name="lucideEye" size="16" />
+                      </button>
+                      <button
+                        hlmBtn
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        aria-label="More actions"
+                        [hlmDropdownMenuTrigger]="rowMenu"
+                        align="end"
+                      >
+                        <ng-icon name="lucideEllipsisVertical" size="16" />
+                      </button>
+
+                      <ng-template #rowMenu>
+                        <hlm-dropdown-menu class="min-w-40">
+                          <button hlmDropdownMenuItem (click)="editInstance(db)">
+                            <ng-icon name="lucidePencil" />
+                            Edit
+                          </button>
+                          <hlm-dropdown-menu-separator />
+                          <button hlmDropdownMenuItem (click)="deleteInstance(db)">
+                            <ng-icon name="lucideTrash2" />
+                            Delete
+                          </button>
+                        </hlm-dropdown-menu>
+                      </ng-template>
+                    </div>
                   </td>
                 </tr>
               }

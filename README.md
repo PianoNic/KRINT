@@ -65,11 +65,15 @@ docker run --rm -p 8080:8080 -p 8081:8081 krint-api
 ## Tests
 
 ```powershell
-dotnet test src/KRINT.Tests
+dotnet run --project src/KRINT.Tests
 ```
 
-`KRINT.Tests` uses [TUnit](https://github.com/thomhurst/TUnit). Assembly-level
-`[Retry(3)]` is configured in `GlobalSetup.cs`.
+`KRINT.Tests` uses [TUnit](https://github.com/thomhurst/TUnit). Includes
+unit tests plus a full-stack browser E2E (`E2E/KrintEndToEndTests.cs`) driven
+by Microsoft.Playwright that exercises the wizard, instance dialogs, backups,
+and activity log against a live Keycloak + API + frontend. See
+[docs/dev-setup.md §6](docs/dev-setup.md) for the one-time Chromium install
+and stack-up steps.
 
 ## Status
 

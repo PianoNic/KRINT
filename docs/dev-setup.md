@@ -115,13 +115,39 @@ Frontend on `http://localhost:4200`.
 dotnet run --project src/KRINT.Tests
 ```
 
-TUnit 1.x test runner. Current coverage:
+TUnit 1.x test runner. Coverage:
 
-- `PingQueryTests` — Mediator query handler smoke test
-- `SecretGeneratorServiceTests` — length, alphabet, uniqueness
-- `SecretsVaultServiceTests` — encrypt/decrypt round-trip, tamper-detection (AES-GCM auth tag), missing/invalid master-key, store + delete behavior
+- **Unit** — `PingQueryTests`, `SecretGeneratorServiceTests`, `SecretsVaultServiceTests`. All use `Microsoft.EntityFrameworkCore.InMemory` — no Postgres required.
+- **E2E** — Browser-driven tests via Microsoft.Playwright. The suite boots its **own** ephemeral stack via Testcontainers each session — Postgres + Keycloak + the bundled KRINT image (built from this repo's Dockerfile). You don't need to run the dev stack manually.
 
-Vault tests use `Microsoft.EntityFrameworkCore.InMemory` so they don't need a running Postgres.
+### Running the E2E suite
+
+Prereqs: Docker running on the host, plus (one-time) Playwright's Chromium build:
+
+```powershell
+dotnet build src/KRINT.Tests
+pwsh src/KRINT.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
+```
+
+Then:
+
+```powershell
+dotnet run --project src/KRINT.Tests
+```
+
+What happens on first run:
+1. **Image build** (~2 min) — multi-stage Dockerfile (frontend via `bun build` + .NET API publish) into a single distroless Azure Linux image.
+2. **Stack boot** (~30 s) — Postgres 18, Keycloak 26 with the realm imported (seeded with `e2e_runner` / `Test1234!`), KRINT app reachable on a random host port.
+3. **Browser tests** — each test creates a fresh browser context, logs in as `e2e_runner`, exercises one slice of the app, and cleans up.
+
+Test files (`src/KRINT.Tests/E2E/`):
+- `KrintStack.cs` — Testcontainers orchestrator + image builder
+- `KrintTestFixture.cs` — per-test browser context + Keycloak login helper
+- `KrintSessionHooks.cs` — TUnit `[Before/After(TestSession)]` for stack lifecycle
+- `WizardHelper.cs` — drives the `/create` wizard
+- `NavigationTests`, `WizardTests`, `InstanceDialogTests`, `BackupTests`, `ActivityLogTests`, `InstanceLifecycleTests`
+
+Headless by default. Set `KrintTestFixture.Headless = false` in `KrintSessionHooks.StartStack` for visible browser windows during local debugging.
 
 ## 7. EF migrations
 
