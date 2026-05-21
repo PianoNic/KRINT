@@ -1,0 +1,31 @@
+services:
+  dev-db:
+    image: postgres:18.3
+    container_name: krint-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: d4vpas8w0rd13!!!
+      POSTGRES_DB: krint-dev
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6
+    container_name: krint-keycloak-dev
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/krint-realm.json:/opt/keycloak/data/import/krint-realm.json:ro
+      - keycloak-data-dev:/opt/keycloak/data
+
+volumes:
+  postgres-data-dev:
+  keycloak-data-dev:

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KRINT.Application\KRINT.Application.csproj" />
+    <ProjectReference Include="..\KRINT.Infrastructure\KRINT.Infrastructure.csproj" />
+    <ProjectReference Include="..\KRINT.Domain\KRINT.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
