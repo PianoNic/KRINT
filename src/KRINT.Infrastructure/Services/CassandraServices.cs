@@ -170,8 +170,4 @@ namespace KRINT.Infrastructure.Services
         }
     }
 
-    // ScyllaDB: same CQL protocol, same driver - just relabel the engine key.
-    public sealed class ScyllaDbInnerDatabaseService : CassandraInnerDatabaseService { public override string Engine => "scylladb"; }
-    public sealed class ScyllaDbInnerUserService     : CassandraInnerUserService     { public override string Engine => "scylladb"; }
-    public sealed class ScyllaDbInnerSchemaService   : CassandraInnerSchemaService   { public override string Engine => "scylladb"; }
 }

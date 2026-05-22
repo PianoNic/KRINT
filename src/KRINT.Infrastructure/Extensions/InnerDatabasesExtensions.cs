@@ -17,21 +17,13 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerDatabaseService, CockroachDbInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, ClickHouseInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, CassandraInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, ScyllaDbInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, CouchDbInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, ElasticInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, OpenSearchInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, ArangoDbInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, EtcdInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, PgVectorInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, Neo4jInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, InfluxDbInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, SolrInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, MeilisearchInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, QdrantInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, ValkeyInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, MsSqlInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, CouchbaseInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseServiceResolver, InnerDatabaseServiceResolver>();
 
             services.AddSingleton<IInnerUserService, PostgresInnerUserService>();
@@ -43,21 +35,13 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerUserService, CockroachDbInnerUserService>();
             services.AddSingleton<IInnerUserService, ClickHouseInnerUserService>();
             services.AddSingleton<IInnerUserService, CassandraInnerUserService>();
-            services.AddSingleton<IInnerUserService, ScyllaDbInnerUserService>();
             services.AddSingleton<IInnerUserService, CouchDbInnerUserService>();
             services.AddSingleton<IInnerUserService, ElasticInnerUserService>();
-            services.AddSingleton<IInnerUserService, OpenSearchInnerUserService>();
-            services.AddSingleton<IInnerUserService, ArangoDbInnerUserService>();
-            services.AddSingleton<IInnerUserService, EtcdInnerUserService>();
             services.AddSingleton<IInnerUserService, PgVectorInnerUserService>();
             services.AddSingleton<IInnerUserService, Neo4jInnerUserService>();
-            services.AddSingleton<IInnerUserService, InfluxDbInnerUserService>();
-            services.AddSingleton<IInnerUserService, SolrInnerUserService>();
-            services.AddSingleton<IInnerUserService, MeilisearchInnerUserService>();
             services.AddSingleton<IInnerUserService, QdrantInnerUserService>();
             services.AddSingleton<IInnerUserService, ValkeyInnerUserService>();
             services.AddSingleton<IInnerUserService, MsSqlInnerUserService>();
-            services.AddSingleton<IInnerUserService, CouchbaseInnerUserService>();
             services.AddSingleton<IInnerUserServiceResolver, InnerUserServiceResolver>();
 
             services.AddSingleton<IInnerSchemaService, PostgresInnerSchemaService>();
@@ -69,21 +53,13 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerSchemaService, CockroachDbInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, ClickHouseInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, CassandraInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, ScyllaDbInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, CouchDbInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, ElasticInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, OpenSearchInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, ArangoDbInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, EtcdInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, PgVectorInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, Neo4jInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, InfluxDbInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, SolrInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, MeilisearchInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, QdrantInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, ValkeyInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, MsSqlInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, CouchbaseInnerSchemaService>();
             services.AddSingleton<IInnerSchemaServiceResolver, InnerSchemaServiceResolver>();
 
             // Query console - SQL engines only for v1. Engines without an entry surface in the

@@ -144,14 +144,6 @@ namespace KRINT.Application.Command
                     }
                 }
 
-                // Couchbase needs a cluster-init dance on first boot - set services, RAM quotas,
-                // admin credentials, then create the default bucket. Without this the cluster is
-                // unusable from the API.
-                if (string.Equals(command.Engine, "couchbase", StringComparison.OrdinalIgnoreCase))
-                {
-                    await RunCouchbaseInitAsync(readinessTarget, password, cancellationToken);
-                }
-
                 var instance = new DatabaseInstance
                 {
                     Id = instanceId,
@@ -254,31 +246,12 @@ namespace KRINT.Application.Command
                 case "cassandra":
                     // Cassandra image doesn't take a password env. We provision with auth disabled.
                     return new EngineSpec("cassandra", "cass", 9042, "cassandra", "system", "/var/lib/cassandra");
-                case "scylladb":
-                    // ScyllaDB image is API-compatible with Cassandra; same defaults.
-                    return new EngineSpec("scylladb/scylla", "scylla", 9042, "cassandra", "system", "/var/lib/scylla",
-                        CmdFactory: _ => new[] { "--smp", "1", "--memory", "750M", "--overprovisioned", "1" });
                 case "couchdb":
                     // COUCHDB_USER / COUCHDB_PASSWORD seed the admin account on first boot.
                     return new EngineSpec("couchdb", "couch", 5984, "admin", "default", "/opt/couchdb/data");
                 case "elasticsearch":
                     // ELASTIC_PASSWORD is read from env; xpack.security.enabled is on by default in 8.x.
                     return new EngineSpec("elasticsearch", "es", 9200, "elastic", "_cluster", "/usr/share/elasticsearch/data");
-                case "opensearch":
-                    // OpenSearch 2.12+ requires OPENSEARCH_INITIAL_ADMIN_PASSWORD on first start; admin user is `admin`.
-                    return new EngineSpec("opensearchproject/opensearch", "os", 9200, "admin", "_cluster", "/usr/share/opensearch/data");
-                case "arangodb":
-                    // ARANGO_ROOT_PASSWORD seeds the root account; _system is always present.
-                    return new EngineSpec("arangodb", "arango", 8529, "root", "_system", "/var/lib/arangodb3");
-                case "etcd":
-                    // Bind etcd to all interfaces so we can reach it from the host. Auth off by default.
-                    return new EngineSpec("quay.io/coreos/etcd", "etcd", 2379, "root", "default", "/etcd-data",
-                        CmdFactory: _ => new[] {
-                            "/usr/local/bin/etcd",
-                            "--data-dir=/etcd-data",
-                            "--listen-client-urls=http://0.0.0.0:2379",
-                            "--advertise-client-urls=http://0.0.0.0:2379",
-                        });
                 case "pgvector":
                     // pgvector/pgvector tags use Postgres <=17 layout. CREATE EXTENSION vector runs
                     // after the container is ready (see InitSqlFactory below).
@@ -286,14 +259,6 @@ namespace KRINT.Application.Command
                 case "neo4j":
                     // NEO4J_AUTH is read as "user/password" - we pass it via env. Default DB is "neo4j".
                     return new EngineSpec("neo4j", "neo4j", 7687, "neo4j", "neo4j", "/data");
-                case "influxdb":
-                    // Influx 2.x init env vars set the org/bucket/admin token on first boot.
-                    return new EngineSpec("influxdb", "influx", 8086, "admin", "krint", "/var/lib/influxdb2");
-                case "solr":
-                    return new EngineSpec("solr", "solr", 8983, "solr", "_cluster", "/var/solr");
-                case "meilisearch":
-                    // MEILI_MASTER_KEY is used as the bearer token.
-                    return new EngineSpec("getmeili/meilisearch", "meili", 7700, "default", "_cluster", "/meili_data");
                 case "qdrant":
                     // QDRANT__SERVICE__API_KEY is sent in the api-key header by our HTTP client.
                     return new EngineSpec("qdrant/qdrant", "qdrant", 6333, "default", "_cluster", "/qdrant/storage");
@@ -304,9 +269,6 @@ namespace KRINT.Application.Command
                 case "mssql":
                     // SA password must be ≥8 chars, mixed case, digit, special. SecretGenerator already does this.
                     return new EngineSpec("mcr.microsoft.com/mssql/server", "mssql", 1433, "sa", "master", "/var/opt/mssql");
-                case "couchbase":
-                    // First-boot cluster init happens after readiness - see RunCouchbaseInitAsync below.
-                    return new EngineSpec("couchbase", "cb", 8091, "Administrator", "default", "/opt/couchbase/var");
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
@@ -375,8 +337,7 @@ namespace KRINT.Application.Command
                         chEnv.Add($"CLICKHOUSE_DB={databaseName}");
                     return chEnv;
                 case "cassandra":
-                case "scylladb":
-                    // Both images run with auth disabled by default; no env vars needed.
+                    // Image runs with auth disabled by default; no env vars needed.
                     return new List<string>();
                 case "couchdb":
                     return new List<string>
@@ -394,21 +355,6 @@ namespace KRINT.Application.Command
                         "xpack.security.http.ssl.enabled=false",
                         "ES_JAVA_OPTS=-Xms512m -Xmx512m",
                     };
-                case "opensearch":
-                    return new List<string>
-                    {
-                        "discovery.type=single-node",
-                        // The image refuses to boot without this on >=2.12.
-                        $"OPENSEARCH_INITIAL_ADMIN_PASSWORD={password}",
-                        "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m",
-                        // Disable the security demo certs check - we still talk HTTPS to it, the
-                        // service client just accepts the self-signed cert.
-                        "DISABLE_INSTALL_DEMO_CONFIG=false",
-                    };
-                case "arangodb":
-                    return new List<string> { $"ARANGO_ROOT_PASSWORD={password}" };
-                case "etcd":
-                    return new List<string>();
                 case "pgvector":
                     var pgvecEnv = new List<string> { $"POSTGRES_PASSWORD={password}" };
                     if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
@@ -421,25 +367,6 @@ namespace KRINT.Application.Command
                         // Accept the Community licence non-interactively.
                         "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes",
                     };
-                case "influxdb":
-                    return new List<string>
-                    {
-                        "DOCKER_INFLUXDB_INIT_MODE=setup",
-                        "DOCKER_INFLUXDB_INIT_USERNAME=admin",
-                        $"DOCKER_INFLUXDB_INIT_PASSWORD={password}",
-                        "DOCKER_INFLUXDB_INIT_ORG=krint",
-                        "DOCKER_INFLUXDB_INIT_BUCKET=default",
-                        // The init token is our auth secret - we send it in Authorization: Token ...
-                        $"DOCKER_INFLUXDB_INIT_ADMIN_TOKEN={password}",
-                    };
-                case "solr":
-                    return new List<string>();   // No auth by default; nothing to inject.
-                case "meilisearch":
-                    return new List<string>
-                    {
-                        $"MEILI_MASTER_KEY={password}",
-                        "MEILI_ENV=production",
-                    };
                 case "qdrant":
                     return new List<string> { $"QDRANT__SERVICE__API_KEY={password}" };
                 case "valkey":
@@ -451,9 +378,6 @@ namespace KRINT.Application.Command
                         $"MSSQL_SA_PASSWORD={password}",
                         "MSSQL_PID=Developer",
                     };
-                case "couchbase":
-                    // The image expects cluster init via HTTP after boot - see RunCouchbaseInitAsync.
-                    return new List<string>();
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
@@ -470,57 +394,6 @@ namespace KRINT.Application.Command
                 // Unknown keys are silently dropped - the FE only exposes catalog plugins.
             }
             return result;
-        }
-
-        private static async Task RunCouchbaseInitAsync(InnerDatabaseTarget target, string password, CancellationToken cancellationToken)
-        {
-            // The official Couchbase image boots into "uninitialized" mode. Three steps:
-            // 1) Set services on this node, 2) Set RAM quotas, 3) Create admin user + bucket.
-            using var http = new HttpClient { BaseAddress = new Uri($"http://{target.Host}:{target.Port}"), Timeout = TimeSpan.FromSeconds(30) };
-
-            var deadline = DateTime.UtcNow.AddMinutes(2);
-            while (DateTime.UtcNow < deadline)
-            {
-                try
-                {
-                    var probe = await http.GetAsync("/pools", cancellationToken);
-                    if (probe.IsSuccessStatusCode) break;
-                }
-                catch { /* keep polling */ }
-                await Task.Delay(2000, cancellationToken);
-            }
-
-            await PostFormAsync(http, "/node/controller/setupServices", new() { ["services"] = "kv,n1ql,index" }, cancellationToken);
-            await PostFormAsync(http, "/pools/default", new() { ["memoryQuota"] = "512", ["indexMemoryQuota"] = "256" }, cancellationToken);
-            await PostFormAsync(http, "/settings/web", new()
-            {
-                ["password"] = password,
-                ["username"] = target.Username,
-                ["port"] = "8091",
-            }, cancellationToken);
-
-            // Authenticated from here on.
-            var token = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{target.Username}:{password}"));
-            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", token);
-            await PostFormAsync(http, "/pools/default/buckets", new()
-            {
-                ["name"] = target.DefaultDatabase,
-                ["ramQuotaMB"] = "256",
-                ["bucketType"] = "couchbase",
-            }, cancellationToken);
-        }
-
-        private static async Task PostFormAsync(HttpClient http, string path, Dictionary<string, string> form, CancellationToken cancellationToken)
-        {
-            using var content = new FormUrlEncodedContent(form);
-            using var resp = await http.PostAsync(path, content, cancellationToken);
-            // Some couchbase endpoints return non-2xx but still succeed (e.g. already-initialised); log and continue.
-            if (!resp.IsSuccessStatusCode)
-            {
-                var body = await resp.Content.ReadAsStringAsync(cancellationToken);
-                if (!body.Contains("already initialized", StringComparison.OrdinalIgnoreCase) && !body.Contains("Bucket with given name already exists", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"Couchbase init step {path} failed: {(int)resp.StatusCode} {body}");
-            }
         }
 
         private static async Task RunPgInitSqlAsync(InnerDatabaseTarget target, string sql, CancellationToken cancellationToken)
@@ -544,12 +417,12 @@ namespace KRINT.Application.Command
         private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
         {
             var inner = _innerDbs.Resolve(target.Engine);
-            // Cold-boot envelope per engine. JVM-heavy ones (Cassandra, Scylla, ES, OpenSearch,
-            // Solr, Neo4j, Couchbase) routinely need >60s on first start; SQL engines + cache
-            // stores come up in a handful of seconds.
+            // Cold-boot envelope per engine. JVM-heavy ones (Cassandra, Elasticsearch, Neo4j)
+            // routinely need >60s on first start; SQL engines + cache stores come up in a
+            // handful of seconds.
             var ceilingSeconds = target.Engine switch
             {
-                "cassandra" or "scylladb" or "elasticsearch" or "opensearch" or "neo4j" or "solr" or "couchbase" => 180,
+                "cassandra" or "elasticsearch" or "neo4j" => 180,
                 _ => 60,
             };
             var deadline = DateTime.UtcNow.AddSeconds(ceilingSeconds);

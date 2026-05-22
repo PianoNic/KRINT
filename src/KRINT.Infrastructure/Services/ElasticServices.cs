@@ -137,15 +137,4 @@ namespace KRINT.Infrastructure.Services
         }
     }
 
-    public sealed class OpenSearchInnerDatabaseService : ElasticInnerDatabaseService
-    {
-        public override string Engine => "opensearch";
-        protected override bool UseHttps => true;
-    }
-    public sealed class OpenSearchInnerUserService : ElasticInnerUserService { public override string Engine => "opensearch"; }
-    public sealed class OpenSearchInnerSchemaService : ElasticInnerSchemaService
-    {
-        public override string Engine => "opensearch";
-        protected override bool UseHttps => true;
-    }
 }

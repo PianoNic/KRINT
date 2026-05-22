@@ -15,7 +15,7 @@ import {
   lucideRefreshCw,
   lucideTrash2,
 } from '@ng-icons/lucide';
-import { simpleApachecassandra, simpleApachecouchdb, simpleApachesolr, simpleArangodb, simpleClickhouse, simpleCockroachlabs, simpleCouchbase, simpleElasticsearch, simpleEtcd, simpleInfluxdb, simpleMariadb, simpleMeilisearch, simpleMongodb, simpleMysql, simpleNeo4j, simpleOpensearch, simplePostgresql, simpleRedis, simpleScylladb, simpleTimescale } from '@ng-icons/simple-icons';
+import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -64,20 +64,12 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
       simpleMongodb,
       simpleApachecassandra,
       simpleApachecouchdb,
-      simpleApachesolr,
-      simpleArangodb,
       simpleClickhouse,
       simpleCockroachlabs,
-      simpleCouchbase,
       simpleElasticsearch,
-      simpleEtcd,
-      simpleInfluxdb,
       simpleMariadb,
-      simpleMeilisearch,
       simpleNeo4j,
-      simpleOpensearch,
       simpleRedis,
-      simpleScylladb,
       simpleTimescale,
       customMssql,
       customQdrant,
@@ -583,21 +575,13 @@ export class Backups {
       case 'cockroachdb': return 'simpleCockroachlabs';
       case 'clickhouse':  return 'simpleClickhouse';
       case 'cassandra':   return 'simpleApachecassandra';
-      case 'scylladb':    return 'simpleScylladb';
       case 'couchdb':     return 'simpleApachecouchdb';
       case 'elasticsearch': return 'simpleElasticsearch';
-      case 'opensearch':  return 'simpleOpensearch';
-      case 'arangodb':    return 'simpleArangodb';
-      case 'etcd':        return 'simpleEtcd';
       case 'pgvector':    return 'simplePostgresql';
       case 'neo4j':       return 'simpleNeo4j';
-      case 'influxdb':    return 'simpleInfluxdb';
-      case 'solr':        return 'simpleApachesolr';
-      case 'meilisearch': return 'simpleMeilisearch';
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
-      case 'couchbase':   return 'simpleCouchbase';
       default:         return 'lucideDatabase';
     }
   }

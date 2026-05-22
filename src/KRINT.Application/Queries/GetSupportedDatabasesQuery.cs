@@ -85,18 +85,6 @@ namespace KRINT.Application.Queries
             SupportsBackup = false,
         };
 
-        // ArangoDB: multi-model - databases, collections, documents over HTTP/JSON. Fits the
-        // existing model cleanly except for doc edit/delete which need _key + _rev.
-        private static readonly EngineCapabilitiesDto ArangoCaps = SqlCaps with
-        {
-            TableTerm = "collection",
-            RowTerm = "document",
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
-            SupportsUsers = false,
-            SupportsBackup = false,
-        };
-
         // CouchDB: HTTP doc store. "databases" are real, but docs live straight inside them
         // (no tables). We expose a single virtual "_all_docs" table per database, similar
         // to how Redis exposes "keys".
@@ -127,45 +115,6 @@ namespace KRINT.Application.Queries
             SupportsBackup = false,
         };
 
-        // InfluxDB v2: orgs -> buckets -> points. We expose the single init-org as the database,
-        // buckets as tables, and points as rows. Edit/delete are deliberate per-point ops in
-        // line protocol - skip for v1. Insert via line protocol writes.
-        private static readonly EngineCapabilitiesDto InfluxCaps = SqlCaps with
-        {
-            DatabaseTerm = "org",
-            TableTerm = "bucket",
-            RowTerm = "point",
-            SupportsCreateDatabase = false,
-            SupportsDropDatabase = false,
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
-            SupportsRowInsert = false,
-            SupportsUsers = false,
-            SupportsBackup = false,
-        };
-
-        // Solr / Meilisearch: HTTP search engines. Same shape as Elasticsearch - single
-        // virtual cluster "database", cores/indexes are tables, documents are rows.
-        private static readonly EngineCapabilitiesDto SolrCaps = ElasticCaps;
-        private static readonly EngineCapabilitiesDto MeilisearchCaps = ElasticCaps;
-
-        // Couchbase: SQL-shaped via N1QL but the topology is bucket → scope → collection. We
-        // expose buckets as databases and collections as tables. Cluster init has to run on
-        // first provision (see CreateDatabaseCommand). User mgmt skipped for v1.
-        private static readonly EngineCapabilitiesDto CouchbaseCaps = SqlCaps with
-        {
-            DatabaseTerm = "bucket",
-            TableTerm = "collection",
-            RowTerm = "document",
-            SupportsCreateDatabase = false,
-            SupportsDropDatabase = false,
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
-            SupportsRowInsert = false,
-            SupportsUsers = false,
-            SupportsBackup = false,
-        };
-
         // Qdrant: vector DB. We expose collections as "tables" and points as "rows" (id + payload + vector preview).
         // No multi-DB concept; insert/edit/delete are out of scope until we have a vector-aware UI.
         private static readonly EngineCapabilitiesDto QdrantCaps = SqlCaps with
@@ -178,27 +127,6 @@ namespace KRINT.Application.Queries
             SupportsRowEdit = false,
             SupportsRowInsert = false,
             SupportsRowDelete = false,
-            SupportsUsers = false,
-            SupportsBackup = false,
-        };
-
-        // etcd: distributed key-value store. Flat namespace (no DBs, no tables), keys are strings,
-        // values are bytes. We model it as one virtual database ("default") with one virtual
-        // table ("keys") to keep the browse contract honest.
-        private static readonly EngineCapabilitiesDto EtcdCaps = new()
-        {
-            DatabaseTerm = "namespace",
-            TableTerm = "keyspace",
-            RowTerm = "key",
-            SupportsListDatabases = true,
-            SupportsCreateDatabase = false,
-            SupportsDropDatabase = false,
-            SupportsListTables = true,
-            SupportsDropTable = false,
-            SupportsRowRead = true,
-            SupportsRowInsert = true,
-            SupportsRowEdit = true,
-            SupportsRowDelete = true,
             SupportsUsers = false,
             SupportsBackup = false,
         };
@@ -326,24 +254,15 @@ namespace KRINT.Application.Queries
             ("clickhouse",  "ClickHouse",  "clickhouse/clickhouse-server", ClickhouseCaps),
             // Wide-column
             ("cassandra",   "Cassandra",   "cassandra",             CassandraCaps),
-            ("scylladb",    "ScyllaDB",    "scylladb/scylla",       CassandraCaps),
             // Document
             ("couchdb",     "CouchDB",     "couchdb",               CouchDbCaps),
-            ("couchbase",   "Couchbase",   "couchbase",             CouchbaseCaps),
-            // Multi-model + graph
-            ("arangodb",    "ArangoDB",    "arangodb",              ArangoCaps),
+            // Graph
             ("neo4j",       "Neo4j",       "neo4j",                 Neo4jCaps),
             // Key-value / cache
             ("redis",       "Redis",       "redis",                 RedisCaps),
             ("valkey",      "Valkey",      "valkey/valkey",         RedisCaps),
-            ("etcd",        "etcd",        "quay.io/coreos/etcd",   EtcdCaps),
             // Search
             ("elasticsearch", "Elasticsearch", "elasticsearch",     ElasticCaps),
-            ("opensearch",  "OpenSearch",  "opensearchproject/opensearch", ElasticCaps),
-            ("solr",        "Apache Solr", "solr",                  SolrCaps),
-            ("meilisearch", "Meilisearch", "getmeili/meilisearch",  MeilisearchCaps),
-            // Time-series
-            ("influxdb",    "InfluxDB",    "influxdb",              InfluxCaps),
             // Vector
             ("qdrant",      "Qdrant",      "qdrant/qdrant",         QdrantCaps),
         };
