@@ -29,7 +29,11 @@ import { CreateInnerUserDto } from '../model/createInnerUserDto';
 // @ts-ignore
 import { DatabaseInstanceDto } from '../model/databaseInstanceDto';
 // @ts-ignore
+import { DeleteRowDto } from '../model/deleteRowDto';
+// @ts-ignore
 import { InnerUserPasswordDto } from '../model/innerUserPasswordDto';
+// @ts-ignore
+import { InsertRowDto } from '../model/insertRowDto';
 // @ts-ignore
 import { ProblemDetails } from '../model/problemDetails';
 // @ts-ignore
@@ -44,6 +48,8 @@ import { SupportedDatabaseDto } from '../model/supportedDatabaseDto';
 import { TableRowsDto } from '../model/tableRowsDto';
 // @ts-ignore
 import { TableSummaryDto } from '../model/tableSummaryDto';
+// @ts-ignore
+import { UpdateRowDto } from '../model/updateRowDto';
 
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS }                     from '../variables';
@@ -182,6 +188,158 @@ export class DatabaseService extends BaseService {
     }
 
     /**
+     * @endpoint delete /api/Database/{id}/browse/{database}/tables/{table}
+     * @param id 
+     * @param database 
+     * @param table 
+     * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+     * @param reportProgress flag to report request and response progress.
+     * @param options additional options
+     */
+    public apiDatabaseIdBrowseDatabaseTablesTableDelete(id: string, database: string, table: string, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any>;
+    public apiDatabaseIdBrowseDatabaseTablesTableDelete(id: string, database: string, table: string, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableDelete(id: string, database: string, table: string, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableDelete(id: string, database: string, table: string, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        if (id === null || id === undefined) {
+            throw new Error('Required parameter id was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableDelete.');
+        }
+        if (database === null || database === undefined) {
+            throw new Error('Required parameter database was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableDelete.');
+        }
+        if (table === null || table === undefined) {
+            throw new Error('Required parameter table was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableDelete.');
+        }
+
+        let localVarHeaders = this.defaultHeaders;
+
+        // authentication (OAuth2) required
+        localVarHeaders = this.configuration.addCredentialToHeaders('OAuth2', 'Authorization', localVarHeaders, 'Bearer ');
+
+        const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
+            'text/plain',
+            'application/json',
+            'text/json'
+        ]);
+        if (localVarHttpHeaderAcceptSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Accept', localVarHttpHeaderAcceptSelected);
+        }
+
+        const localVarHttpContext: HttpContext = options?.context ?? new HttpContext();
+
+        const localVarTransferCache: boolean = options?.transferCache ?? true;
+
+
+        let responseType_: 'text' | 'json' | 'blob' = 'json';
+        if (localVarHttpHeaderAcceptSelected) {
+            if (localVarHttpHeaderAcceptSelected.startsWith('text')) {
+                responseType_ = 'text';
+            } else if (this.configuration.isJsonMime(localVarHttpHeaderAcceptSelected)) {
+                responseType_ = 'json';
+            } else {
+                responseType_ = 'blob';
+            }
+        }
+
+        let localVarPath = `/api/Database/${this.configuration.encodeParam({name: "id", value: id, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: "uuid"})}/browse/${this.configuration.encodeParam({name: "database", value: database, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/tables/${this.configuration.encodeParam({name: "table", value: table, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}`;
+        const { basePath, withCredentials } = this.configuration;
+        return this.httpClient.request<any>('delete', `${basePath}${localVarPath}`,
+            {
+                context: localVarHttpContext,
+                responseType: <any>responseType_,
+                ...(withCredentials ? { withCredentials } : {}),
+                headers: localVarHeaders,
+                observe: observe,
+                ...(localVarTransferCache !== undefined ? { transferCache: localVarTransferCache } : {}),
+                reportProgress: reportProgress
+            }
+        );
+    }
+
+    /**
+     * @endpoint delete /api/Database/{id}/browse/{database}/tables/{table}/rows
+     * @param id 
+     * @param database 
+     * @param table 
+     * @param deleteRowDto 
+     * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+     * @param reportProgress flag to report request and response progress.
+     * @param options additional options
+     */
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsDelete(id: string, database: string, table: string, deleteRowDto: DeleteRowDto, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsDelete(id: string, database: string, table: string, deleteRowDto: DeleteRowDto, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsDelete(id: string, database: string, table: string, deleteRowDto: DeleteRowDto, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsDelete(id: string, database: string, table: string, deleteRowDto: DeleteRowDto, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        if (id === null || id === undefined) {
+            throw new Error('Required parameter id was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsDelete.');
+        }
+        if (database === null || database === undefined) {
+            throw new Error('Required parameter database was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsDelete.');
+        }
+        if (table === null || table === undefined) {
+            throw new Error('Required parameter table was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsDelete.');
+        }
+        if (deleteRowDto === null || deleteRowDto === undefined) {
+            throw new Error('Required parameter deleteRowDto was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsDelete.');
+        }
+
+        let localVarHeaders = this.defaultHeaders;
+
+        // authentication (OAuth2) required
+        localVarHeaders = this.configuration.addCredentialToHeaders('OAuth2', 'Authorization', localVarHeaders, 'Bearer ');
+
+        const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
+            'text/plain',
+            'application/json',
+            'text/json'
+        ]);
+        if (localVarHttpHeaderAcceptSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Accept', localVarHttpHeaderAcceptSelected);
+        }
+
+        const localVarHttpContext: HttpContext = options?.context ?? new HttpContext();
+
+        const localVarTransferCache: boolean = options?.transferCache ?? true;
+
+
+        // to determine the Content-Type header
+        const consumes: string[] = [
+            'application/json',
+            'text/json',
+            'application/*+json'
+        ];
+        const httpContentTypeSelected: string | undefined = this.configuration.selectHeaderContentType(consumes);
+        if (httpContentTypeSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Content-Type', httpContentTypeSelected);
+        }
+
+        let responseType_: 'text' | 'json' | 'blob' = 'json';
+        if (localVarHttpHeaderAcceptSelected) {
+            if (localVarHttpHeaderAcceptSelected.startsWith('text')) {
+                responseType_ = 'text';
+            } else if (this.configuration.isJsonMime(localVarHttpHeaderAcceptSelected)) {
+                responseType_ = 'json';
+            } else {
+                responseType_ = 'blob';
+            }
+        }
+
+        let localVarPath = `/api/Database/${this.configuration.encodeParam({name: "id", value: id, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: "uuid"})}/browse/${this.configuration.encodeParam({name: "database", value: database, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/tables/${this.configuration.encodeParam({name: "table", value: table, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/rows`;
+        const { basePath, withCredentials } = this.configuration;
+        return this.httpClient.request<any>('delete', `${basePath}${localVarPath}`,
+            {
+                context: localVarHttpContext,
+                body: deleteRowDto,
+                responseType: <any>responseType_,
+                ...(withCredentials ? { withCredentials } : {}),
+                headers: localVarHeaders,
+                observe: observe,
+                ...(localVarTransferCache !== undefined ? { transferCache: localVarTransferCache } : {}),
+                reportProgress: reportProgress
+            }
+        );
+    }
+
+    /**
      * @endpoint get /api/Database/{id}/browse/{database}/tables/{table}/rows
      * @param id 
      * @param database 
@@ -262,6 +420,174 @@ export class DatabaseService extends BaseService {
             {
                 context: localVarHttpContext,
                 params: localVarQueryParameters.toHttpParams(),
+                responseType: <any>responseType_,
+                ...(withCredentials ? { withCredentials } : {}),
+                headers: localVarHeaders,
+                observe: observe,
+                ...(localVarTransferCache !== undefined ? { transferCache: localVarTransferCache } : {}),
+                reportProgress: reportProgress
+            }
+        );
+    }
+
+    /**
+     * @endpoint patch /api/Database/{id}/browse/{database}/tables/{table}/rows
+     * @param id 
+     * @param database 
+     * @param table 
+     * @param updateRowDto 
+     * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+     * @param reportProgress flag to report request and response progress.
+     * @param options additional options
+     */
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPatch(id: string, database: string, table: string, updateRowDto: UpdateRowDto, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPatch(id: string, database: string, table: string, updateRowDto: UpdateRowDto, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPatch(id: string, database: string, table: string, updateRowDto: UpdateRowDto, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPatch(id: string, database: string, table: string, updateRowDto: UpdateRowDto, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        if (id === null || id === undefined) {
+            throw new Error('Required parameter id was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPatch.');
+        }
+        if (database === null || database === undefined) {
+            throw new Error('Required parameter database was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPatch.');
+        }
+        if (table === null || table === undefined) {
+            throw new Error('Required parameter table was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPatch.');
+        }
+        if (updateRowDto === null || updateRowDto === undefined) {
+            throw new Error('Required parameter updateRowDto was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPatch.');
+        }
+
+        let localVarHeaders = this.defaultHeaders;
+
+        // authentication (OAuth2) required
+        localVarHeaders = this.configuration.addCredentialToHeaders('OAuth2', 'Authorization', localVarHeaders, 'Bearer ');
+
+        const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
+            'text/plain',
+            'application/json',
+            'text/json'
+        ]);
+        if (localVarHttpHeaderAcceptSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Accept', localVarHttpHeaderAcceptSelected);
+        }
+
+        const localVarHttpContext: HttpContext = options?.context ?? new HttpContext();
+
+        const localVarTransferCache: boolean = options?.transferCache ?? true;
+
+
+        // to determine the Content-Type header
+        const consumes: string[] = [
+            'application/json',
+            'text/json',
+            'application/*+json'
+        ];
+        const httpContentTypeSelected: string | undefined = this.configuration.selectHeaderContentType(consumes);
+        if (httpContentTypeSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Content-Type', httpContentTypeSelected);
+        }
+
+        let responseType_: 'text' | 'json' | 'blob' = 'json';
+        if (localVarHttpHeaderAcceptSelected) {
+            if (localVarHttpHeaderAcceptSelected.startsWith('text')) {
+                responseType_ = 'text';
+            } else if (this.configuration.isJsonMime(localVarHttpHeaderAcceptSelected)) {
+                responseType_ = 'json';
+            } else {
+                responseType_ = 'blob';
+            }
+        }
+
+        let localVarPath = `/api/Database/${this.configuration.encodeParam({name: "id", value: id, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: "uuid"})}/browse/${this.configuration.encodeParam({name: "database", value: database, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/tables/${this.configuration.encodeParam({name: "table", value: table, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/rows`;
+        const { basePath, withCredentials } = this.configuration;
+        return this.httpClient.request<any>('patch', `${basePath}${localVarPath}`,
+            {
+                context: localVarHttpContext,
+                body: updateRowDto,
+                responseType: <any>responseType_,
+                ...(withCredentials ? { withCredentials } : {}),
+                headers: localVarHeaders,
+                observe: observe,
+                ...(localVarTransferCache !== undefined ? { transferCache: localVarTransferCache } : {}),
+                reportProgress: reportProgress
+            }
+        );
+    }
+
+    /**
+     * @endpoint post /api/Database/{id}/browse/{database}/tables/{table}/rows
+     * @param id 
+     * @param database 
+     * @param table 
+     * @param insertRowDto 
+     * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+     * @param reportProgress flag to report request and response progress.
+     * @param options additional options
+     */
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPost(id: string, database: string, table: string, insertRowDto: InsertRowDto, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPost(id: string, database: string, table: string, insertRowDto: InsertRowDto, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPost(id: string, database: string, table: string, insertRowDto: InsertRowDto, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsPost(id: string, database: string, table: string, insertRowDto: InsertRowDto, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        if (id === null || id === undefined) {
+            throw new Error('Required parameter id was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPost.');
+        }
+        if (database === null || database === undefined) {
+            throw new Error('Required parameter database was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPost.');
+        }
+        if (table === null || table === undefined) {
+            throw new Error('Required parameter table was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPost.');
+        }
+        if (insertRowDto === null || insertRowDto === undefined) {
+            throw new Error('Required parameter insertRowDto was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsPost.');
+        }
+
+        let localVarHeaders = this.defaultHeaders;
+
+        // authentication (OAuth2) required
+        localVarHeaders = this.configuration.addCredentialToHeaders('OAuth2', 'Authorization', localVarHeaders, 'Bearer ');
+
+        const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
+            'text/plain',
+            'application/json',
+            'text/json'
+        ]);
+        if (localVarHttpHeaderAcceptSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Accept', localVarHttpHeaderAcceptSelected);
+        }
+
+        const localVarHttpContext: HttpContext = options?.context ?? new HttpContext();
+
+        const localVarTransferCache: boolean = options?.transferCache ?? true;
+
+
+        // to determine the Content-Type header
+        const consumes: string[] = [
+            'application/json',
+            'text/json',
+            'application/*+json'
+        ];
+        const httpContentTypeSelected: string | undefined = this.configuration.selectHeaderContentType(consumes);
+        if (httpContentTypeSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Content-Type', httpContentTypeSelected);
+        }
+
+        let responseType_: 'text' | 'json' | 'blob' = 'json';
+        if (localVarHttpHeaderAcceptSelected) {
+            if (localVarHttpHeaderAcceptSelected.startsWith('text')) {
+                responseType_ = 'text';
+            } else if (this.configuration.isJsonMime(localVarHttpHeaderAcceptSelected)) {
+                responseType_ = 'json';
+            } else {
+                responseType_ = 'blob';
+            }
+        }
+
+        let localVarPath = `/api/Database/${this.configuration.encodeParam({name: "id", value: id, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: "uuid"})}/browse/${this.configuration.encodeParam({name: "database", value: database, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/tables/${this.configuration.encodeParam({name: "table", value: table, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/rows`;
+        const { basePath, withCredentials } = this.configuration;
+        return this.httpClient.request<any>('post', `${basePath}${localVarPath}`,
+            {
+                context: localVarHttpContext,
+                body: insertRowDto,
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,

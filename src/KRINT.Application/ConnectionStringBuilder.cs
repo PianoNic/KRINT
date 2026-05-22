@@ -8,6 +8,7 @@ namespace KRINT.Application
             {
                 "postgres" => $"postgres://{username}:{password}@{host}:{port}/{database}",
                 "mysql" => $"mysql://{username}:{password}@{host}:{port}/{database}",
+                "mariadb" => $"mariadb://{username}:{password}@{host}:{port}/{database}",
                 "mongo" => $"mongodb://{username}:{password}@{host}:{port}/{database}?authSource=admin",
                 _ => throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine)),
             };

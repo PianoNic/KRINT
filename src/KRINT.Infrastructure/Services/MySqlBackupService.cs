@@ -4,7 +4,7 @@ namespace KRINT.Infrastructure.Services
 {
     public class MySqlBackupService(IDockerService docker) : IBackupService
     {
-        public string Engine => "mysql";
+        public virtual string Engine => "mysql";
 
         public async Task<BackupOutput> DumpAsync(BackupTarget target, CancellationToken cancellationToken = default)
         {

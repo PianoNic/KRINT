@@ -18,6 +18,7 @@ import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
 import { DatabaseService } from '../api/api/database.service';
@@ -38,6 +39,7 @@ type WizardUser = { name: string; grantDatabases: string[] };
     HlmInputImports,
     HlmLabelImports,
     HlmSelectImports,
+    HlmTooltipImports,
   ],
   providers: [
     provideIcons({
@@ -104,12 +106,35 @@ export class Create {
     return [def, ...this.databases().filter((d) => d.trim() !== '')];
   });
 
+  // Server rule (DatabaseNameValidator): start with letter/underscore, then [A-Za-z0-9_-], max 63 chars.
+  private static readonly NAME_RE = /^[A-Za-z_][A-Za-z0-9_-]{0,62}$/;
+
+  protected nameError(value: string, { required }: { required: boolean }): string | null {
+    const trimmed = value.trim();
+    if (trimmed === '') return required ? 'Required.' : null;
+    if (trimmed.length > 63) return 'Must be 63 characters or fewer.';
+    if (!Create.NAME_RE.test(trimmed)) {
+      return 'Must start with a letter or underscore and contain only A-Z, a-z, 0-9, _ or -.';
+    }
+    return null;
+  }
+
+  protected readonly defaultDbError = computed(() =>
+    this.nameError(this.defaultDbName(), { required: false }),
+  );
+  protected readonly databaseErrors = computed(() =>
+    this.databases().map((d) => this.nameError(d, { required: true })),
+  );
+  protected readonly userNameErrors = computed(() =>
+    this.users().map((u) => this.nameError(u.name, { required: true })),
+  );
+
   protected readonly canNext = computed(() => {
     switch (this.step()) {
       case 1: return !!this.engine();
-      case 2: return !!this.version();
-      case 3: return this.databases().every((d) => d.trim() !== '');
-      case 4: return this.users().every((u) => u.name.trim() !== '');
+      case 2: return !!this.version() && !this.defaultDbError();
+      case 3: return this.databaseErrors().every((e) => e === null);
+      case 4: return this.userNameErrors().every((e) => e === null);
       default: return true;
     }
   });

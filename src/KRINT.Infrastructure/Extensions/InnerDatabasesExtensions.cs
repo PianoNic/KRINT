@@ -10,21 +10,25 @@ namespace KRINT.Infrastructure.Extensions
         {
             services.AddSingleton<IInnerDatabaseService, PostgresInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, MySqlInnerDatabaseService>();
+            services.AddSingleton<IInnerDatabaseService, MariaDbInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, MongoInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseServiceResolver, InnerDatabaseServiceResolver>();
 
             services.AddSingleton<IInnerUserService, PostgresInnerUserService>();
             services.AddSingleton<IInnerUserService, MySqlInnerUserService>();
+            services.AddSingleton<IInnerUserService, MariaDbInnerUserService>();
             services.AddSingleton<IInnerUserService, MongoInnerUserService>();
             services.AddSingleton<IInnerUserServiceResolver, InnerUserServiceResolver>();
 
             services.AddSingleton<IInnerSchemaService, PostgresInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, MySqlInnerSchemaService>();
+            services.AddSingleton<IInnerSchemaService, MariaDbInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, MongoInnerSchemaService>();
             services.AddSingleton<IInnerSchemaServiceResolver, InnerSchemaServiceResolver>();
 
             services.AddScoped<IBackupService, PostgresBackupService>();
             services.AddScoped<IBackupService, MySqlBackupService>();
+            services.AddScoped<IBackupService, MariaDbBackupService>();
             services.AddScoped<IBackupService, MongoBackupService>();
             services.AddScoped<IBackupServiceResolver, BackupServiceResolver>();
             return services;

@@ -10,6 +10,7 @@ namespace KRINT.Infrastructure
         public DbSet<DatabaseInstance> DatabaseInstances => Set<DatabaseInstance>();
         public DbSet<ActivityEntry> ActivityEntries => Set<ActivityEntry>();
         public DbSet<BackupEntry> BackupEntries => Set<BackupEntry>();
+        public DbSet<BackupSchedule> BackupSchedules => Set<BackupSchedule>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

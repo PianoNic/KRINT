@@ -46,6 +46,9 @@ namespace KRINT.Infrastructure.Services
 
         private static async Task<NpgsqlConnection> OpenAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
         {
+            // Pooling=false: inner-DB admin calls are infrequent and short. A pool here only
+            // collects broken connectors after a failure (e.g. auth retry) and then surfaces
+            // them as ObjectDisposedException on the next call until the process restarts.
             var csb = new NpgsqlConnectionStringBuilder
             {
                 Host = target.Host,
@@ -54,6 +57,7 @@ namespace KRINT.Infrastructure.Services
                 Password = target.Password,
                 Database = target.DefaultDatabase,
                 Timeout = 5,
+                Pooling = false,
             };
             var conn = new NpgsqlConnection(csb.ConnectionString);
             await conn.OpenAsync(cancellationToken);

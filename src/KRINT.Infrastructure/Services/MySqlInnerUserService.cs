@@ -10,7 +10,7 @@ namespace KRINT.Infrastructure.Services
             "root", "mysql.sys", "mysql.session", "mysql.infoschema",
         };
 
-        public string Engine => "mysql";
+        public virtual string Engine => "mysql";
 
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {

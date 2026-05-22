@@ -5,10 +5,12 @@ import { HlmDialogDescription, HlmDialogHeader, HlmDialogTitle } from '@spartan-
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideKeyRound, lucideTrash2 } from '@ng-icons/lucide';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
+import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
 
 type DialogContext = { id: string; engine: string; containerName: string };
 
@@ -22,6 +24,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
     HlmInputImports,
     HlmLabelImports,
     HlmTabsImports,
+    HlmTooltipImports,
     NgIcon,
     CopyButton,
   ],
@@ -74,6 +77,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
                   size="icon"
                   type="button"
                   [attr.aria-label]="'Drop ' + name"
+                  [hlmTooltip]="'Drop ' + name"
                   [disabled]="store.mutatingInner()"
                   (click)="dropDb(name)"
                 >
@@ -118,6 +122,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
               size="icon"
               type="button"
               aria-label="Dismiss"
+              hlmTooltip="Dismiss"
               (click)="store.clearLastCredential()"
             >
               ×
@@ -141,6 +146,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
                     size="icon"
                     type="button"
                     [attr.aria-label]="'Reset password for ' + name"
+                    [hlmTooltip]="'Reset password for ' + name"
                     [disabled]="store.mutatingUsers()"
                     (click)="resetUser(name)"
                   >
@@ -152,6 +158,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
                     size="icon"
                     type="button"
                     [attr.aria-label]="'Delete user ' + name"
+                    [hlmTooltip]="'Delete user ' + name"
                     [disabled]="store.mutatingUsers()"
                     (click)="deleteUser(name)"
                   >
@@ -176,6 +183,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
 })
 export class DatabaseEditDialog {
   protected readonly store = inject(DatabasesStore);
+  private readonly confirmService = inject(ConfirmService);
   protected readonly newDbName = signal('');
   protected readonly newUserName = signal('');
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
@@ -197,8 +205,14 @@ export class DatabaseEditDialog {
     this.newDbName.set('');
   }
 
-  protected dropDb(name: string): void {
-    if (!confirm(`Drop database "${name}"?`)) return;
+  protected async dropDb(name: string): Promise<void> {
+    const ok = await this.confirmService.open({
+      title: `Drop database "${name}"?`,
+      message: 'Every table and row inside this logical database will be permanently deleted.',
+      confirmLabel: 'Drop database',
+      destructive: true,
+    });
+    if (!ok) return;
     this.store.dropInner({ id: this.ctx.id, name });
   }
 
@@ -210,13 +224,25 @@ export class DatabaseEditDialog {
     this.newUserName.set('');
   }
 
-  protected deleteUser(name: string): void {
-    if (!confirm(`Delete user "${name}"?`)) return;
+  protected async deleteUser(name: string): Promise<void> {
+    const ok = await this.confirmService.open({
+      title: `Delete user "${name}"?`,
+      message: 'The user account is removed from the database instance.',
+      confirmLabel: 'Delete user',
+      destructive: true,
+    });
+    if (!ok) return;
     this.store.deleteUser({ id: this.ctx.id, name });
   }
 
-  protected resetUser(name: string): void {
-    if (!confirm(`Generate a new password for "${name}"? The current password will stop working.`)) return;
+  protected async resetUser(name: string): Promise<void> {
+    const ok = await this.confirmService.open({
+      title: `Reset password for "${name}"?`,
+      message: 'A fresh password is generated. The current password stops working immediately and the new one is shown only once.',
+      confirmLabel: 'Reset password',
+      destructive: true,
+    });
+    if (!ok) return;
     this.store.resetUserPassword({ id: this.ctx.id, name });
   }
 

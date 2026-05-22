@@ -231,6 +231,84 @@ namespace KRINT.API.Controllers
             catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         }
 
+        [HttpPost("{id:guid}/browse/{database}/tables/{table}/rows")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> InsertTableRow(
+            Guid id, string database, string table,
+            [FromBody] InsertRowDto body,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new InsertTableRowCommand(id, database, table, body), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
+        [HttpDelete("{id:guid}/browse/{database}/tables/{table}/rows")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> DeleteTableRow(
+            Guid id, string database, string table,
+            [FromBody] DeleteRowDto body,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new DeleteTableRowCommand(id, database, table, body), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return Conflict(new { error = ex.Message }); }
+        }
+
+        [HttpDelete("{id:guid}/browse/{database}/tables/{table}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DropTable(
+            Guid id, string database, string table,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new DropTableCommand(id, database, table), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
+        [HttpPatch("{id:guid}/browse/{database}/tables/{table}/rows")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> UpdateTableRow(
+            Guid id, string database, string table,
+            [FromBody] UpdateRowDto body,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new UpdateTableRowCommand(id, database, table, body), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return Conflict(new { error = ex.Message }); }
+        }
+
         [HttpPost("{id:guid}/users/{name}/reset-password")]
         [ProducesResponseType(typeof(InnerUserPasswordDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

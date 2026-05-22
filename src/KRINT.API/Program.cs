@@ -36,6 +36,8 @@ builder.Services.AddInnerDatabases();
 
 builder.Services.AddCatalog();
 
+builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
+
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? throw new InvalidOperationException("Cors:AllowedOrigins not configured");
 

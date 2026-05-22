@@ -20,7 +20,7 @@ namespace KRINT.Tests.Queries
 
             var result = await handler.Handle(new GetSupportedDatabasesQuery(), CancellationToken.None);
 
-            await Assert.That(result.Select(d => d.Key)).IsEquivalentTo(new[] { "postgres", "mysql", "mongo" });
+            await Assert.That(result.Select(d => d.Key)).IsEquivalentTo(new[] { "postgres", "mysql", "mariadb", "mongo" });
         }
 
         [Test]

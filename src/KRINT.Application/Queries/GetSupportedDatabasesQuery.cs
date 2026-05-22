@@ -12,6 +12,7 @@ namespace KRINT.Application.Queries
         {
             ("postgres", "PostgreSQL", "postgres"),
             ("mysql", "MySQL", "mysql"),
+            ("mariadb", "MariaDB", "mariadb"),
             ("mongo", "MongoDB", "mongo"),
         };
 

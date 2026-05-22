@@ -3,75 +3,12 @@
 <section class="flex flex-col gap-6 px-4 py-6">
   <section hlmCard>
     <div hlmCardHeader>
-      <h3 hlmCardTitle>Provision a database</h3>
-      <p hlmCardDescription>Spin up a managed instance — one click, one key.</p>
-    </div>
-
-    <div hlmCardContent class="grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
-      <div class="flex flex-col gap-2">
-        <label hlmLabel for="engine">Engine</label>
-        <hlm-select
-          [value]="engine()"
-          (valueChange)="selectEngine($event)"
-          [itemToString]="engineToLabel"
-        >
-          <hlm-select-trigger id="engine" class="w-full">
-            <hlm-select-value placeholder="Select an engine" />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
-            @for (s of store.supported(); track s.key) {
-              <hlm-select-item [value]="s.key">{{ s.displayName }}</hlm-select-item>
-            }
-          </hlm-select-content>
-        </hlm-select>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        <label hlmLabel for="version">Version</label>
-        <hlm-select
-          [value]="version()"
-          (valueChange)="selectVersion($event)"
-          [disabled]="!engine()"
-        >
-          <hlm-select-trigger id="version" class="w-full">
-            <hlm-select-value placeholder="Select a version" />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
-            @for (v of versions(); track v) {
-              <hlm-select-item [value]="v">{{ v }}</hlm-select-item>
-            }
-          </hlm-select-content>
-        </hlm-select>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        <label hlmLabel for="db-name">Database name <span class="text-muted-foreground">(optional)</span></label>
-        <input
-          hlmInput
-          id="db-name"
-          [placeholder]="databaseNamePlaceholder()"
-          [value]="databaseName()"
-          (input)="databaseName.set($any($event.target).value)"
-          [disabled]="store.creating()"
-        />
-      </div>
-
-      <button hlmBtn type="button" [disabled]="!canCreate()" (click)="create()">
-        {{ store.creating() ? 'Creating…' : 'Create' }}
-      </button>
-    </div>
-
-    @if (store.error(); as err) {
-      <div hlmCardFooter>
-        <span hlmBadge variant="destructive">{{ err }}</span>
-      </div>
-    }
-  </section>
-
-  <section hlmCard>
-    <div hlmCardHeader>
       <h3 hlmCardTitle>Provisioned instances</h3>
-      <div hlmCardAction>
+      <div hlmCardAction class="flex items-center gap-2">
+        <a hlmBtn size="sm" routerLink="/create">
+          <ng-icon name="lucidePlus" size="16" />
+          Create
+        </a>
         <button hlmBtn variant="outline" size="sm" type="button" (click)="reload()" [disabled]="store.loading()">
           {{ store.loading() ? 'Loading…' : 'Refresh' }}
         </button>
@@ -79,8 +16,13 @@
     </div>
 
     <div hlmCardContent>
+      @if (store.error(); as err) {
+        <div class="mb-3">
+          <span hlmBadge variant="destructive">{{ err }}</span>
+        </div>
+      }
       @if (store.isEmpty()) {
-        <p class="text-muted-foreground text-sm">No instances yet. Provision one above.</p>
+        <p class="text-muted-foreground text-sm">No instances yet. Click <strong>Create</strong> to provision one.</p>
       } @else {
         <div hlmTableContainer>
           <table hlmTable>
@@ -119,6 +61,7 @@
                         size="icon"
                         type="button"
                         aria-label="View details"
+                        hlmTooltip="View details"
                         (click)="viewDetails(db.id)"
                       >
                         <ng-icon name="lucideEye" size="16" />
@@ -129,6 +72,7 @@
                         size="icon"
                         type="button"
                         aria-label="More actions"
+                        hlmTooltip="More actions"
                         [hlmDropdownMenuTrigger]="rowMenu"
                         align="end"
                       >

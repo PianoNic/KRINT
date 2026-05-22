@@ -163,6 +163,8 @@ namespace KRINT.Application.Command
                     return new EngineSpec("postgres", "pg", 5432, "postgres", "postgres", pgDataPath);
                 case "mysql":
                     return new EngineSpec("mysql", "mysql", 3306, "root", "mysql", "/var/lib/mysql");
+                case "mariadb":
+                    return new EngineSpec("mariadb", "maria", 3306, "root", "mariadb", "/var/lib/mysql");
                 case "mongo":
                     return new EngineSpec("mongo", "mongo", 27017, "admin", "admin", "/data/db");
                 default:
@@ -197,6 +199,13 @@ namespace KRINT.Application.Command
                     if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
                         mysqlEnv.Add($"MYSQL_DATABASE={databaseName}");
                     return mysqlEnv;
+                case "mariadb":
+                    // The mariadb image accepts both MARIADB_* and MYSQL_* env vars (the latter for
+                    // drop-in compatibility); we send the modern MARIADB_* names.
+                    var mariaEnv = new List<string> { $"MARIADB_ROOT_PASSWORD={password}" };
+                    if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
+                        mariaEnv.Add($"MARIADB_DATABASE={databaseName}");
+                    return mariaEnv;
                 case "mongo":
                     // Mongo creates databases lazily; the env vars only seed the root user/auth db.
                     // The chosen databaseName is recorded in the connection string but not pre-created.

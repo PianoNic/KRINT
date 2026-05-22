@@ -135,10 +135,16 @@
                 [placeholder]="defaultDbPlaceholder()"
                 [value]="defaultDbName()"
                 (input)="defaultDbName.set($any($event.target).value)"
+                [attr.data-matches-spartan-invalid]="!!defaultDbError()"
+                [attr.aria-invalid]="!!defaultDbError() || null"
               />
-              <span class="text-muted-foreground text-xs">
-                Leave blank to use the engine's default name.
-              </span>
+              @if (defaultDbError(); as err) {
+                <span class="text-destructive text-sm">{{ err }}</span>
+              } @else {
+                <span class="text-muted-foreground text-xs">
+                  Leave blank to use the engine's default name.
+                </span>
+              }
             </div>
           </div>
         }
@@ -158,17 +164,24 @@
             }
 
             @for (name of databases(); track $index) {
-              <div class="flex items-center gap-2">
-                <input
-                  hlmInput
-                  class="flex-1"
-                  placeholder="my_database"
-                  [value]="name"
-                  (input)="updateDatabase($index, $any($event.target).value)"
-                />
-                <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeDatabase($index)" aria-label="Remove">
-                  <ng-icon name="lucideTrash2" size="16" />
-                </button>
+              <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <input
+                    hlmInput
+                    class="flex-1"
+                    placeholder="my_database"
+                    [value]="name"
+                    (input)="updateDatabase($index, $any($event.target).value)"
+                    [attr.data-matches-spartan-invalid]="!!databaseErrors()[$index]"
+                    [attr.aria-invalid]="!!databaseErrors()[$index] || null"
+                  />
+                  <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeDatabase($index)" aria-label="Remove" hlmTooltip="Remove database">
+                    <ng-icon name="lucideTrash2" size="16" />
+                  </button>
+                </div>
+                @if (databaseErrors()[$index]; as err) {
+                  <span class="text-destructive text-sm">{{ err }}</span>
+                }
               </div>
             }
 
@@ -195,17 +208,24 @@
 
             @for (u of users(); track $index; let userIdx = $index) {
               <div class="flex flex-col gap-3 rounded-md border p-4">
-                <div class="flex items-center gap-2">
-                  <input
-                    hlmInput
-                    class="flex-1"
-                    placeholder="alice"
-                    [value]="u.name"
-                    (input)="updateUserName(userIdx, $any($event.target).value)"
-                  />
-                  <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeUser(userIdx)" aria-label="Remove user">
-                    <ng-icon name="lucideTrash2" size="16" />
-                  </button>
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <input
+                      hlmInput
+                      class="flex-1"
+                      placeholder="alice"
+                      [value]="u.name"
+                      (input)="updateUserName(userIdx, $any($event.target).value)"
+                      [attr.data-matches-spartan-invalid]="!!userNameErrors()[userIdx]"
+                      [attr.aria-invalid]="!!userNameErrors()[userIdx] || null"
+                    />
+                    <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeUser(userIdx)" aria-label="Remove user" hlmTooltip="Remove user">
+                      <ng-icon name="lucideTrash2" size="16" />
+                    </button>
+                  </div>
+                  @if (userNameErrors()[userIdx]; as err) {
+                    <span class="text-destructive text-sm">{{ err }}</span>
+                  }
                 </div>
 
                 <div class="flex flex-col gap-1.5">

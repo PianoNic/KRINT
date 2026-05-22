@@ -61,16 +61,28 @@
           } @else {
             <ul class="divide-border divide-y">
               @for (t of tables(); track t.name) {
-                <li>
+                <li class="group/row hover:bg-muted flex items-center transition-colors" [class.bg-muted]="t.name === table()">
                   <button
                     type="button"
-                    class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-                    [class.bg-muted]="t.name === table()"
+                    class="flex flex-1 items-center gap-2 px-3 py-2 text-left text-sm"
                     (click)="selectTable(t.name)"
                   >
                     <ng-icon name="lucideTable" size="14" class="shrink-0" />
                     <span class="flex-1 truncate font-mono text-xs">{{ t.name }}</span>
                     <span class="text-muted-foreground text-[10px] uppercase">{{ t.kind }}</span>
+                  </button>
+                  <button
+                    hlmBtn
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    class="mr-1 h-7 w-7 opacity-0 group-hover/row:opacity-100"
+                    [attr.aria-label]="'Drop ' + t.name"
+                    [hlmTooltip]="'Drop ' + t.name"
+                    [disabled]="!canDropTable()"
+                    (click)="dropTable(t.name); $event.stopPropagation()"
+                  >
+                    <ng-icon name="lucideTrash2" size="14" />
                   </button>
                 </li>
               }
@@ -93,10 +105,22 @@
             }
           </p>
           <div hlmCardAction class="flex gap-1">
-            <button hlmBtn variant="outline" size="icon" type="button" (click)="prev()" [disabled]="!hasPrev() || loading()" aria-label="Previous page">
+            <button
+              hlmBtn
+              variant="outline"
+              size="sm"
+              type="button"
+              [disabled]="!canEdit() || !table() || draft() !== null"
+              hlmTooltip="Insert a new row"
+              (click)="beginInsert()"
+            >
+              <ng-icon name="lucidePlus" size="14" />
+              Add row
+            </button>
+            <button hlmBtn variant="outline" size="icon" type="button" (click)="prev()" [disabled]="!hasPrev() || loading()" aria-label="Previous page" hlmTooltip="Previous page">
               <ng-icon name="lucideChevronLeft" size="14" />
             </button>
-            <button hlmBtn variant="outline" size="icon" type="button" (click)="next()" [disabled]="!hasNext() || loading()" aria-label="Next page">
+            <button hlmBtn variant="outline" size="icon" type="button" (click)="next()" [disabled]="!hasNext() || loading()" aria-label="Next page" hlmTooltip="Next page">
               <ng-icon name="lucideChevronRight" size="14" />
             </button>
           </div>
@@ -105,7 +129,7 @@
           @if (!table()) {
             <p class="text-muted-foreground text-sm">No table selected.</p>
           } @else if (rows(); as r) {
-            @if (r.rows.length === 0) {
+            @if (r.rows.length === 0 && !inserting()) {
               <p class="text-muted-foreground text-sm">No rows.</p>
             } @else {
               <div hlmTableContainer>
@@ -115,19 +139,135 @@
                       @for (c of r.columns; track c) {
                         <th hlmTableHead class="font-mono text-xs">{{ c }}</th>
                       }
+                      <th hlmTableHead class="w-28 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody hlmTableBody>
-                    @for (row of r.rows; track $index) {
+                    @if (inserting()) {
+                      <tr hlmTableRow class="bg-primary/5">
+                        @for (c of r.columns; track c; let colIdx = $index) {
+                          <td hlmTableCell class="font-mono text-xs">
+                            <div class="flex items-center gap-1">
+                              <input
+                                hlmInput
+                                class="h-7 flex-1 font-mono text-xs"
+                                [value]="draftValue(colIdx)"
+                                [disabled]="isDraftNull(colIdx) || saving()"
+                                [placeholder]="isDraftNull(colIdx) ? 'NULL' : c"
+                                (input)="updateDraft(colIdx, $any($event.target).value)"
+                              />
+                              <button
+                                hlmBtn
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                class="h-7 w-7 shrink-0"
+                                [attr.aria-label]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                                [hlmTooltip]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                                [disabled]="saving()"
+                                (click)="toggleDraftNull(colIdx)"
+                              >
+                                <span class="text-[10px]">∅</span>
+                              </button>
+                            </div>
+                          </td>
+                        }
+                        <td hlmTableCell class="text-right">
+                          <div class="flex items-center justify-end gap-1">
+                            <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Save new row" hlmTooltip="Save" (click)="saveDraft()" [disabled]="saving()">
+                              <ng-icon name="lucideCheck" size="16" />
+                            </button>
+                            <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Cancel" hlmTooltip="Cancel" (click)="cancelDraft()" [disabled]="saving()">
+                              <ng-icon name="lucideX" size="16" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                    @for (row of r.rows; track $index; let rowIdx = $index) {
                       <tr hlmTableRow>
-                        @for (cell of row; track $index) {
-                          <td hlmTableCell class="font-mono text-xs">{{ truncate(cell) }}</td>
+                        @if (editingIndex() === rowIdx) {
+                          @for (cell of row; track $index; let colIdx = $index) {
+                            <td hlmTableCell class="font-mono text-xs">
+                              <div class="flex items-center gap-1">
+                                <input
+                                  hlmInput
+                                  class="h-7 flex-1 font-mono text-xs"
+                                  [value]="draftValue(colIdx)"
+                                  [disabled]="isDraftNull(colIdx) || saving()"
+                                  [placeholder]="isDraftNull(colIdx) ? 'NULL' : ''"
+                                  (input)="updateDraft(colIdx, $any($event.target).value)"
+                                />
+                                <button
+                                  hlmBtn
+                                  variant="ghost"
+                                  size="icon"
+                                  type="button"
+                                  class="h-7 w-7 shrink-0"
+                                  [attr.aria-label]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                                  [hlmTooltip]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                                  [disabled]="saving()"
+                                  (click)="toggleDraftNull(colIdx)"
+                                >
+                                  <span class="text-[10px]">∅</span>
+                                </button>
+                              </div>
+                            </td>
+                          }
+                          <td hlmTableCell class="text-right">
+                            <div class="flex items-center justify-end gap-1">
+                              <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Save" hlmTooltip="Save" (click)="saveDraft()" [disabled]="saving()">
+                                <ng-icon name="lucideCheck" size="16" />
+                              </button>
+                              <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Cancel" hlmTooltip="Cancel" (click)="cancelDraft()" [disabled]="saving()">
+                                <ng-icon name="lucideX" size="16" />
+                              </button>
+                            </div>
+                          </td>
+                        } @else {
+                          @for (cell of row; track $index) {
+                            <td hlmTableCell class="font-mono text-xs">{{ truncate(cell) }}</td>
+                          }
+                          <td hlmTableCell class="text-right">
+                            <div class="flex items-center justify-end gap-1">
+                              <button
+                                hlmBtn
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                aria-label="Edit row"
+                                hlmTooltip="Edit row"
+                                [disabled]="!canEdit() || draft() !== null"
+                                (click)="beginEdit(rowIdx)"
+                              >
+                                <ng-icon name="lucidePencil" size="14" />
+                              </button>
+                              <button
+                                hlmBtn
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                aria-label="Delete row"
+                                hlmTooltip="Delete row"
+                                [disabled]="!canEdit() || draft() !== null || deletingRowIndex() !== null"
+                                (click)="deleteRow(rowIdx)"
+                              >
+                                <ng-icon name="lucideTrash2" size="14" />
+                              </button>
+                            </div>
+                          </td>
                         }
                       </tr>
                     }
                   </tbody>
                 </table>
               </div>
+              @if (editError(); as err) {
+                <p class="text-destructive mt-2 text-sm">{{ err }}</p>
+              }
+              @if (!canEdit() && selectedInstance()) {
+                <p class="text-muted-foreground mt-2 text-xs">Row insert/edit/delete is not available for this engine yet. Dropping tables is supported.</p>
+              }
             }
           } @else if (loading()) {
             <p class="text-muted-foreground text-sm">Loading…</p>

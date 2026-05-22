@@ -69,6 +69,7 @@ namespace KRINT.Infrastructure.Services
                 Password = target.Password,
                 Database = target.DefaultDatabase,
                 Timeout = 5,
+                Pooling = false,
             };
             var conn = new NpgsqlConnection(csb.ConnectionString);
             await conn.OpenAsync(cancellationToken);

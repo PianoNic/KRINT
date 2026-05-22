@@ -12,6 +12,7 @@ namespace KRINT.Infrastructure.Services
         {
             ["postgres"] = "postgresql",
             ["mysql"] = "mysql",
+            ["mariadb"] = "mariadb",
             ["mongo"] = "mongodb",
         };
 
@@ -47,10 +48,21 @@ namespace KRINT.Infrastructure.Services
             }
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            // For each cycle still in support, surface both the latest patch tag and the major.
+            // Latest patch first so the dropdown's natural top choice picks up CVE fixes; the
+            // bare major (Docker's rolling tag) stays available for users who want it.
             var supported = entries
                 .Where(e => IsStillSupported(e.Eol, today))
-                .Select(e => e.Cycle)
-                .Where(c => !string.IsNullOrEmpty(c))
+                .Where(e => !string.IsNullOrEmpty(e.Cycle))
+                .SelectMany(e =>
+                {
+                    var latest = e.Latest;
+                    if (!string.IsNullOrEmpty(latest) && !string.Equals(latest, e.Cycle, StringComparison.Ordinal))
+                    {
+                        return new[] { latest!, e.Cycle };
+                    }
+                    return new[] { e.Cycle };
+                })
                 .ToArray();
 
             _cache.Set(cacheKey, (IReadOnlyList<string>)supported, CacheDuration);
@@ -78,6 +90,9 @@ namespace KRINT.Infrastructure.Services
         {
             [JsonPropertyName("cycle")]
             public string Cycle { get; init; } = string.Empty;
+
+            [JsonPropertyName("latest")]
+            public string? Latest { get; init; }
 
             [JsonPropertyName("eol")]
             public JsonElement Eol { get; init; }

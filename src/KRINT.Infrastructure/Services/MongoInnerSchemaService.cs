@@ -41,6 +41,27 @@ namespace KRINT.Infrastructure.Services
             return new TableRows(new[] { "document" }, rows, total);
         }
 
+        public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
+        {
+            // Mongo edits require document-level semantics (replace by _id, type-aware patches).
+            // Out of scope for v1 row editing — surface a clear error to the UI.
+            throw new NotSupportedException("Row editing is not supported for Mongo yet.");
+        }
+
+        public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Row insertion is not supported for Mongo yet.");
+
+        public Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Row deletion is not supported for Mongo yet.");
+
+        public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            InnerDatabaseNameValidator.Require(table);
+            var db = Connect(target).GetDatabase(database);
+            await db.DropCollectionAsync(table, cancellationToken);
+        }
+
         private static IMongoClient Connect(InnerDatabaseTarget target)
         {
             var settings = MongoClientSettings.FromConnectionString(
