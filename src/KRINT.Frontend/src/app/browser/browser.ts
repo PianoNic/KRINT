@@ -218,6 +218,17 @@ export class Browser {
     if (id && db && tbl) this.loadRows(id, db, tbl, this.limit(), this.offset());
   }
 
+  protected reloadInstances(): void {
+    this.api.apiDatabaseGet().subscribe({
+      next: (list) => this.instances.set(list),
+      error: (err) => this.error.set(messageOf(err)),
+    });
+  }
+
+  protected instanceUrl(i: DatabaseInstanceDto): string {
+    return `${i.host}:${i.port}/${i.databaseName}`;
+  }
+
   protected engineIcon(engine: string): string {
     switch (engine) {
       case 'postgres': return 'simplePostgresql';
