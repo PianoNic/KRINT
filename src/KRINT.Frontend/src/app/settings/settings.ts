@@ -45,16 +45,19 @@ import { SettingsDto } from '../api/model/settingsDto';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-content-header />
-    <section class="flex flex-col gap-4 px-4 py-6">
+    <!-- Fills the viewport. The two big cards (Port ranges + Supported engines) split the
+         available height; Vault stays auto-sized at the bottom. Each big card scrolls its
+         own body so the page itself never scrolls. -->
+    <section class="flex h-[calc(100vh-3rem)] flex-col gap-4 border-t p-4">
       @if (settings(); as s) {
-        <section hlmCard>
+        <section hlmCard class="flex min-h-0 flex-1 flex-col">
           <div hlmCardHeader>
             <h2 hlmCardTitle>Port ranges</h2>
             <p hlmCardDescription>
               Host ports KRINT will allocate from per engine. Configured in <code class="font-mono">krint.yaml</code>.
             </p>
           </div>
-          <div hlmCardContent>
+          <div hlmCardContent class="min-h-0 flex-1 overflow-auto">
             <div hlmTableContainer>
               <table hlmTable>
                 <thead hlmTableHeader>
@@ -83,12 +86,12 @@ import { SettingsDto } from '../api/model/settingsDto';
           </div>
         </section>
 
-        <section hlmCard>
+        <section hlmCard class="flex min-h-0 flex-1 flex-col">
           <div hlmCardHeader>
             <h2 hlmCardTitle>Supported engines</h2>
             <p hlmCardDescription>Engines this instance of KRINT can provision, plus available versions.</p>
           </div>
-          <div hlmCardContent>
+          <div hlmCardContent class="min-h-0 flex-1 overflow-auto">
             <ul class="divide-border divide-y rounded-md border">
               @for (e of s.supportedEngines; track e.key) {
                 <li class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm">

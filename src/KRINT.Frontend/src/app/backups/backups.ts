@@ -135,7 +135,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
       </aside>
 
       <!-- ===== Right pane: contextual toolbar + schedules + backups ===== -->
-      <main class="flex flex-col overflow-auto">
+      <main class="flex flex-col overflow-hidden">
         <header class="border-b flex items-center justify-between gap-2 px-4 py-2">
           <div class="flex min-w-0 flex-col">
             <span class="text-sm font-medium">
@@ -173,7 +173,10 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           </div>
         </header>
 
-      <section hlmCard class="m-4">
+      <!-- Two equal-height cards. min-h-0 on each lets the inner table claim the available
+           space without spilling the page; the card content itself becomes the scroll surface. -->
+      <div class="grid flex-1 grid-rows-2 gap-4 overflow-hidden p-4">
+      <section hlmCard class="flex min-h-0 flex-col">
         <div hlmCardHeader>
           <h2 hlmCardTitle class="flex items-center gap-2">
             <ng-icon name="lucideCalendar" size="18" />
@@ -181,7 +184,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           </h2>
         </div>
 
-        <div hlmCardContent>
+        <div hlmCardContent class="min-h-0 flex-1 overflow-auto">
           @if (filteredSchedules().length === 0 && !loadingSchedules()) {
             <p class="text-muted-foreground text-sm">No schedules yet.</p>
           } @else {
@@ -264,7 +267,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
         </div>
       </section>
 
-      <section hlmCard class="m-4 mt-0">
+      <section hlmCard class="flex min-h-0 flex-col">
         <div hlmCardHeader>
           <h2 hlmCardTitle>Backups</h2>
           <p hlmCardDescription>
@@ -276,7 +279,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           </p>
         </div>
 
-        <div hlmCardContent>
+        <div hlmCardContent class="min-h-0 flex-1 overflow-auto">
           @if (filteredEntries().length === 0 && !loading()) {
             <p class="text-muted-foreground text-sm">No backups yet.</p>
           } @else {
@@ -356,6 +359,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           }
         </div>
       </section>
+      </div>
       </main>
     </section>
   `,

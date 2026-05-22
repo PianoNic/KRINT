@@ -12,7 +12,6 @@ krint:
     cassandra:      31600-31799
     couchdb:        32000-32199
     elasticsearch:  32200-32399
-    pgvector:       33000-33199
     neo4j:          33200-33399
     qdrant:         34000-34199
     valkey:         34200-34399

@@ -24,6 +24,7 @@ namespace KRINT.Application.Queries
                     InstanceId = e.InstanceId,
                     Engine = e.Engine,
                     Details = e.Details,
+                    ActorName = e.ActorName,
                     CreatedAt = e.CreatedAt,
                 })
                 .ToListAsync(cancellationToken);

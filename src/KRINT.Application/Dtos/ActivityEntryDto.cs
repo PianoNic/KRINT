@@ -8,6 +8,7 @@ namespace KRINT.Application.Dtos
         public Guid? InstanceId { get; init; }
         public string? Engine { get; init; }
         public string? Details { get; init; }
+        public string? ActorName { get; init; }
         public required DateTime CreatedAt { get; init; }
     }
 }

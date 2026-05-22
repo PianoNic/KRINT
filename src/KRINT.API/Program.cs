@@ -18,6 +18,11 @@ builder.Services.AddSpaStaticFiles(opts => { opts.RootPath = "wwwroot/browser"; 
 
 builder.Services.AddControllers();
 
+// Required so ActivityLogger can read the current user out of the request scope to
+// stamp every audit row with the acting Keycloak account.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<KRINT.Infrastructure.Interfaces.ICurrentUserService, KRINT.API.HttpCurrentUserService>();
+
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<OAuth2SecuritySchemeTransformer>();

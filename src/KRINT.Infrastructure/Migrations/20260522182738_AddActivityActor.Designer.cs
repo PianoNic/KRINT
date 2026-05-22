@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KRINT.Infrastructure.Migrations
 {
     [DbContext(typeof(KrintDbContext))]
-    [Migration("20260522180546_AddInstanceDisplayName")]
-    partial class AddInstanceDisplayName
+    [Migration("20260522182738_AddActivityActor")]
+    partial class AddActivityActor
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -33,6 +33,9 @@ namespace KRINT.Infrastructure.Migrations
 
                     b.Property<string>("Action")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ActorName")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")

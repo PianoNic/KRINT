@@ -16,6 +16,7 @@ export interface ActivityEntryDto {
     instanceId?: string | null;
     engine?: string | null;
     details?: string | null;
+    actorName?: string | null;
     createdAt: string;
 }
 
