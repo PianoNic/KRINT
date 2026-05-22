@@ -16,7 +16,7 @@ COPY src/KRINT.Frontend/package.json src/KRINT.Frontend/bun.lock* ./
 RUN bun install --frozen-lockfile
 # Copy the rest of the frontend tree and build a production bundle.
 COPY src/KRINT.Frontend .
-RUN bunx ng build --configuration production --output-path /artifacts/frontend
+RUN bun run build:agent --output-path /artifacts/frontend
 
 # ---------- Stage 2: backend restore ----------
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-deps
