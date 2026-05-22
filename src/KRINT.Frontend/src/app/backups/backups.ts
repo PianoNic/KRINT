@@ -80,7 +80,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
   template: `
     <app-content-header />
 
-    <section class="grid h-[calc(100vh-3rem)] grid-cols-[260px_1fr] gap-0 border-t">
+    <section class="grid flex-1 min-h-0 grid-cols-[260px_1fr] gap-0 border-t">
       <!-- ===== Left rail: instance cards (also acts as the "Create a backup" picker) ===== -->
       <aside class="border-r flex flex-col overflow-hidden">
         <header class="flex items-center justify-between px-3 py-2 border-b">
@@ -188,8 +188,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           @if (filteredSchedules().length === 0 && !loadingSchedules()) {
             <p class="text-muted-foreground text-sm">No schedules yet.</p>
           } @else {
-            <div hlmTableContainer>
-              <table hlmTable>
+            <table hlmTable>
                 <thead hlmTableHeader>
                   <tr hlmTableRow>
                     <th hlmTableHead>State</th>
@@ -262,7 +261,6 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
                   }
                 </tbody>
               </table>
-            </div>
           }
         </div>
       </section>
@@ -283,8 +281,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           @if (filteredEntries().length === 0 && !loading()) {
             <p class="text-muted-foreground text-sm">No backups yet.</p>
           } @else {
-            <div hlmTableContainer>
-              <table hlmTable>
+            <table hlmTable>
                 <thead hlmTableHeader>
                   <tr hlmTableRow>
                     <th hlmTableHead>Created</th>
@@ -351,7 +348,6 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
                   }
                 </tbody>
               </table>
-            </div>
           }
 
           @if (error(); as err) {

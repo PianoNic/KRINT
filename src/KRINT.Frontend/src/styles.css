@@ -78,8 +78,35 @@ color-scheme: dark;
 * {
 @apply border-border outline-ring/50;
 }
+/* Lock the viewport. App shell uses h-svh + overflow-hidden, but the sidenav inset
+   variant adds m-2 to its <main>, pushing total height a hair past the viewport. With
+   html + body fixed to viewport height and overflow-hidden, the page itself can never
+   scroll - every route's inner scroll surface takes over. */
+html,
 body {
 @apply bg-background text-foreground;
+height: 100vh;
+height: 100svh;
+overflow: hidden;
+}
+
+/* Route component hosts: <main> is a flex column, but each routed component's host
+   element (<app-databases>, <app-backups>, ...) sits between main and the template's
+   sections. By default the host is display: block with auto height, so any flex-1 on
+   the inner section measures against the auto-sized host (= sum of children) instead
+   of main. Making the host a flex column with h-full passes the height all the way
+   down so flex-1 sections claim the full viewport. */
+app-home,
+app-databases,
+app-create,
+app-browser,
+app-backups,
+app-activity,
+app-settings {
+display: flex;
+flex-direction: column;
+height: 100%;
+min-height: 0;
 }
 
 /* Custom scrollbar that matches the app theme in both light and dark mode.

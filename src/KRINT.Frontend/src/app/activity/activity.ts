@@ -30,7 +30,7 @@ import { ActivityEntryDto } from '../api/model/activityEntryDto';
 
     <!-- Full-viewport flex column: header stays put, the card fills the remaining height
          and its table body becomes the scroll surface. -->
-    <section class="flex h-[calc(100vh-3rem)] flex-col gap-0 border-t p-4">
+    <section class="flex flex-1 min-h-0 flex-col gap-0 border-t p-4">
       <section hlmCard class="flex min-h-0 flex-1 flex-col">
         <div hlmCardHeader>
           <h2 hlmCardTitle>Activity</h2>
