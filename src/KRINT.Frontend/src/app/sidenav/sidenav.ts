@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -56,6 +57,23 @@ export class Sidenav {
   private readonly oidcSecurityService = inject(OidcSecurityService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly theme = inject(ThemeService);
+  private readonly router = inject(Router);
+
+  // Active-link signal driven by router events. The previous routerLinkActive="data-[active=true]"
+  // was a no-op - routerLinkActive sets classes, not attributes, so no item ever lit up.
+  // Here we derive the current URL once and let each menu item match against it.
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+      startWith(this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+  protected isRouteActive(route: string): boolean {
+    const url = this.currentUrl();
+    return url === route || url.startsWith(route + '/');
+  }
 
   protected readonly themeMode = this.theme.mode;
   protected readonly navItems: ReadonlyArray<{ route: string; label: string; icon: string }> = [

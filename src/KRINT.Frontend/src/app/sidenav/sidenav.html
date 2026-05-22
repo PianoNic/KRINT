@@ -1,5 +1,5 @@
 <div hlmSidebarWrapper>
-  <hlm-sidebar variant="inset">
+  <hlm-sidebar variant="inset" collapsible="icon">
     <hlm-sidebar-header>
       <ul hlmSidebarMenu>
         <li hlmSidebarMenuItem>
@@ -30,7 +30,7 @@
             <a
               hlmSidebarMenuButton
               [routerLink]="item.route"
-              routerLinkActive="data-[active=true]"
+              [isActive]="isRouteActive(item.route)"
             >
               <ng-icon [name]="item.icon" />
               <span>{{ item.label }}</span>
