@@ -22,6 +22,7 @@ import { HlmSidebarImports, HlmSidebarService } from '@spartan-ng/helm/sidebar';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { ThemeService, ThemeMode } from '../shared/services/theme.service';
+import { AppService } from '../api/api/app.service';
 
 @Component({
   selector: 'app-sidenav',
@@ -106,6 +107,12 @@ export class Sidenav {
   ];
   protected readonly menuSide = computed(() =>
     this.sidebarService.isMobile() ? 'top' : 'right',
+  );
+
+  private readonly appService = inject(AppService);
+  protected readonly version = toSignal(
+    this.appService.apiAppGet().pipe(map((app) => app.version ?? '')),
+    { initialValue: '' },
   );
 
   private readonly userData = this.oidcSecurityService.userData;
