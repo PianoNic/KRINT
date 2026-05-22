@@ -73,7 +73,13 @@ namespace KRINT.Application.Command
             var password = _secretGenerator.Generate();
 
             var imageName = imageOverride ?? spec.Image;
-            await _docker.PullImageAsync(imageName, command.Version, cancellationToken);
+            // pgvector/pgvector publishes tags as pg<major> (pg15..pg18), not as the upstream
+            // Postgres tag (e.g. 18.4). When the swap is active, translate the picked Postgres
+            // version to the matching pgvector tag - otherwise the pull 404s.
+            var imageTag = imageOverride == "pgvector/pgvector"
+                ? PgVectorTagFor(command.Version)
+                : command.Version;
+            await _docker.PullImageAsync(imageName, imageTag, cancellationToken);
 
             var hostPort = await AllocateHostPortAsync(command.Engine, cancellationToken);
 
@@ -82,7 +88,7 @@ namespace KRINT.Application.Command
 
             var createParams = new CreateContainerParameters
             {
-                Image = $"{imageName}:{command.Version}",
+                Image = $"{imageName}:{imageTag}",
                 Name = containerName,
                 Env = env,
                 Cmd = spec.CmdFactory?.Invoke(password),
@@ -280,6 +286,17 @@ namespace KRINT.Application.Command
         {
             var head = version.Split('.', '-')[0];
             return int.TryParse(head, out var major) ? major : null;
+        }
+
+        // pgvector/pgvector tags are pg<major>. The user picks an upstream Postgres version
+        // (e.g. "18.4" or "18"); we extract the major and produce "pg18". If the user already
+        // typed something pg-shaped (e.g. "pg17") we pass it through unchanged.
+        private static string PgVectorTagFor(string postgresVersion)
+        {
+            if (postgresVersion.StartsWith("pg", StringComparison.OrdinalIgnoreCase))
+                return postgresVersion;
+            var major = TryGetMajorVersion(postgresVersion);
+            return major is null ? postgresVersion : $"pg{major}";
         }
 
         private static string ResolveDatabaseName(string engine, string? requested, string defaultName)
