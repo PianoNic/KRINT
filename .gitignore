@@ -253,7 +253,10 @@ Generated_Code/
 # to a newer Visual Studio version. Backup files are not needed,
 # because we have git ;-)
 _UpgradeReport_Files/
-Backup*/
+# Anchored to the repo root so the rule only matches VS-generated Backup1/ etc.
+# at the top level. Without the leading slash this swallowed our SPA's backups/
+# directory at any depth.
+/Backup*/
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/
