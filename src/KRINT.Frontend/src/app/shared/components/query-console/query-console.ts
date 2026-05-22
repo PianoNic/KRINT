@@ -1,12 +1,29 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  input,
+  OnDestroy,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { sql } from '@codemirror/lang-sql';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorState } from '@codemirror/state';
+import { EditorView, keymap } from '@codemirror/view';
+import { basicSetup } from 'codemirror';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePlay, lucideTriangleAlert } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { DatabaseService } from '../../../api/api/database.service';
 import { RunQueryResultDto } from '../../../api/model/runQueryResultDto';
+import { TableSummaryDto } from '../../../api/model/tableSummaryDto';
 
 // Engines whose IInnerQueryService is registered on the backend. Surface other engines as
 // "console not available" without making the API roundtrip.
@@ -20,7 +37,7 @@ export const QUERY_SUPPORTED_ENGINES = new Set<string>([
 
 @Component({
   selector: 'app-query-console',
-  imports: [NgIcon, HlmBadgeImports, HlmButtonImports, HlmInputImports, HlmTableImports],
+  imports: [NgIcon, HlmBadgeImports, HlmButtonImports, HlmTableImports],
   providers: [provideIcons({ lucidePlay, lucideTriangleAlert })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -35,15 +52,9 @@ export const QUERY_SUPPORTED_ENGINES = new Set<string>([
       </div>
     } @else {
       <div class="flex flex-col gap-2 p-4">
-        <textarea
-          hlmInput
-          class="font-mono min-h-[10rem] resize-y"
-          placeholder="SELECT 1;"
-          [value]="sql()"
-          (input)="sql.set(toValue($event))"
-          (keydown)="onKey($event)"
-          aria-label="SQL editor"
-        ></textarea>
+        <!-- CodeMirror host. The editor is created in afterViewInit and re-uses this div for
+             its full lifetime; signal -> editor sync only flows on programmatic value changes. -->
+        <div #editorHost class="border-input rounded-md border overflow-hidden text-sm"></div>
         <div class="flex items-center justify-between gap-2">
           <span class="text-muted-foreground text-xs">
             Ctrl/Cmd + Enter to run. Results capped at {{ rowLimit() }} rows.
@@ -101,12 +112,15 @@ export const QUERY_SUPPORTED_ENGINES = new Set<string>([
     }
   `,
 })
-export class QueryConsole {
+export class QueryConsole implements AfterViewInit, OnDestroy {
   readonly instanceId = input<string | null>(null);
   readonly database = input<string | null>(null);
   readonly engine = input<string | null>(null);
+  /** Optional: table list to enrich the SQL autocomplete with the current database's tables. */
+  readonly tables = input<ReadonlyArray<TableSummaryDto>>([]);
 
   private readonly api = inject(DatabaseService);
+  private readonly host = viewChild<ElementRef<HTMLDivElement>>('editorHost');
 
   protected readonly sql = signal('');
   protected readonly running = signal(false);
@@ -127,15 +141,69 @@ export class QueryConsole {
     this.sql().trim().length > 0,
   );
 
-  protected toValue(event: Event): string {
-    return (event.target as HTMLTextAreaElement).value;
+  private view: EditorView | null = null;
+
+  constructor() {
+    // Rebuild the editor if the engine + database changes so the autocomplete schema reflects
+    // the new context. We tear down + remount instead of dynamically swapping extensions to
+    // keep the wiring simple - the editor host is cheap to recreate.
+    effect(() => {
+      this.tables();
+      this.engine();
+      if (this.view) this.rebuild();
+    });
   }
 
-  protected onKey(event: KeyboardEvent): void {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-      event.preventDefault();
-      this.run();
-    }
+  ngAfterViewInit(): void {
+    this.rebuild();
+  }
+
+  ngOnDestroy(): void {
+    this.view?.destroy();
+    this.view = null;
+  }
+
+  private rebuild(): void {
+    const host = this.host()?.nativeElement;
+    if (!host) return;
+    this.view?.destroy();
+
+    const schema: Record<string, string[]> = {};
+    for (const t of this.tables()) schema[t.name] = [];
+
+    // We don't know the columns ahead of fetching them, so just feed the table names.
+    // CodeMirror's SQL completion will mix them in with keywords + the engine dialect.
+    const dialect = this.engine() ?? 'postgres';
+    const isDark = document.documentElement.classList.contains('dark');
+
+    const startDoc = this.sql();
+    const state = EditorState.create({
+      doc: startDoc,
+      extensions: [
+        // basicSetup is the canonical bundle from `codemirror`: line numbers, history,
+        // default + history keymaps, indentation, search, bracket matching, code folding,
+        // autocompletion, syntax highlighting. We add SQL on top + our own Mod-Enter hook.
+        // Putting our keymap before basicSetup ensures Ctrl/Cmd+Enter runs the query instead
+        // of inserting a newline (basicSetup's default behaviour).
+        keymap.of([
+          { key: 'Mod-Enter', preventDefault: true, run: () => { this.run(); return true; } },
+        ]),
+        basicSetup,
+        sql({ schema, upperCaseKeywords: true }),
+        EditorView.updateListener.of((u) => {
+          if (u.docChanged) this.sql.set(u.state.doc.toString());
+        }),
+        EditorView.theme({
+          '&': { height: '14rem', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' },
+          '.cm-scroller': { overflow: 'auto' },
+        }),
+        ...(isDark ? [oneDark] : []),
+      ],
+    });
+
+    this.view = new EditorView({ state, parent: host });
+    // Avoid an unused-variable warning in modes where we don't reference dialect explicitly.
+    void dialect;
   }
 
   protected run(): void {

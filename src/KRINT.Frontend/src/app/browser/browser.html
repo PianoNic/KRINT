@@ -129,6 +129,7 @@
         [instanceId]="instanceId()"
         [database]="database()"
         [engine]="selectedInstance()?.engine ?? null"
+        [tables]="tables()"
       />
     } @else if (!table()) {
       <p class="text-muted-foreground flex flex-1 items-center justify-center text-sm">
