@@ -7,9 +7,9 @@
 </p>
 <p align="center">
   <a href="https://github.com/PianoNic/KRINT"><img src="https://badgetrack.pianonic.ch/badge?tag=krint&label=visits&color=0d1117&style=flat" alt="visits" /></a>
-  <a href="#-getting-started"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
-  <a href="#-tech-stack"><img src="https://img.shields.io/badge/.NET-10-0d1117.svg" alt=".NET 10" /></a>
-  <a href="#-tech-stack"><img src="https://img.shields.io/badge/Angular-21-0d1117.svg" alt="Angular 21" /></a>
+  <a href="#getting-started"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
+  <a href="#tech-stack"><img src="https://img.shields.io/badge/.NET-10-0d1117.svg" alt=".NET 10" /></a>
+  <a href="#tech-stack"><img src="https://img.shields.io/badge/Angular-21-0d1117.svg" alt="Angular 21" /></a>
 </p>
 
 ---
@@ -43,7 +43,16 @@ Every instance ships with the five properties that give the project its name:
 ## Screenshots
 
 <p align="center">
-  <em>Add screenshots here once you have a deploy you like.</em>
+  <img src="assets/screenshots/instances.png" width="49%" alt="Instances list" />
+  <img src="assets/screenshots/create-engine.png" width="49%" alt="Create wizard - engine picker" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/create-plugins.png" width="49%" alt="Create wizard - plugins step" />
+  <img src="assets/screenshots/backups.png" width="49%" alt="Backups and schedules" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/browser.png" width="49%" alt="Database browser" />
+  <img src="assets/screenshots/activity.png" width="49%" alt="Activity log" />
 </p>
 
 ## Tech stack
@@ -89,7 +98,8 @@ Default URLs (see `src/KRINT.API/Properties/launchSettings.json`):
 
 - HTTP: http://localhost:5165
 - HTTPS: https://localhost:7064
-- OpenAPI doc: `/openapi/v1.json`
+- OpenAPI spec: `/openapi/v1.json`
+- **Scalar API reference**: `/scalar/v1` - interactive docs you can call straight from the browser (Scalar replaces Swagger UI in this project)
 
 ### Run the frontend
 
