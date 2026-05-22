@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogDescription, HlmDialogHeader, HlmDialogTitle } from '@spartan-ng/helm/dialog';
@@ -13,7 +13,7 @@ import { DatabasesStore } from '../shared/stores/databases.store';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
 
-type DialogContext = { id: string; engine: string; containerName: string };
+type DialogContext = { id: string; engine: string; containerName: string; displayName: string };
 
 @Component({
   selector: 'app-database-edit-dialog',
@@ -35,11 +35,30 @@ type DialogContext = { id: string; engine: string; containerName: string };
   host: { class: 'flex flex-col gap-4' },
   template: `
     <hlm-dialog-header>
-      <h3 hlmDialogTitle>Edit {{ ctx.containerName }}</h3>
+      <h3 hlmDialogTitle>Edit {{ displayName() || ctx.containerName }}</h3>
       <p hlmDialogDescription>
-        Manage logical databases and users on this {{ ctx.engine }} instance.
+        Manage the name, logical databases, and users on this {{ ctx.engine }} instance.
       </p>
     </hlm-dialog-header>
+
+    <!-- Rename form. Submits a PATCH on the instance; disabled until the value actually changes. -->
+    <form class="flex items-end gap-2" (submit)="saveName($event)">
+      <div class="flex flex-1 flex-col gap-1.5">
+        <label hlmLabel for="display-name" class="text-muted-foreground text-xs uppercase tracking-wide">Name</label>
+        <input
+          hlmInput
+          id="display-name"
+          class="w-full"
+          placeholder="e.g. Pangolin"
+          [value]="displayName()"
+          (input)="displayName.set($any($event.target).value)"
+          [disabled]="renaming()"
+        />
+      </div>
+      <button hlmBtn type="submit" size="sm" [disabled]="!canRename()">
+        {{ renaming() ? 'Saving...' : 'Save name' }}
+      </button>
+    </form>
 
     <hlm-tabs tab="databases" class="w-full">
       <hlm-tabs-list aria-label="Edit instance">
@@ -204,15 +223,34 @@ export class DatabaseEditDialog {
   private readonly confirmService = inject(ConfirmService);
   protected readonly newDbName = signal('');
   protected readonly newUserName = signal('');
+  protected readonly displayName = signal('');
+  protected readonly renaming = signal(false);
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
   protected readonly ctx = injectBrnDialogContext<DialogContext>();
 
+  protected readonly canRename = computed(() => {
+    const v = this.displayName().trim();
+    return !this.renaming() && v.length > 0 && v.length <= 64 && v !== this.ctx.displayName;
+  });
+
   constructor() {
+    this.displayName.set(this.ctx.displayName ?? this.ctx.containerName);
     this.store.loadInner(this.ctx.id);
     this.store.loadUsers(this.ctx.id);
     effect((onCleanup) => {
       onCleanup(() => this.store.clearDetails());
     });
+  }
+
+  protected saveName(event: Event): void {
+    event.preventDefault();
+    if (!this.canRename()) return;
+    const name = this.displayName().trim();
+    this.renaming.set(true);
+    this.store.renameInstance({ id: this.ctx.id, displayName: name });
+    // Stay disabled briefly so the user sees the click registered; clears as soon as the
+    // store's instances refetch resolves (we re-read ctx via effect in the parent).
+    setTimeout(() => this.renaming.set(false), 250);
   }
 
   protected addDb(event: Event): void {

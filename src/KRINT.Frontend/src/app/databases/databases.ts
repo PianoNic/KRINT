@@ -74,7 +74,7 @@ export class Databases {
 
   protected editInstance(db: DatabaseInstanceDto): void {
     this.dialog.open(DatabaseEditDialog, {
-      context: { id: db.id, engine: db.engine, containerName: db.containerName },
+      context: { id: db.id, engine: db.engine, containerName: db.containerName, displayName: db.displayName },
       contentClass: 'sm:max-w-[640px]',
     });
   }

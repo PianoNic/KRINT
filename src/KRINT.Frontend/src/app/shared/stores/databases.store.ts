@@ -178,6 +178,22 @@ export const DatabasesStore = signalStore(
         ),
       ),
     ),
+    // Rename an instance. PATCH returns 204; refetch the list so the new name surfaces
+    // everywhere it's bound (the table, the left rails, etc.) without each caller knowing.
+    renameInstance: rxMethod<{ id: string; displayName: string }>(
+      pipe(
+        tap(() => patchState(store, { error: null })),
+        switchMap(({ id, displayName }) =>
+          api.apiDatabaseIdPatch(id, { displayName }).pipe(
+            switchMap(() => api.apiDatabaseGet()),
+            tap({
+              next: (instances) => patchState(store, { instances }),
+              error: (err: unknown) => patchState(store, { error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
     loadInner: rxMethod<string>(
       pipe(
         tap(() => patchState(store, { loadingInner: true, error: null })),

@@ -153,11 +153,11 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
                 <ng-icon name="lucidePlus" size="14" />
                 {{ creating() ? 'Snapshotting...' : 'Create backup' }}
               </button>
+              <button hlmBtn variant="outline" size="sm" type="button" (click)="openScheduleDialog()">
+                <ng-icon name="lucidePlus" size="14" />
+                New schedule
+              </button>
             }
-            <button hlmBtn variant="outline" size="sm" type="button" (click)="openScheduleDialog()">
-              <ng-icon name="lucidePlus" size="14" />
-              New schedule
-            </button>
             <button
               hlmBtn
               variant="outline"
