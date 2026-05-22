@@ -6,10 +6,10 @@
   One click. One key. Your database is ready.
 </p>
 <p align="center">
-  <a href="https://github.com/PianoNic/KRINT"><img src="https://badgetrack.pianonic.ch/badge?tag=krint&label=visits&color=4338ca&style=flat" alt="visits" /></a>
-  <a href="#-getting-started"><img src="https://img.shields.io/badge/Self--Host-Instructions-4338ca.svg" alt="Self-hosting" /></a>
-  <a href="#-tech-stack"><img src="https://img.shields.io/badge/.NET-10-4338ca.svg" alt=".NET 10" /></a>
-  <a href="#-tech-stack"><img src="https://img.shields.io/badge/Angular-21-4338ca.svg" alt="Angular 21" /></a>
+  <a href="https://github.com/PianoNic/KRINT"><img src="https://badgetrack.pianonic.ch/badge?tag=krint&label=visits&color=0d1117&style=flat" alt="visits" /></a>
+  <a href="#-getting-started"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
+  <a href="#-tech-stack"><img src="https://img.shields.io/badge/.NET-10-0d1117.svg" alt=".NET 10" /></a>
+  <a href="#-tech-stack"><img src="https://img.shields.io/badge/Angular-21-0d1117.svg" alt="Angular 21" /></a>
 </p>
 
 ---
