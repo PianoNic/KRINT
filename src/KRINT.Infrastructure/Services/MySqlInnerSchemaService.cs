@@ -12,9 +12,7 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(database);
             await using var conn = await OpenAsync(target, database, cancellationToken);
-            await using var cmd = new MySqlCommand(
-                "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = @schema ORDER BY table_name",
-                conn);
+            await using var cmd = new MySqlCommand("SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = @schema ORDER BY table_name", conn);
             cmd.Parameters.AddWithValue("@schema", database);
 
             var results = new List<TableSummary>();
@@ -45,9 +43,7 @@ namespace KRINT.Infrastructure.Services
                 if (raw is not null && raw is not DBNull) total = Convert.ToInt64(raw, CultureInfo.InvariantCulture);
             }
 
-            await using var cmd = new MySqlCommand(
-                $"SELECT * FROM `{table}` LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}",
-                conn);
+            await using var cmd = new MySqlCommand($"SELECT * FROM `{table}` LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             var columns = new List<string>();
@@ -111,9 +107,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // MySQL supports UPDATE ... LIMIT - combine with a match-count check to enforce exactly one.
-            await using (var countCmd = new MySqlCommand(
-                $"SELECT COUNT(*) FROM (SELECT 1 FROM `{table}` WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s",
-                conn, tx))
+            await using (var countCmd = new MySqlCommand( $"SELECT COUNT(*) FROM (SELECT 1 FROM `{table}` WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
             {
                 foreach (MySqlParameter param in cmd.Parameters)
                 {
@@ -177,9 +171,7 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            await using (var countCmd = new MySqlCommand(
-                $"SELECT COUNT(*) FROM (SELECT 1 FROM `{table}` WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s",
-                conn, tx))
+            await using (var countCmd = new MySqlCommand( $"SELECT COUNT(*) FROM (SELECT 1 FROM `{table}` WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
             {
                 foreach (MySqlParameter param in cmd.Parameters)
                     if (param.ParameterName.StartsWith("@o", StringComparison.Ordinal))

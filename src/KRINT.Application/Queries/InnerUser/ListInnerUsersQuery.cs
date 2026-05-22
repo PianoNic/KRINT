@@ -7,11 +7,7 @@ namespace KRINT.Application.Queries.InnerUser
 {
     public record ListInnerUsersQuery(Guid InstanceId) : IQuery<IReadOnlyList<string>>;
 
-    public class ListInnerUsersQueryHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerUserServiceResolver resolver)
-        : IQueryHandler<ListInnerUsersQuery, IReadOnlyList<string>>
+    public class ListInnerUsersQueryHandler(KrintDbContext db, ISecretsVaultService vault, IInnerUserServiceResolver resolver) : IQueryHandler<ListInnerUsersQuery, IReadOnlyList<string>>
     {
         public async ValueTask<IReadOnlyList<string>> Handle(ListInnerUsersQuery query, CancellationToken cancellationToken)
         {

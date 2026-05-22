@@ -7,11 +7,7 @@ namespace KRINT.Application.Command.Backup
 {
     public record DeleteBackupCommand(Guid BackupId) : ICommand;
 
-    public class DeleteBackupCommandHandler(
-        KrintDbContext db,
-        IBackupStorage storage,
-        IActivityLogger activity)
-        : ICommandHandler<DeleteBackupCommand>
+    public class DeleteBackupCommandHandler(KrintDbContext db, IBackupStorage storage, IActivityLogger activity) : ICommandHandler<DeleteBackupCommand>
     {
         public async ValueTask<Unit> Handle(DeleteBackupCommand command, CancellationToken cancellationToken)
         {

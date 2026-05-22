@@ -7,11 +7,7 @@ namespace KRINT.Application.Command.InnerDatabase
 {
     public record DropInnerDatabaseCommand(Guid InstanceId, string Name) : ICommand;
 
-    public class DropInnerDatabaseCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerDatabaseServiceResolver resolver)
-        : ICommandHandler<DropInnerDatabaseCommand>
+    public class DropInnerDatabaseCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerDatabaseServiceResolver resolver) : ICommandHandler<DropInnerDatabaseCommand>
     {
         public async ValueTask<Unit> Handle(DropInnerDatabaseCommand command, CancellationToken cancellationToken)
         {

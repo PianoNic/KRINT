@@ -12,11 +12,7 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(database);
             await using var conn = await OpenAsync(target, database, cancellationToken);
-            await using var cmd = new NpgsqlCommand(
-                "SELECT table_name, table_type FROM information_schema.tables " +
-                "WHERE table_schema NOT IN ('pg_catalog','information_schema') " +
-                "ORDER BY table_schema, table_name",
-                conn);
+            await using var cmd = new NpgsqlCommand("SELECT table_name, table_type FROM information_schema.tables " + "WHERE table_schema NOT IN ('pg_catalog','information_schema') " + "ORDER BY table_schema, table_name", conn);
             var results = new List<TableSummary>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -44,9 +40,7 @@ namespace KRINT.Infrastructure.Services
                 if (raw is long l) total = l;
             }
 
-            await using var cmd = new NpgsqlCommand(
-                $"SELECT * FROM \"{table}\" LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}",
-                conn);
+            await using var cmd = new NpgsqlCommand($"SELECT * FROM \"{table}\" LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             return await ReadRowsAsync(reader, total, cancellationToken);
         }
@@ -100,9 +94,7 @@ namespace KRINT.Infrastructure.Services
                               $"WHERE ctid = (SELECT ctid FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2)";
 
             // Two-step strategy: peek matches first to enforce "exactly one row".
-            await using (var countCmd = new NpgsqlCommand(
-                $"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s",
-                conn, tx))
+            await using (var countCmd = new NpgsqlCommand( $"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
             {
                 foreach (NpgsqlParameter param in cmd.Parameters)
                 {
@@ -166,9 +158,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // Match-count guard - refuse to delete if zero or >1 rows match the row the UI sent.
-            await using (var countCmd = new NpgsqlCommand(
-                $"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s",
-                conn, tx))
+            await using (var countCmd = new NpgsqlCommand( $"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
             {
                 foreach (NpgsqlParameter param in cmd.Parameters)
                     if (param.ParameterName.StartsWith("@o", StringComparison.Ordinal))

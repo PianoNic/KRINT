@@ -8,13 +8,7 @@ namespace KRINT.Application.Command.Backup
 {
     public record RestoreBackupCommand(Guid BackupId) : ICommand;
 
-    public class RestoreBackupCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IBackupServiceResolver resolver,
-        IBackupStorage storage,
-        IActivityLogger activity)
-        : ICommandHandler<RestoreBackupCommand>
+    public class RestoreBackupCommandHandler(KrintDbContext db, ISecretsVaultService vault, IBackupServiceResolver resolver, IBackupStorage storage, IActivityLogger activity) : ICommandHandler<RestoreBackupCommand>
     {
         public async ValueTask<Unit> Handle(RestoreBackupCommand command, CancellationToken cancellationToken)
         {
@@ -27,13 +21,7 @@ namespace KRINT.Application.Command.Backup
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
-            var target = new BackupTarget(
-                instance.ContainerId,
-                instance.ContainerName,
-                instance.Engine,
-                instance.Username,
-                password,
-                instance.DatabaseName);
+            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName);
 
             await using var stream = storage.OpenRead(entry.FilePath)
                 ?? throw new InvalidOperationException($"Backup file is missing on disk: {entry.FilePath}");

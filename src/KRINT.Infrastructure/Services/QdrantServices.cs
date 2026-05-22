@@ -81,20 +81,14 @@ namespace KRINT.Infrastructure.Services
 
             // /collections/{name}/points/scroll
             var body = new { limit, with_payload = true, with_vector = false, offset = (object?)null };
-            using var resp = await http.PostAsync(
-                $"/collections/{Uri.EscapeDataString(table)}/points/scroll",
-                new StringContent(JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"),
-                cancellationToken);
+            using var resp = await http.PostAsync($"/collections/{Uri.EscapeDataString(table)}/points/scroll", new StringContent(JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"), cancellationToken);
             resp.EnsureSuccessStatusCode();
             await using var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
             using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
             // Get a collection count for the totals row.
             long? total = null;
-            using (var cntResp = await http.PostAsync(
-                $"/collections/{Uri.EscapeDataString(table)}/points/count",
-                new StringContent("{}", System.Text.Encoding.UTF8, "application/json"),
-                cancellationToken))
+            using (var cntResp = await http.PostAsync( $"/collections/{Uri.EscapeDataString(table)}/points/count", new StringContent("{}", System.Text.Encoding.UTF8, "application/json"), cancellationToken))
             {
                 if (cntResp.IsSuccessStatusCode)
                 {

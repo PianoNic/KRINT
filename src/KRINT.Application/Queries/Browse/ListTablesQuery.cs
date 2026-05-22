@@ -9,11 +9,7 @@ namespace KRINT.Application.Queries.Browse
 {
     public record ListTablesQuery(Guid InstanceId, string Database) : IQuery<IReadOnlyList<TableSummaryDto>>;
 
-    public class ListTablesQueryHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerSchemaServiceResolver resolver)
-        : IQueryHandler<ListTablesQuery, IReadOnlyList<TableSummaryDto>>
+    public class ListTablesQueryHandler(KrintDbContext db, ISecretsVaultService vault, IInnerSchemaServiceResolver resolver) : IQueryHandler<ListTablesQuery, IReadOnlyList<TableSummaryDto>>
     {
         public async ValueTask<IReadOnlyList<TableSummaryDto>> Handle(ListTablesQuery query, CancellationToken cancellationToken)
         {

@@ -20,9 +20,7 @@ namespace KRINT.Application.Command.Provision
             // 1. Create the instance (provisions the container, opens host port, stores root password).
             // Plugins propagate down so CreateDatabaseCommand can swap the image, set env vars,
             // and/or run post-readiness install steps.
-            var instance = await mediator.Send(
-                new CreateDatabaseCommand(req.Engine, req.Version, req.DisplayName, req.DefaultDatabaseName, req.Plugins),
-                cancellationToken);
+            var instance = await mediator.Send(new CreateDatabaseCommand(req.Engine, req.Version, req.DisplayName, req.DefaultDatabaseName, req.Plugins), cancellationToken);
 
             var createdDatabases = new List<string>();
             var createdUsers = new List<InnerUserPasswordDto>();
@@ -40,9 +38,7 @@ namespace KRINT.Application.Command.Provision
             // Validate grants against the actually-created database set (default + extras),
             // not what the request *asked for*. This lets the client pass the engine-default
             // name (postgres / mysql / admin) even when DefaultDatabaseName was left blank.
-            var availableDbs = new HashSet<string>(
-                createdDatabases.Append(instance.DatabaseName),
-                StringComparer.OrdinalIgnoreCase);
+            var availableDbs = new HashSet<string>(createdDatabases.Append(instance.DatabaseName), StringComparer.OrdinalIgnoreCase);
             ValidateUserGrants(req, availableDbs);
 
             // 3. Create users + grant access to each requested database.
@@ -60,13 +56,7 @@ namespace KRINT.Application.Command.Provision
             // Always include the default DB in the returned list.
             createdDatabases.Insert(0, instance.DatabaseName);
 
-            await activity.LogAsync(
-                "provision.complete",
-                instance.ContainerName,
-                instance.Id,
-                instance.Engine,
-                $"databases={createdDatabases.Count}, users={createdUsers.Count}",
-                cancellationToken);
+            await activity.LogAsync("provision.complete", instance.ContainerName, instance.Id, instance.Engine, $"databases={createdDatabases.Count}, users={createdUsers.Count}", cancellationToken);
 
             return new ProvisionResultDto
             {
@@ -85,9 +75,7 @@ namespace KRINT.Application.Command.Provision
                     if (string.IsNullOrEmpty(db)) continue;
                     if (!availableDatabases.Contains(db))
                     {
-                        throw new ArgumentException(
-                            $"User '{user.Name}' grants reference unknown database '{db}'. " +
-                            $"Available: {string.Join(", ", availableDatabases)}.");
+                        throw new ArgumentException($"User '{user.Name}' grants reference unknown database '{db}'. " + $"Available: {string.Join(", ", availableDatabases)}.");
                     }
                 }
             }

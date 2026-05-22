@@ -35,9 +35,7 @@ namespace KRINT.Infrastructure.Services
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
             await using var conn = await MsSqlConnect.OpenAsync(target, "master", cancellationToken);
-            await using var cmd = new SqlCommand(
-                "SELECT name FROM sys.databases WHERE name NOT IN ('master','tempdb','model','msdb') ORDER BY name",
-                conn);
+            await using var cmd = new SqlCommand("SELECT name FROM sys.databases WHERE name NOT IN ('master','tempdb','model','msdb') ORDER BY name", conn);
             var results = new List<string>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken)) results.Add(reader.GetString(0));
@@ -59,9 +57,7 @@ namespace KRINT.Infrastructure.Services
                 throw new InvalidOperationException($"Refusing to drop the instance's default database '{name}'.");
             await using var conn = await MsSqlConnect.OpenAsync(target, "master", cancellationToken);
             // Kick connections first, then drop. Otherwise active sessions hold the lock.
-            await using var cmd = new SqlCommand(
-                $"ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}]",
-                conn);
+            await using var cmd = new SqlCommand($"ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}]", conn);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -73,9 +69,7 @@ namespace KRINT.Infrastructure.Services
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
             await using var conn = await MsSqlConnect.OpenAsync(target, "master", cancellationToken);
-            await using var cmd = new SqlCommand(
-                "SELECT name FROM sys.sql_logins WHERE is_disabled = 0 AND name NOT LIKE '##%' AND name <> 'sa' ORDER BY name",
-                conn);
+            await using var cmd = new SqlCommand("SELECT name FROM sys.sql_logins WHERE is_disabled = 0 AND name NOT LIKE '##%' AND name <> 'sa' ORDER BY name", conn);
             var results = new List<string>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken)) results.Add(reader.GetString(0));
@@ -132,9 +126,7 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(database);
             await using var conn = await MsSqlConnect.OpenAsync(target, database, cancellationToken);
-            await using var cmd = new SqlCommand(
-                "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' ORDER BY TABLE_NAME",
-                conn);
+            await using var cmd = new SqlCommand("SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' ORDER BY TABLE_NAME", conn);
             var results = new List<TableSummary>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -164,9 +156,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // OFFSET/FETCH requires an ORDER BY; sort by the first column to get a stable page.
-            await using var cmd = new SqlCommand(
-                $"SELECT * FROM [{table}] ORDER BY (SELECT NULL) OFFSET {offset.ToString(CultureInfo.InvariantCulture)} ROWS FETCH NEXT {limit.ToString(CultureInfo.InvariantCulture)} ROWS ONLY",
-                conn);
+            await using var cmd = new SqlCommand($"SELECT * FROM [{table}] ORDER BY (SELECT NULL) OFFSET {offset.ToString(CultureInfo.InvariantCulture)} ROWS FETCH NEXT {limit.ToString(CultureInfo.InvariantCulture)} ROWS ONLY", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             var columns = new List<string>();
@@ -242,9 +232,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // Match guard.
-            await using (var countCmd = new SqlCommand(
-                $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM [{table}] WHERE {string.Join(" AND ", whereClauses)}) s",
-                conn, tx))
+            await using (var countCmd = new SqlCommand( $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM [{table}] WHERE {string.Join(" AND ", whereClauses)}) s", conn, tx))
             {
                 foreach (SqlParameter p in cmd.Parameters)
                     if (p.ParameterName.StartsWith("@o", StringComparison.Ordinal))
@@ -284,9 +272,7 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            await using (var countCmd = new SqlCommand(
-                $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM [{table}] WHERE {string.Join(" AND ", whereClauses)}) s",
-                conn, tx))
+            await using (var countCmd = new SqlCommand( $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM [{table}] WHERE {string.Join(" AND ", whereClauses)}) s", conn, tx))
             {
                 foreach (SqlParameter p in cmd.Parameters) countCmd.Parameters.AddWithValue(p.ParameterName, p.Value!);
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);

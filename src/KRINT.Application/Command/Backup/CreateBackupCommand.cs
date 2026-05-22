@@ -11,13 +11,7 @@ namespace KRINT.Application.Command.Backup
 {
     public record CreateBackupCommand(Guid InstanceId) : ICommand<BackupEntryDto>;
 
-    public class CreateBackupCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IBackupServiceResolver resolver,
-        IActivityLogger activity,
-        IBackupStorage storage)
-        : ICommandHandler<CreateBackupCommand, BackupEntryDto>
+    public class CreateBackupCommandHandler(KrintDbContext db, ISecretsVaultService vault, IBackupServiceResolver resolver, IActivityLogger activity, IBackupStorage storage) : ICommandHandler<CreateBackupCommand, BackupEntryDto>
     {
         public async ValueTask<BackupEntryDto> Handle(CreateBackupCommand command, CancellationToken cancellationToken)
         {
@@ -27,13 +21,7 @@ namespace KRINT.Application.Command.Backup
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
-            var target = new BackupTarget(
-                instance.ContainerId,
-                instance.ContainerName,
-                instance.Engine,
-                instance.Username,
-                password,
-                instance.DatabaseName);
+            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName);
 
             var dump = await resolver.Resolve(instance.Engine).DumpAsync(target, cancellationToken);
 
@@ -52,8 +40,7 @@ namespace KRINT.Application.Command.Backup
             db.BackupEntries.Add(entry);
             await db.SaveChangesAsync(cancellationToken);
 
-            await activity.LogAsync("backup.create", fileName, instance.Id, instance.Engine,
-                $"size={dump.Content.LongLength}", cancellationToken);
+            await activity.LogAsync("backup.create", fileName, instance.Id, instance.Engine, $"size={dump.Content.LongLength}", cancellationToken);
 
             return entry.ToDto();
         }

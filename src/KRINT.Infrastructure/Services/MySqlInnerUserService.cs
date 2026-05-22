@@ -15,9 +15,7 @@ namespace KRINT.Infrastructure.Services
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
             await using var conn = await OpenAsync(target, cancellationToken);
-            await using var cmd = new MySqlCommand(
-                "SELECT DISTINCT User FROM mysql.user ORDER BY User",
-                conn);
+            await using var cmd = new MySqlCommand("SELECT DISTINCT User FROM mysql.user ORDER BY User", conn);
             var results = new List<string>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))

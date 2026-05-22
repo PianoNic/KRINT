@@ -10,9 +10,7 @@ namespace KRINT.Infrastructure.Services
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
             await using var conn = await OpenAsync(target, cancellationToken);
-            await using var cmd = new NpgsqlCommand(
-                "SELECT rolname FROM pg_roles WHERE rolcanlogin = true AND rolname NOT LIKE 'pg\\_%' ORDER BY rolname",
-                conn);
+            await using var cmd = new NpgsqlCommand("SELECT rolname FROM pg_roles WHERE rolcanlogin = true AND rolname NOT LIKE 'pg\\_%' ORDER BY rolname", conn);
 
             var results = new List<string>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -43,9 +41,7 @@ namespace KRINT.Infrastructure.Services
             // role might touch. Run them on connections opened TO each database in turn.
             await using var listConn = await OpenAsync(target, cancellationToken);
             var databases = new List<string>();
-            await using (var listCmd = new NpgsqlCommand(
-                "SELECT datname FROM pg_database WHERE datistemplate = false AND datallowconn = true",
-                listConn))
+            await using (var listCmd = new NpgsqlCommand( "SELECT datname FROM pg_database WHERE datistemplate = false AND datallowconn = true", listConn))
             await using (var reader = await listCmd.ExecuteReaderAsync(cancellationToken))
             {
                 while (await reader.ReadAsync(cancellationToken)) databases.Add(reader.GetString(0));
@@ -55,9 +51,7 @@ namespace KRINT.Infrastructure.Services
             foreach (var db in databases)
             {
                 await using var dbConn = await OpenAsync(target with { DefaultDatabase = db }, cancellationToken);
-                await using var reassign = new NpgsqlCommand(
-                    $"REASSIGN OWNED BY \"{name}\" TO \"{target.Username}\"; DROP OWNED BY \"{name}\"",
-                    dbConn);
+                await using var reassign = new NpgsqlCommand($"REASSIGN OWNED BY \"{name}\" TO \"{target.Username}\"; DROP OWNED BY \"{name}\"", dbConn);
                 try { await reassign.ExecuteNonQueryAsync(cancellationToken); }
                 catch (Npgsql.PostgresException ex) when (ex.SqlState == "42704") { /* role doesn't exist in this db's catalog */ }
             }

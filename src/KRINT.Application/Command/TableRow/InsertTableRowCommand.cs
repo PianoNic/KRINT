@@ -8,11 +8,7 @@ namespace KRINT.Application.Command.TableRow
 {
     public record InsertTableRowCommand(Guid InstanceId, string Database, string Table, InsertRowDto Body) : ICommand;
 
-    public class InsertTableRowCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerSchemaServiceResolver resolver)
-        : ICommandHandler<InsertTableRowCommand>
+    public class InsertTableRowCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerSchemaServiceResolver resolver) : ICommandHandler<InsertTableRowCommand>
     {
         public async ValueTask<Unit> Handle(InsertTableRowCommand command, CancellationToken cancellationToken)
         {

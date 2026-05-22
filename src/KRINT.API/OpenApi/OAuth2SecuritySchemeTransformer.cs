@@ -5,9 +5,7 @@ using Microsoft.OpenApi;
 
 namespace KRINT.API.OpenApi
 {
-    internal sealed class OAuth2SecuritySchemeTransformer(
-        IAuthenticationSchemeProvider authenticationSchemeProvider,
-        IConfiguration configuration) : IOpenApiDocumentTransformer
+    internal sealed class OAuth2SecuritySchemeTransformer(IAuthenticationSchemeProvider authenticationSchemeProvider, IConfiguration configuration) : IOpenApiDocumentTransformer
     {
         private const string SchemeName = "OAuth2";
 

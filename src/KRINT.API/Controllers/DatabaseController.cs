@@ -256,10 +256,7 @@ namespace KRINT.API.Controllers
         [HttpGet("{id:guid}/browse/{database}/tables/{table}/rows")]
         [ProducesResponseType(typeof(TableRowsDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> FetchTableRows(
-            Guid id, string database, string table,
-            [FromQuery] int limit = 50, [FromQuery] int offset = 0,
-            CancellationToken cancellationToken = default)
+        public async Task<IActionResult> FetchTableRows(Guid id, string database, string table, [FromQuery] int limit = 50, [FromQuery] int offset = 0, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -315,10 +312,7 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> InsertTableRow(
-            Guid id, string database, string table,
-            [FromBody] InsertRowDto body,
-            CancellationToken cancellationToken)
+        public async Task<IActionResult> InsertTableRow(Guid id, string database, string table, [FromBody] InsertRowDto body, CancellationToken cancellationToken)
         {
             try
             {
@@ -335,10 +329,7 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> DeleteTableRow(
-            Guid id, string database, string table,
-            [FromBody] DeleteRowDto body,
-            CancellationToken cancellationToken)
+        public async Task<IActionResult> DeleteTableRow(Guid id, string database, string table, [FromBody] DeleteRowDto body, CancellationToken cancellationToken)
         {
             try
             {
@@ -355,9 +346,7 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DropTable(
-            Guid id, string database, string table,
-            CancellationToken cancellationToken)
+        public async Task<IActionResult> DropTable(Guid id, string database, string table, CancellationToken cancellationToken)
         {
             try
             {
@@ -373,10 +362,7 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> UpdateTableRow(
-            Guid id, string database, string table,
-            [FromBody] UpdateRowDto body,
-            CancellationToken cancellationToken)
+        public async Task<IActionResult> UpdateTableRow(Guid id, string database, string table, [FromBody] UpdateRowDto body, CancellationToken cancellationToken)
         {
             try
             {

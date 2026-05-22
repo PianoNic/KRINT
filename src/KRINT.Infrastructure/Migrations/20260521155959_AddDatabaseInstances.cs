@@ -32,18 +32,13 @@ namespace KRINT.Infrastructure.Migrations
                     table.PrimaryKey("PK_DatabaseInstances", x => x.Id);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_DatabaseInstances_ContainerName",
-                table: "DatabaseInstances",
-                column: "ContainerName",
-                unique: true);
+            migrationBuilder.CreateIndex(name: "IX_DatabaseInstances_ContainerName", table: "DatabaseInstances", column: "ContainerName", unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "DatabaseInstances");
+            migrationBuilder.DropTable(name: "DatabaseInstances");
         }
     }
 }

@@ -7,12 +7,7 @@ namespace KRINT.Application.Command.DatabaseInstance
 {
     public record DeleteDatabaseCommand(Guid Id) : ICommand;
 
-    public class DeleteDatabaseCommandHandler(
-        KrintDbContext db,
-        IDockerService docker,
-        ISecretsVaultService vault,
-        IActivityLogger activity)
-        : ICommandHandler<DeleteDatabaseCommand>
+    public class DeleteDatabaseCommandHandler(KrintDbContext db, IDockerService docker, ISecretsVaultService vault, IActivityLogger activity) : ICommandHandler<DeleteDatabaseCommand>
     {
         public async ValueTask<Unit> Handle(DeleteDatabaseCommand command, CancellationToken cancellationToken)
         {
@@ -32,13 +27,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             db.DatabaseInstances.Remove(instance);
             await db.SaveChangesAsync(cancellationToken);
 
-            await activity.LogAsync(
-                "instance.delete",
-                instance.ContainerName,
-                instance.Id,
-                instance.Engine,
-                null,
-                cancellationToken);
+            await activity.LogAsync("instance.delete", instance.ContainerName, instance.Id, instance.Engine, null, cancellationToken);
 
             return Unit.Value;
         }

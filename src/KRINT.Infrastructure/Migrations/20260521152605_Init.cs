@@ -28,18 +28,13 @@ namespace KRINT.Infrastructure.Migrations
                     table.PrimaryKey("PK_Secrets", x => x.Id);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Secrets_Name",
-                table: "Secrets",
-                column: "Name",
-                unique: true);
+            migrationBuilder.CreateIndex(name: "IX_Secrets_Name", table: "Secrets", column: "Name", unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "Secrets");
+            migrationBuilder.DropTable(name: "Secrets");
         }
     }
 }

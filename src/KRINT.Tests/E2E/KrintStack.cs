@@ -109,8 +109,7 @@ public sealed class KrintStack : IAsyncDisposable
             // inside the container. The (string, string) overload sometimes creates the
             // target as a bind-mounted directory which Keycloak then refuses to import.
             .WithResourceMapping(realmJson, "/opt/keycloak/data/import/krint-realm.json")
-            .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilHttpRequestIsSucceeded(r => r.ForPort(8080).ForPath($"/realms/{KeycloakRealmName}/.well-known/openid-configuration")))
+            .WithWaitStrategy(Wait.ForUnixContainer() .UntilHttpRequestIsSucceeded(r => r.ForPort(8080).ForPath($"/realms/{KeycloakRealmName}/.well-known/openid-configuration")))
             .Build();
         await keycloak.StartAsync();
 
@@ -144,8 +143,7 @@ public sealed class KrintStack : IAsyncDisposable
             .WithEnvironment("Vault__MasterKey", Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)))
             // /api/App is AllowAnonymous and returns 200 with the OIDC config - perfect
             // readiness probe. /openapi/v1.json is gated by IsDevelopment() so it 404s here.
-            .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilHttpRequestIsSucceeded(r => r.ForPort(8080).ForPath("/api/App")))
+            .WithWaitStrategy(Wait.ForUnixContainer() .UntilHttpRequestIsSucceeded(r => r.ForPort(8080).ForPath("/api/App")))
             .Build();
         await krint.StartAsync();
 

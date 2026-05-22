@@ -15,9 +15,7 @@ namespace KRINT.API
     /// fire a CreateBackupCommand for the linked instance, then NextRunAt is rolled forward
     /// from the cron expression. Failures are stored on the row so the UI can surface them.
     /// </summary>
-    public class BackupSchedulerHostedService(
-        IServiceProvider services,
-        ILogger<BackupSchedulerHostedService> log) : BackgroundService
+    public class BackupSchedulerHostedService(IServiceProvider services, ILogger<BackupSchedulerHostedService> log) : BackgroundService
     {
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -75,8 +73,7 @@ namespace KRINT.API
                 }
                 catch (Exception ex)
                 {
-                    log.LogError(ex, "Scheduled backup failed for instance {InstanceId} (schedule {Id}).",
-                        schedule.InstanceId, schedule.Id);
+                    log.LogError(ex, "Scheduled backup failed for instance {InstanceId} (schedule {Id}).", schedule.InstanceId, schedule.Id);
                     schedule.LastStatus = "error";
                     schedule.LastError = ex.Message;
                 }

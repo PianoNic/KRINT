@@ -7,11 +7,7 @@ namespace KRINT.Application.Command.InnerUser
 {
     public record DeleteInnerUserCommand(Guid InstanceId, string Name) : ICommand;
 
-    public class DeleteInnerUserCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerUserServiceResolver resolver)
-        : ICommandHandler<DeleteInnerUserCommand>
+    public class DeleteInnerUserCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerUserServiceResolver resolver) : ICommandHandler<DeleteInnerUserCommand>
     {
         public async ValueTask<Unit> Handle(DeleteInnerUserCommand command, CancellationToken cancellationToken)
         {

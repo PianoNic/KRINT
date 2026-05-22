@@ -118,16 +118,14 @@ namespace KRINT.Infrastructure.Services
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
-                throw new TimeoutException(
-                    $"docker exec on {containerId} exceeded 2 minutes (command: {string.Join(' ', command)}).");
+                throw new TimeoutException($"docker exec on {containerId} exceeded 2 minutes (command: {string.Join(' ', command)}).");
             }
 
             var inspect = await client.Exec.InspectContainerExecAsync(exec.ID, ct);
             if (inspect.ExitCode != 0)
             {
                 var stderrText = System.Text.Encoding.UTF8.GetString(stderr.ToArray());
-                throw new InvalidOperationException(
-                    $"exec exited with code {inspect.ExitCode}: {stderrText}");
+                throw new InvalidOperationException($"exec exited with code {inspect.ExitCode}: {stderrText}");
             }
             return stdout.ToArray();
         }
@@ -141,8 +139,7 @@ namespace KRINT.Infrastructure.Services
             // which every existing IBackupService.RestoreAsync does.
             if (command.Count != 3 || command[1] != "-c" || (command[0] != "bash" && command[0] != "sh"))
             {
-                throw new InvalidOperationException(
-                    "ExecWithStdinAsync requires a [shell, -c, script] command so the input can be redirected from a temp file.");
+                throw new InvalidOperationException("ExecWithStdinAsync requires a [shell, -c, script] command so the input can be redirected from a temp file.");
             }
 
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(10));

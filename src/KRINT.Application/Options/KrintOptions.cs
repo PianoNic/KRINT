@@ -20,10 +20,7 @@ public readonly record struct PortRange(int Start, int End)
     public static PortRange Parse(string engine, string raw)
     {
         var parts = raw.Split('-', 2);
-        if (parts.Length != 2
-            || !int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var start)
-            || !int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var end)
-            || start < 1 || end > 65535 || start > end)
+        if (parts.Length != 2 || !int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var start) || !int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var end) || start < 1 || end > 65535 || start > end)
         {
             throw new InvalidOperationException($"Invalid port range '{raw}' for engine '{engine}'. Expected 'start-end' with 1 <= start <= end <= 65535.");
         }

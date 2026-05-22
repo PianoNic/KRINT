@@ -7,18 +7,11 @@ namespace KRINT.Infrastructure.Interfaces
     /// <summary>
     /// Identifies a single row by the values it had when it was last read. Same column order as TableRows.Columns.
     /// </summary>
-    public record UpdateRowRequest(
-        IReadOnlyList<string> Columns,
-        IReadOnlyList<string?> OriginalValues,
-        IReadOnlyList<string?> NewValues);
+    public record UpdateRowRequest(IReadOnlyList<string> Columns, IReadOnlyList<string?> OriginalValues, IReadOnlyList<string?> NewValues);
 
-    public record InsertRowRequest(
-        IReadOnlyList<string> Columns,
-        IReadOnlyList<string?> Values);
+    public record InsertRowRequest(IReadOnlyList<string> Columns, IReadOnlyList<string?> Values);
 
-    public record DeleteRowRequest(
-        IReadOnlyList<string> Columns,
-        IReadOnlyList<string?> OriginalValues);
+    public record DeleteRowRequest(IReadOnlyList<string> Columns, IReadOnlyList<string?> OriginalValues);
 
     public interface IInnerSchemaService
     {

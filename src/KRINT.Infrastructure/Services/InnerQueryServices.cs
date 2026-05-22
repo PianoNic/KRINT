@@ -24,8 +24,7 @@ namespace KRINT.Infrastructure.Services
             if (reader.FieldCount == 0)
             {
                 sw.Stop();
-                return new QueryResult(Array.Empty<QueryResultColumn>(), Array.Empty<IReadOnlyList<string?>>(),
-                    reader.RecordsAffected < 0 ? 0 : reader.RecordsAffected, sw.ElapsedMilliseconds, false);
+                return new QueryResult(Array.Empty<QueryResultColumn>(), Array.Empty<IReadOnlyList<string?>>(), reader.RecordsAffected < 0 ? 0 : reader.RecordsAffected, sw.ElapsedMilliseconds, false);
             }
 
             var columns = new QueryResultColumn[reader.FieldCount];
@@ -44,9 +43,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             sw.Stop();
-            return new QueryResult(columns, rows,
-                reader.RecordsAffected < 0 ? rows.Count : reader.RecordsAffected,
-                sw.ElapsedMilliseconds, truncated);
+            return new QueryResult(columns, rows, reader.RecordsAffected < 0 ? rows.Count : reader.RecordsAffected, sw.ElapsedMilliseconds, truncated);
         }
     }
 

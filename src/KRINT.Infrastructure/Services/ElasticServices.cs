@@ -102,9 +102,7 @@ namespace KRINT.Infrastructure.Services
             using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
             long? total = null;
-            if (doc.RootElement.TryGetProperty("hits", out var hits) &&
-                hits.TryGetProperty("total", out var tot) &&
-                tot.TryGetProperty("value", out var tv))
+            if (doc.RootElement.TryGetProperty("hits", out var hits) && hits.TryGetProperty("total", out var tot) && tot.TryGetProperty("value", out var tv))
             {
                 total = tv.GetInt64();
             }

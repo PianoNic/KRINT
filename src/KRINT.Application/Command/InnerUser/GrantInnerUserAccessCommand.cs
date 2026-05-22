@@ -7,11 +7,7 @@ namespace KRINT.Application.Command.InnerUser
 {
     public record GrantInnerUserAccessCommand(Guid InstanceId, string User, string Database) : ICommand;
 
-    public class GrantInnerUserAccessCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerUserServiceResolver resolver)
-        : ICommandHandler<GrantInnerUserAccessCommand>
+    public class GrantInnerUserAccessCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerUserServiceResolver resolver) : ICommandHandler<GrantInnerUserAccessCommand>
     {
         public async ValueTask<Unit> Handle(GrantInnerUserAccessCommand command, CancellationToken cancellationToken)
         {

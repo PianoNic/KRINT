@@ -7,11 +7,7 @@ namespace KRINT.Application.Command.InnerDatabase
 {
     public record CreateInnerDatabaseCommand(Guid InstanceId, string Name) : ICommand;
 
-    public class CreateInnerDatabaseCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerDatabaseServiceResolver resolver)
-        : ICommandHandler<CreateInnerDatabaseCommand>
+    public class CreateInnerDatabaseCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerDatabaseServiceResolver resolver) : ICommandHandler<CreateInnerDatabaseCommand>
     {
         public async ValueTask<Unit> Handle(CreateInnerDatabaseCommand command, CancellationToken cancellationToken)
         {

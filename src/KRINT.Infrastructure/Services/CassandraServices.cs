@@ -41,8 +41,7 @@ namespace KRINT.Infrastructure.Services
             };
             using var cluster = CassandraConnect.Build(target);
             using var session = await cluster.ConnectAsync();
-            var rs = await session.ExecuteAsync(new SimpleStatement(
-                "SELECT keyspace_name FROM system_schema.keyspaces"));
+            var rs = await session.ExecuteAsync(new SimpleStatement( "SELECT keyspace_name FROM system_schema.keyspaces"));
             return rs.Select(r => (string)r["keyspace_name"])
                 .Where(n => !system.Contains(n))
                 .OrderBy(n => n)
@@ -54,8 +53,7 @@ namespace KRINT.Infrastructure.Services
             InnerDatabaseNameValidator.Require(name);
             using var cluster = CassandraConnect.Build(target);
             using var session = await cluster.ConnectAsync();
-            await session.ExecuteAsync(new SimpleStatement(
-                $"CREATE KEYSPACE IF NOT EXISTS \"{name}\" WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': 1}}"));
+            await session.ExecuteAsync(new SimpleStatement( $"CREATE KEYSPACE IF NOT EXISTS \"{name}\" WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': 1}}"));
         }
 
         public async Task DropAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
@@ -98,8 +96,7 @@ namespace KRINT.Infrastructure.Services
             InnerDatabaseNameValidator.Require(database);
             using var cluster = CassandraConnect.Build(target);
             using var session = await cluster.ConnectAsync();
-            var rs = await session.ExecuteAsync(new SimpleStatement(
-                "SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?", database));
+            var rs = await session.ExecuteAsync(new SimpleStatement( "SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?", database));
             return rs.Select(r => new TableSummary((string)r["table_name"], "table")).OrderBy(t => t.Name).ToList();
         }
 
@@ -148,9 +145,7 @@ namespace KRINT.Infrastructure.Services
             using var session = await cluster.ConnectAsync(database);
             var cols = string.Join(", ", request.Columns.Select(c => $"\"{c}\""));
             var placeholders = string.Join(", ", Enumerable.Repeat("?", request.Values.Count));
-            var stmt = new SimpleStatement(
-                $"INSERT INTO \"{table}\" ({cols}) VALUES ({placeholders})",
-                request.Values.Cast<object?>().ToArray());
+            var stmt = new SimpleStatement($"INSERT INTO \"{table}\" ({cols}) VALUES ({placeholders})", request.Values.Cast<object?>().ToArray());
             await session.ExecuteAsync(stmt);
         }
 

@@ -15,10 +15,7 @@ namespace KRINT.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class BackupsController(
-        IMediator mediator,
-        KrintDbContext db,
-        IBackupStorage storage)
+    public class BackupsController(IMediator mediator, KrintDbContext db, IBackupStorage storage)
         : ControllerBase
     {
         [HttpGet]

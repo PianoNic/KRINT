@@ -7,11 +7,7 @@ namespace KRINT.Application.Command.TableRow
 {
     public record DropTableCommand(Guid InstanceId, string Database, string Table) : ICommand;
 
-    public class DropTableCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerSchemaServiceResolver resolver)
-        : ICommandHandler<DropTableCommand>
+    public class DropTableCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerSchemaServiceResolver resolver) : ICommandHandler<DropTableCommand>
     {
         public async ValueTask<Unit> Handle(DropTableCommand command, CancellationToken cancellationToken)
         {

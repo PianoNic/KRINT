@@ -9,11 +9,7 @@ namespace KRINT.Application.Queries.Settings
 {
     public record GetSettingsQuery : IQuery<SettingsDto>;
 
-    public class GetSettingsQueryHandler(
-        IOptions<KrintOptions> options,
-        IConfiguration configuration,
-        IMediator mediator)
-        : IQueryHandler<GetSettingsQuery, SettingsDto>
+    public class GetSettingsQueryHandler(IOptions<KrintOptions> options, IConfiguration configuration, IMediator mediator) : IQueryHandler<GetSettingsQuery, SettingsDto>
     {
         public async ValueTask<SettingsDto> Handle(GetSettingsQuery query, CancellationToken cancellationToken)
         {

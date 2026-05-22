@@ -64,8 +64,7 @@ namespace KRINT.Infrastructure.Services
 
         private static IMongoClient Connect(InnerDatabaseTarget target)
         {
-            var settings = MongoClientSettings.FromConnectionString(
-                $"mongodb://{Uri.EscapeDataString(target.Username)}:{Uri.EscapeDataString(target.Password)}@{target.Host}:{target.Port}/?authSource=admin");
+            var settings = MongoClientSettings.FromConnectionString($"mongodb://{Uri.EscapeDataString(target.Username)}:{Uri.EscapeDataString(target.Password)}@{target.Host}:{target.Port}/?authSource=admin");
             settings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
             return new MongoClient(settings);
         }

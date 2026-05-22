@@ -22,9 +22,7 @@ namespace KRINT.Application.Queries.Database
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
-            var connectionString = ConnectionStringBuilder.Build(
-                instance.Engine, instance.Host, instance.Port,
-                instance.Username, password, instance.DatabaseName);
+            var connectionString = ConnectionStringBuilder.Build(instance.Engine, instance.Host, instance.Port, instance.Username, password, instance.DatabaseName);
 
             return instance.ToProvisionedDto(password, connectionString);
         }

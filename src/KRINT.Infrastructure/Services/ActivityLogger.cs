@@ -5,13 +5,7 @@ namespace KRINT.Infrastructure.Services
 {
     public class ActivityLogger(KrintDbContext db, ICurrentUserService? currentUser = null) : IActivityLogger
     {
-        public async Task LogAsync(
-            string action,
-            string target,
-            Guid? instanceId = null,
-            string? engine = null,
-            string? details = null,
-            CancellationToken cancellationToken = default)
+        public async Task LogAsync(string action, string target, Guid? instanceId = null, string? engine = null, string? details = null, CancellationToken cancellationToken = default)
         {
             // Pull the actor from the current request. Background jobs (the backup scheduler
             // hosted service) run without an HTTP context, so the resolver returns null and

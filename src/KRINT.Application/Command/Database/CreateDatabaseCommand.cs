@@ -16,22 +16,9 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command.Database
 {
-    public record CreateDatabaseCommand(
-        string Engine,
-        string Version,
-        string DisplayName,
-        string? DatabaseName = null,
-        IReadOnlyList<string>? Plugins = null) : ICommand<ProvisionedDatabaseDto>;
+    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null) : ICommand<ProvisionedDatabaseDto>;
 
-    public class CreateDatabaseCommandHandler(
-        IDockerService docker,
-        ISecretGeneratorService secretGenerator,
-        ISecretsVaultService vault,
-        KrintDbContext db,
-        IOptions<KrintOptions> options,
-        IActivityLogger activity,
-        IInnerDatabaseServiceResolver innerDbs)
-        : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
+    public class CreateDatabaseCommandHandler(IDockerService docker, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
         private const string Host = "localhost";
 
@@ -112,9 +99,7 @@ namespace KRINT.Application.Command.Database
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
                 // Wait for the engine inside the container to accept connections.
-                var readinessTarget = new InnerDatabaseTarget(
-                    command.Engine, Host, hostPort,
-                    spec.DefaultUsername, password, databaseName);
+                var readinessTarget = new InnerDatabaseTarget(command.Engine, Host, hostPort, spec.DefaultUsername, password, databaseName);
                 await WaitForReadyAsync(readinessTarget, cancellationToken);
 
                 // pgvector engine entry: enable the extension once the container accepts connections.
@@ -154,13 +139,7 @@ namespace KRINT.Application.Command.Database
                 db.DatabaseInstances.Add(instance);
                 await db.SaveChangesAsync(cancellationToken);
 
-                await activity.LogAsync(
-                    "instance.create",
-                    containerName,
-                    instance.Id,
-                    command.Engine,
-                    $"version={command.Version}, port={hostPort}",
-                    cancellationToken);
+                await activity.LogAsync("instance.create", containerName, instance.Id, command.Engine, $"version={command.Version}, port={hostPort}", cancellationToken);
 
                 var connectionString = ConnectionStringBuilder.Build(command.Engine, instance.Host, hostPort, instance.Username, password, instance.DatabaseName);
 
@@ -436,8 +415,7 @@ namespace KRINT.Application.Command.Database
                     delayMs = Math.Min(delayMs * 2, 3000);
                 }
             }
-            throw new InvalidOperationException(
-                $"{target.Engine} container did not become ready within {ceilingSeconds}s.", last);
+            throw new InvalidOperationException($"{target.Engine} container did not become ready within {ceilingSeconds}s.", last);
         }
 
         private async Task<int> AllocateHostPortAsync(string engine, CancellationToken cancellationToken)

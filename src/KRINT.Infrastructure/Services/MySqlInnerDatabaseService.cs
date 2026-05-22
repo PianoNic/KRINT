@@ -15,9 +15,7 @@ namespace KRINT.Infrastructure.Services
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
             await using var conn = await OpenAsync(target, cancellationToken);
-            await using var cmd = new MySqlCommand(
-                "SELECT schema_name FROM information_schema.schemata ORDER BY schema_name",
-                conn);
+            await using var cmd = new MySqlCommand("SELECT schema_name FROM information_schema.schemata ORDER BY schema_name", conn);
 
             var results = new List<string>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);

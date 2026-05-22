@@ -8,11 +8,7 @@ namespace KRINT.Application.Command.TableRow
 {
     public record DeleteTableRowCommand(Guid InstanceId, string Database, string Table, DeleteRowDto Body) : ICommand;
 
-    public class DeleteTableRowCommandHandler(
-        KrintDbContext db,
-        ISecretsVaultService vault,
-        IInnerSchemaServiceResolver resolver)
-        : ICommandHandler<DeleteTableRowCommand>
+    public class DeleteTableRowCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerSchemaServiceResolver resolver) : ICommandHandler<DeleteTableRowCommand>
     {
         public async ValueTask<Unit> Handle(DeleteTableRowCommand command, CancellationToken cancellationToken)
         {

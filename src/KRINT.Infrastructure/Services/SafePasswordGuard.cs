@@ -22,9 +22,7 @@ namespace KRINT.Infrastructure.Services
                     || (c >= '0' && c <= '9')
                     || c == '-' || c == '_' || c == '.' || c == '~';
                 if (!safe)
-                    throw new ArgumentException(
-                        "Password contains an unsupported character. KRINT generates and accepts only [A-Za-z0-9-_.~] passwords for inlineable DDL safety.",
-                        nameof(password));
+                    throw new ArgumentException("Password contains an unsupported character. KRINT generates and accepts only [A-Za-z0-9-_.~] passwords for inlineable DDL safety.", nameof(password));
             }
         }
     }

@@ -12,9 +12,7 @@ namespace KRINT.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(name) || !Pattern.IsMatch(name))
             {
-                throw new ArgumentException(
-                    $"Invalid database name '{name}'. Must start with a letter/underscore and contain only [A-Za-z0-9_-], max 63 chars.",
-                    nameof(name));
+                throw new ArgumentException($"Invalid database name '{name}'. Must start with a letter/underscore and contain only [A-Za-z0-9_-], max 63 chars.", nameof(name));
             }
         }
     }

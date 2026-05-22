@@ -52,11 +52,7 @@ builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? throw new InvalidOperationException("Cors:AllowedOrigins not configured");
 
-builder.Services.AddCors(options =>
-    options.AddDefaultPolicy(policy => policy
-        .WithOrigins(allowedOrigins)
-        .AllowAnyHeader()
-        .AllowAnyMethod()));
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy .WithOrigins(allowedOrigins) .AllowAnyHeader() .AllowAnyMethod()));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
