@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -58,6 +58,22 @@ export class Sidenav {
   private readonly destroyRef = inject(DestroyRef);
   private readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
+
+  // Persist the sidebar open/closed state in localStorage so the user's choice survives
+  // reloads. Spartan helm already cookies this, but the user explicitly wanted localStorage
+  // so we mirror both ways: load it on construction, then push every change back.
+  private static readonly STORAGE_KEY = 'krint.sidebar.open';
+
+  constructor() {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(Sidenav.STORAGE_KEY) : null;
+    if (saved !== null) {
+      this.sidebarService.setOpen(saved === 'true');
+    }
+    effect(() => {
+      const open = this.sidebarService.open();
+      try { localStorage.setItem(Sidenav.STORAGE_KEY, String(open)); } catch { /* private mode */ }
+    });
+  }
 
   // Active-link signal driven by router events. The previous routerLinkActive="data-[active=true]"
   // was a no-op - routerLinkActive sets classes, not attributes, so no item ever lit up.
