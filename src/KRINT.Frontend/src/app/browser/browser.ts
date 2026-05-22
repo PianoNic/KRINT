@@ -24,6 +24,7 @@ import { HlmTableImports } from '@spartan-ng/helm/table';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
+import { QueryConsole } from '../shared/components/query-console/query-console';
 import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
@@ -49,6 +50,7 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
     HlmSelectImports,
     HlmTableImports,
     HlmTooltipImports,
+    QueryConsole,
   ],
   providers: [
     provideIcons({
@@ -108,6 +110,10 @@ export class Browser {
 
   protected readonly limit = signal(50);
   protected readonly offset = signal(0);
+
+  // Right-pane tabs. 'data' is the row browser (default); 'query' swaps in the SQL console
+  // pre-scoped to the currently-selected instance + database.
+  protected readonly view = signal<'data' | 'query'>('data');
 
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);

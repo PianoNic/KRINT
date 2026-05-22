@@ -5,7 +5,6 @@ import { Home } from './home/home';
 import { Databases } from './databases/databases';
 import { Create } from './create/create';
 import { Browser } from './browser/browser';
-import { Query } from './query/query';
 import { Backups } from './backups/backups';
 import { Activity } from './activity/activity';
 import { Settings } from './settings/settings';
@@ -20,7 +19,8 @@ export const routes: Routes = [
       { path: 'create', component: Create },
       { path: 'instances', component: Databases },
       { path: 'browser', component: Browser },
-      { path: 'query', component: Query },
+      // Standalone /query was folded into /browser as a tab in the right pane.
+      { path: 'query', redirectTo: 'browser' },
       { path: 'backups', component: Backups },
       { path: 'activity', component: Activity },
       { path: 'settings', component: Settings },

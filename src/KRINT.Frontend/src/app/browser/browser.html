@@ -97,9 +97,40 @@
     }
   </aside>
 
-  <!-- ===== Pane 3: Rows ===== -->
+  <!-- ===== Pane 3: Rows / Query ===== -->
   <main class="flex flex-col overflow-hidden">
-    @if (!table()) {
+    <!-- Tab switcher pinned at the top of the right pane. Query tab is enabled as soon as
+         an instance + database is picked; you don't need a table selected to run SQL. -->
+    <nav class="border-b flex items-center gap-1 px-2 py-1.5">
+      <button
+        type="button"
+        class="hover:bg-muted/60 rounded-md px-3 py-1 text-xs font-medium transition-colors"
+        [class.bg-muted]="view() === 'data'"
+        [class.text-muted-foreground]="view() !== 'data'"
+        (click)="view.set('data')"
+      >
+        Data
+      </button>
+      <button
+        type="button"
+        class="hover:bg-muted/60 rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+        [class.bg-muted]="view() === 'query'"
+        [class.text-muted-foreground]="view() !== 'query'"
+        [disabled]="!database()"
+        (click)="view.set('query')"
+      >
+        Query
+      </button>
+    </nav>
+
+    @if (view() === 'query') {
+      <app-query-console
+        class="flex flex-1 flex-col overflow-auto"
+        [instanceId]="instanceId()"
+        [database]="database()"
+        [engine]="selectedInstance()?.engine ?? null"
+      />
+    } @else if (!table()) {
       <p class="text-muted-foreground flex flex-1 items-center justify-center text-sm">
         @if (!instanceId()) {
           Pick an instance on the left to get started.
