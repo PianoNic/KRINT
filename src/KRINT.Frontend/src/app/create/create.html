@@ -58,7 +58,7 @@
   } @else {
     <!-- ===== Stepper header ===== -->
     <ol class="flex items-center gap-2 text-sm">
-      @for (s of steps; track s.n; let last = $last) {
+      @for (s of steps(); track s.n; let last = $last) {
         <li class="flex items-center gap-2">
           <span
             class="inline-flex size-7 items-center justify-center rounded-full text-xs font-medium"
@@ -145,27 +145,29 @@
               }
             </div>
 
-            <div class="flex flex-col gap-2">
-              <label hlmLabel for="default-db">
-                Default database name <span class="text-muted-foreground">(optional)</span>
-              </label>
-              <input
-                hlmInput
-                id="default-db"
-                [placeholder]="defaultDbPlaceholder()"
-                [value]="defaultDbName()"
-                (input)="defaultDbName.set($any($event.target).value)"
-                [attr.data-matches-spartan-invalid]="!!defaultDbError()"
-                [attr.aria-invalid]="!!defaultDbError() || null"
-              />
-              @if (defaultDbError(); as err) {
-                <span class="text-destructive text-sm">{{ err }}</span>
-              } @else {
-                <span class="text-muted-foreground text-xs">
-                  Leave blank to use the engine's default name.
-                </span>
-              }
-            </div>
+            @if (supportsDatabaseNaming()) {
+              <div class="flex flex-col gap-2">
+                <label hlmLabel for="default-db">
+                  Default {{ databaseTerm() }} name <span class="text-muted-foreground">(optional)</span>
+                </label>
+                <input
+                  hlmInput
+                  id="default-db"
+                  [placeholder]="defaultDbPlaceholder()"
+                  [value]="defaultDbName()"
+                  (input)="defaultDbName.set($any($event.target).value)"
+                  [attr.data-matches-spartan-invalid]="!!defaultDbError()"
+                  [attr.aria-invalid]="!!defaultDbError() || null"
+                />
+                @if (defaultDbError(); as err) {
+                  <span class="text-destructive text-sm">{{ err }}</span>
+                } @else {
+                  <span class="text-muted-foreground text-xs">
+                    Leave blank to use the engine's default name.
+                  </span>
+                }
+              </div>
+            }
           </div>
         }
 
@@ -207,46 +209,53 @@
           </div>
         }
 
-        <!-- ===== Step 4: Databases ===== -->
+        <!-- ===== Step 4: Databases (or whatever the engine calls them) ===== -->
         @if (step() === 4) {
           <div class="flex flex-col gap-4">
-            <h2 class="text-xl font-semibold">Logical databases</h2>
-            <p class="text-muted-foreground text-sm">
-              Add more databases on top of the default. Skip if you only need one.
-            </p>
-
-            @if (databases().length === 0) {
-              <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
-                No extra databases yet.
+            <h2 class="text-xl font-semibold">{{ databaseTermPlural() | titlecase }}</h2>
+            @if (!supportsDatabaseNaming()) {
+              <p class="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+                The <code class="font-mono">{{ engine() }}</code> engine has a single virtual {{ databaseTerm() }};
+                there's nothing to configure on this step.
               </p>
-            }
+            } @else {
+              <p class="text-muted-foreground text-sm">
+                Add more {{ databaseTermPlural() }} on top of the default. Skip if you only need one.
+              </p>
 
-            @for (name of databases(); track $index) {
-              <div class="flex flex-col gap-1">
-                <div class="flex items-center gap-2">
-                  <input
-                    hlmInput
-                    class="flex-1"
-                    placeholder="my_database"
-                    [value]="name"
-                    (input)="updateDatabase($index, $any($event.target).value)"
-                    [attr.data-matches-spartan-invalid]="!!databaseErrors()[$index]"
-                    [attr.aria-invalid]="!!databaseErrors()[$index] || null"
-                  />
-                  <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeDatabase($index)" aria-label="Remove" hlmTooltip="Remove database">
-                    <ng-icon name="lucideTrash2" size="16" />
-                  </button>
+              @if (databases().length === 0) {
+                <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+                  No extra {{ databaseTermPlural() }} yet.
+                </p>
+              }
+
+              @for (name of databases(); track $index) {
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <input
+                      hlmInput
+                      class="flex-1"
+                      [placeholder]="'my_' + databaseTerm()"
+                      [value]="name"
+                      (input)="updateDatabase($index, $any($event.target).value)"
+                      [attr.data-matches-spartan-invalid]="!!databaseErrors()[$index]"
+                      [attr.aria-invalid]="!!databaseErrors()[$index] || null"
+                    />
+                    <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeDatabase($index)" aria-label="Remove" [hlmTooltip]="'Remove ' + databaseTerm()">
+                      <ng-icon name="lucideTrash2" size="16" />
+                    </button>
+                  </div>
+                  @if (databaseErrors()[$index]; as err) {
+                    <span class="text-destructive text-sm">{{ err }}</span>
+                  }
                 </div>
-                @if (databaseErrors()[$index]; as err) {
-                  <span class="text-destructive text-sm">{{ err }}</span>
-                }
-              </div>
-            }
+              }
 
-            <button hlmBtn variant="outline" type="button" (click)="addDatabase()" class="self-start">
-              <ng-icon name="lucidePlus" size="16" />
-              Add database
-            </button>
+              <button hlmBtn variant="outline" type="button" (click)="addDatabase()" class="self-start">
+                <ng-icon name="lucidePlus" size="16" />
+                Add {{ databaseTerm() }}
+              </button>
+            }
           </div>
         }
 
@@ -331,10 +340,12 @@
                   <span class="font-mono">{{ selectedPluginKeys().join(', ') }}</span>
                 }
               </dd>
-              <dt class="text-muted-foreground">Default DB</dt>
-              <dd class="font-mono">{{ defaultDbName().trim() || defaultDbPlaceholder() }}</dd>
-              <dt class="text-muted-foreground">Databases</dt>
-              <dd class="font-mono">{{ allDbNames().join(', ') }}</dd>
+              @if (supportsDatabaseNaming()) {
+                <dt class="text-muted-foreground">Default {{ databaseTerm() }}</dt>
+                <dd class="font-mono">{{ defaultDbName().trim() || defaultDbPlaceholder() }}</dd>
+                <dt class="text-muted-foreground">{{ databaseTermPlural() | titlecase }}</dt>
+                <dd class="font-mono">{{ allDbNames().join(', ') }}</dd>
+              }
               <dt class="text-muted-foreground">Users</dt>
               <dd>
                 @if (users().length === 0) {

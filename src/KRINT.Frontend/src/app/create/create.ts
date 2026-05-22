@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -42,6 +43,7 @@ type WizardUser = { name: string; grantDatabases: string[] };
     HlmLabelImports,
     HlmSelectImports,
     HlmTooltipImports,
+    TitleCasePipe,
   ],
   providers: [
     provideIcons({
@@ -80,14 +82,6 @@ export class Create {
 
   // ----- step state -----
   protected readonly step = signal<1 | 2 | 3 | 4 | 5 | 6>(1);
-  protected readonly steps: ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5 | 6; label: string }> = [
-    { n: 1, label: 'Engine' },
-    { n: 2, label: 'Basics' },
-    { n: 3, label: 'Plugins' },
-    { n: 4, label: 'Databases' },
-    { n: 5, label: 'Users' },
-    { n: 6, label: 'Review' },
-  ];
 
   // ----- form state -----
   protected readonly engine = signal<string | null>(null);
@@ -108,6 +102,36 @@ export class Create {
   protected readonly versions = computed(
     () => this.supported().find((s) => s.key === this.engine())?.versions ?? [],
   );
+
+  protected readonly capabilities = computed(
+    () => this.supported().find((s) => s.key === this.engine())?.capabilities ?? null,
+  );
+
+  // Engine-aware term shortcuts. Mongo calls them "collections"; Qdrant calls them
+  // "collections" + "points"; Redis has "keys"; etc. The catalog already declares these
+  // strings on EngineCapabilitiesDto - the wizard just plucks them.
+  protected readonly databaseTerm = computed(() => this.capabilities()?.databaseTerm ?? 'database');
+  protected readonly tableTerm    = computed(() => this.capabilities()?.tableTerm ?? 'table');
+  protected readonly databaseTermPlural = computed(() => pluralize(this.databaseTerm()));
+  protected readonly tableTermPlural    = computed(() => pluralize(this.tableTerm()));
+
+  // Whether the engine supports a user-named default database. Single-keyspace engines
+  // (Qdrant, Elasticsearch, Redis) hide the Basics > Default DB input and the Databases
+  // step entirely - there's nothing meaningful for the user to type.
+  protected readonly supportsDatabaseNaming = computed(() => this.capabilities()?.supportsCreateDatabase ?? true);
+
+  protected readonly steps = computed<ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5 | 6; label: string }>>(() => {
+    const term = capitalize(this.databaseTermPlural());
+    return [
+      { n: 1, label: 'Engine' },
+      { n: 2, label: 'Basics' },
+      { n: 3, label: 'Plugins' },
+      // Relabel to match the engine: "Databases" / "Collections" / "Indexes" / "Buckets".
+      { n: 4, label: term },
+      { n: 5, label: 'Users' },
+      { n: 6, label: 'Review' },
+    ];
+  });
 
   protected readonly availablePlugins = computed(
     () => this.supported().find((s) => s.key === this.engine())?.plugins ?? [],
@@ -165,9 +189,9 @@ export class Create {
   protected readonly canNext = computed(() => {
     switch (this.step()) {
       case 1: return !!this.engine();
-      case 2: return !!this.version() && !this.displayNameError() && !this.defaultDbError();
+      case 2: return !!this.version() && !this.displayNameError() && (!this.supportsDatabaseNaming() || !this.defaultDbError());
       case 3: return true;  // Plugins are always optional
-      case 4: return this.databaseErrors().every((e) => e === null);
+      case 4: return !this.supportsDatabaseNaming() || this.databaseErrors().every((e) => e === null);
       case 5: return this.userNameErrors().every((e) => e === null);
       default: return true;
     }
@@ -225,22 +249,20 @@ export class Create {
     this.engine.set(key);
   }
 
+  // No more auto-skip: every step is visited even when there's nothing to configure for
+  // this engine. Each step's template surfaces an "N/A for this engine" empty state so the
+  // wizard reads predictably rather than appearing to jump.
   protected next(): void {
     if (!this.canNext()) return;
-    let s = this.step();
+    const s = this.step();
     if (s >= 6) return;
-    s = (s + 1) as 2 | 3 | 4 | 5 | 6;
-    // Skip the Plugins step when the engine doesn't have any.
-    if (s === 3 && !this.hasPlugins()) s = 4;
-    this.step.set(s);
+    this.step.set((s + 1) as 2 | 3 | 4 | 5 | 6);
   }
 
   protected back(): void {
-    let s = this.step();
+    const s = this.step();
     if (s <= 1) return;
-    s = (s - 1) as 1 | 2 | 3 | 4 | 5;
-    if (s === 3 && !this.hasPlugins()) s = 2;
-    this.step.set(s);
+    this.step.set((s - 1) as 1 | 2 | 3 | 4 | 5);
   }
 
   // ----- databases step -----
@@ -327,6 +349,19 @@ export class Create {
   protected goToInstances(): void {
     this.router.navigateByUrl('/instances');
   }
+}
+
+// Tiny English pluralizer - enough for the catalog's terms (database, collection, index,
+// bucket, namespace, keyspace, document, point, key, org). We deliberately don't bring in
+// a real i18n library here.
+function pluralize(term: string): string {
+  if (term.endsWith('y')) return term.slice(0, -1) + 'ies';
+  if (term.endsWith('x') || term.endsWith('s') || term.endsWith('ch') || term.endsWith('sh')) return term + 'es';
+  return term + 's';
+}
+
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
 }
 
 function messageOf(err: unknown): string {
