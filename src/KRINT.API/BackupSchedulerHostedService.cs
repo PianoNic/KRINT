@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using KRINT.Application.Command;
+using KRINT.Application.Command.Backup;
 using KRINT.Domain;
 using KRINT.Infrastructure;
 

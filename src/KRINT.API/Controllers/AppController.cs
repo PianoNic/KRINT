@@ -1,8 +1,8 @@
 using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using KRINT.Application.Dtos;
-using KRINT.Application.Queries;
+using KRINT.Application.Dtos.App;
+using KRINT.Application.Queries.App;
 
 namespace KRINT.API.Controllers
 {

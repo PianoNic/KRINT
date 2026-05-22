@@ -2,9 +2,12 @@ using Mediator;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using KRINT.Application;
-using KRINT.Application.Command;
-using KRINT.Application.Dtos;
-using KRINT.Application.Queries;
+using KRINT.Application.Command.Backup;
+using KRINT.Application.Command.BackupSchedule;
+using KRINT.Application.Dtos.Backup;
+using KRINT.Application.Dtos.BackupSchedule;
+using KRINT.Application.Queries.Backup;
+using KRINT.Application.Queries.BackupSchedule;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Interfaces;
 

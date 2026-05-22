@@ -1,7 +1,7 @@
 using Mediator;
 using Microsoft.AspNetCore.Mvc;
-using KRINT.Application.Dtos;
-using KRINT.Application.Queries;
+using KRINT.Application.Dtos.Activity;
+using KRINT.Application.Queries.Activity;
 
 namespace KRINT.API.Controllers
 {

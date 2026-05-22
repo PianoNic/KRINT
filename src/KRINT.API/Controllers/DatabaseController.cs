@@ -1,9 +1,27 @@
 using Mediator;
 using Microsoft.AspNetCore.Mvc;
 using KRINT.Application;
-using KRINT.Application.Command;
-using KRINT.Application.Dtos;
-using KRINT.Application.Queries;
+using KRINT.Application.Command.Database;
+using KRINT.Application.Command.DatabaseInstance;
+using KRINT.Application.Command.InnerDatabase;
+using KRINT.Application.Command.InnerUser;
+using KRINT.Application.Command.Provision;
+using KRINT.Application.Command.Query;
+using KRINT.Application.Command.TableRow;
+using KRINT.Application.Dtos.Browse;
+using KRINT.Application.Dtos.Database;
+using KRINT.Application.Dtos.DatabaseInstance;
+using KRINT.Application.Dtos.InnerDatabase;
+using KRINT.Application.Dtos.InnerUser;
+using KRINT.Application.Dtos.Provision;
+using KRINT.Application.Dtos.Query;
+using KRINT.Application.Dtos.SupportedDatabase;
+using KRINT.Application.Dtos.TableRow;
+using KRINT.Application.Queries.Browse;
+using KRINT.Application.Queries.Database;
+using KRINT.Application.Queries.InnerDatabase;
+using KRINT.Application.Queries.InnerUser;
+using KRINT.Application.Queries.SupportedDatabase;
 
 namespace KRINT.API.Controllers
 {

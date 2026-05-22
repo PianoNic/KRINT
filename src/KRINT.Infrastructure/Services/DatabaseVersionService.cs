@@ -6,7 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace KRINT.Infrastructure.Services
 {
-    public class DatabaseVersionService : IDatabaseVersionService
+    public class DatabaseVersionService(HttpClient http, IMemoryCache cache) : IDatabaseVersionService
     {
         private static readonly IReadOnlyDictionary<string, string> EngineToEndOfLifeSlug = new Dictionary<string, string>
         {
@@ -47,15 +47,6 @@ namespace KRINT.Infrastructure.Services
 
         private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
 
-        private readonly HttpClient _http;
-        private readonly IMemoryCache _cache;
-
-        public DatabaseVersionService(HttpClient http, IMemoryCache cache)
-        {
-            _http = http;
-            _cache = cache;
-        }
-
         public async Task<IReadOnlyList<string>> GetSupportedVersionsAsync(string engineKey, CancellationToken cancellationToken = default)
         {
             if (StaticEngineVersions.TryGetValue(engineKey, out var staticVersions))
@@ -69,13 +60,13 @@ namespace KRINT.Infrastructure.Services
             }
 
             var cacheKey = $"endoflife:{slug}";
-            if (_cache.TryGetValue(cacheKey, out IReadOnlyList<string>? cached) && cached is not null)
+            if (cache.TryGetValue(cacheKey, out IReadOnlyList<string>? cached) && cached is not null)
             {
                 return cached;
             }
 
             var url = $"https://endoflife.date/api/{slug}.json";
-            var entries = await _http.GetFromJsonAsync<EndOfLifeEntry[]>(url, cancellationToken);
+            var entries = await http.GetFromJsonAsync<EndOfLifeEntry[]>(url, cancellationToken);
             if (entries is null)
             {
                 throw new InvalidOperationException($"endoflife.date returned no data for '{slug}'.");
@@ -99,7 +90,7 @@ namespace KRINT.Infrastructure.Services
                 })
                 .ToArray();
 
-            _cache.Set(cacheKey, (IReadOnlyList<string>)supported, CacheDuration);
+            cache.Set(cacheKey, (IReadOnlyList<string>)supported, CacheDuration);
             return supported;
         }
 

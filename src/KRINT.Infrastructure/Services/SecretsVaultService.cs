@@ -7,25 +7,18 @@ using Microsoft.Extensions.Configuration;
 
 namespace KRINT.Infrastructure.Services
 {
-    public class SecretsVaultService : ISecretsVaultService
+    public class SecretsVaultService(KrintDbContext db, IConfiguration configuration) : ISecretsVaultService
     {
-        private readonly KrintDbContext _db;
-        private readonly byte[] _masterKey;
-
-        public SecretsVaultService(KrintDbContext db, IConfiguration configuration)
-        {
-            _db = db;
-            _masterKey = LoadMasterKey(configuration);
-        }
+        private readonly byte[] _masterKey = LoadMasterKey(configuration);
 
         public async Task StoreAsync(string name, string plaintext, CancellationToken cancellationToken = default)
         {
             var (ciphertext, nonce, tag) = Encrypt(plaintext);
 
-            var existing = await _db.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken);
+            var existing = await db.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken);
             if (existing is null)
             {
-                _db.Secrets.Add(new Secret
+                db.Secrets.Add(new Secret
                 {
                     Name = name,
                     Ciphertext = ciphertext,
@@ -40,12 +33,12 @@ namespace KRINT.Infrastructure.Services
                 existing.Tag = tag;
             }
 
-            await _db.SaveChangesAsync(cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<string?> RetrieveAsync(string name, CancellationToken cancellationToken = default)
         {
-            var secret = await _db.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken);
+            var secret = await db.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken);
             if (secret is null)
             {
                 return null;
@@ -56,14 +49,14 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<bool> DeleteAsync(string name, CancellationToken cancellationToken = default)
         {
-            var secret = await _db.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken);
+            var secret = await db.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken);
             if (secret is null)
             {
                 return false;
             }
 
-            _db.Secrets.Remove(secret);
-            await _db.SaveChangesAsync(cancellationToken);
+            db.Secrets.Remove(secret);
+            await db.SaveChangesAsync(cancellationToken);
             return true;
         }
 

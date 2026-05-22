@@ -1,4 +1,4 @@
-using KRINT.Application.Queries;
+using KRINT.Application.Queries.SupportedDatabase;
 using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Tests.Queries

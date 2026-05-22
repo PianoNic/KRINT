@@ -3,17 +3,11 @@ using Microsoft.Extensions.Configuration;
 
 namespace KRINT.Infrastructure.Services
 {
-    public class FileSystemBackupStorage : IBackupStorage
+    public class FileSystemBackupStorage(IConfiguration configuration) : IBackupStorage
     {
-        private readonly string _rootDir;
-
-        public FileSystemBackupStorage(IConfiguration configuration)
-        {
-            var configured = configuration["Backup:Directory"];
-            _rootDir = string.IsNullOrWhiteSpace(configured)
-                ? Path.Combine(AppContext.BaseDirectory, "backups")
-                : Path.GetFullPath(configured);
-        }
+        private readonly string _rootDir = string.IsNullOrWhiteSpace(configuration["Backup:Directory"])
+            ? Path.Combine(AppContext.BaseDirectory, "backups")
+            : Path.GetFullPath(configuration["Backup:Directory"]!);
 
         public async Task<string> SaveAsync(string containerName, string fileName, byte[] content, CancellationToken cancellationToken = default)
         {
