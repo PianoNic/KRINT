@@ -35,6 +35,7 @@ Every instance ships with the five properties that give the project its name:
 - **23 supported engines** out of the box - PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, ScyllaDB, CouchDB, Couchbase, ArangoDB, Neo4j, Redis, Valkey, etcd, Elasticsearch, OpenSearch, Apache Solr, Meilisearch, InfluxDB, Qdrant.
 - **Plugin store** - opt-in extensions during provision: pgvector / PostGIS / pg_trgm for Postgres, Redis Stack modules, APOC / Graph Data Science for Neo4j, and more.
 - **Row browser** - list, edit, insert, delete rows across SQL engines; document/keyspace browsing for Mongo, Cassandra, Redis, Couchbase, etc.
+- **Query console** - run ad-hoc SQL against any provisioned instance (Postgres, MySQL/MariaDB, SQL Server, CockroachDB, TimescaleDB, pgvector, ClickHouse). Ctrl/Cmd+Enter to fire, row cap built in.
 - **Backups + scheduling** - manual or cron-scheduled; download as a file or restore in place. UTC-aware cron with friendly presets.
 - **User & access management** - create logins, reset passwords, grant access per logical database.
 - **OIDC / Keycloak** auth out of the box (admin/admin in the bundled dev realm).
@@ -52,6 +53,9 @@ Every instance ships with the five properties that give the project its name:
 </p>
 <p align="center">
   <img src="assets/screenshots/browser.png" width="49%" alt="Database browser" />
+  <img src="assets/screenshots/query.png" width="49%" alt="Query console" />
+</p>
+<p align="center">
   <img src="assets/screenshots/activity.png" width="49%" alt="Activity log" />
 </p>
 

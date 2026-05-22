@@ -252,6 +252,32 @@ namespace KRINT.API.Controllers
             catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         }
 
+        [HttpPost("{id:guid}/query")]
+        [ProducesResponseType(typeof(RunQueryResultDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> RunQuery(Guid id, [FromBody] RunQueryRequestDto body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(body.Sql))
+                    return BadRequest(new { error = "SQL must not be empty." });
+                var rowLimit = Math.Clamp(body.RowLimit ?? 250, 1, 1000);
+                var result = await mediator.Send(new RunQueryCommand(id, body.Database, body.Sql, rowLimit), cancellationToken);
+                return Ok(result);
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (Exception ex)
+            {
+                // Surface DB-side errors (syntax, permission, etc.) to the SPA as 400 with the
+                // original message intact. They're user-typed queries, the user wants to see why
+                // it failed - not a generic 500.
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         [HttpPost("{id:guid}/browse/{database}/tables/{table}/rows")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

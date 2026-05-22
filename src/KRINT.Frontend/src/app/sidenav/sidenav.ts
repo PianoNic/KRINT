@@ -16,6 +16,7 @@ import {
   lucideSettings,
   lucideSun,
   lucideTable,
+  lucideTerminal,
 } from '@ng-icons/lucide';
 import { HlmSidebarImports, HlmSidebarService } from '@spartan-ng/helm/sidebar';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
@@ -46,6 +47,7 @@ import { ThemeService, ThemeMode } from '../shared/services/theme.service';
       lucideMoon,
       lucideMonitor,
       lucideTable,
+      lucideTerminal,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -61,6 +63,7 @@ export class Sidenav {
   protected readonly navItems: ReadonlyArray<{ route: string; label: string; icon: string }> = [
     { route: '/instances', label: 'Instances', icon: 'lucideServer' },
     { route: '/browser',   label: 'Browser',   icon: 'lucideTable' },
+    { route: '/query',     label: 'Query',     icon: 'lucideTerminal' },
     { route: '/backups',   label: 'Backups',   icon: 'lucideArchive' },
     { route: '/activity',  label: 'Activity',  icon: 'lucideActivity' },
     { route: '/settings',  label: 'Settings',  icon: 'lucideSettings' },

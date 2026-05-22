@@ -40,6 +40,9 @@ model/provisionRequestDto.ts
 model/provisionResultDto.ts
 model/provisionUserSpec.ts
 model/provisionedDatabaseDto.ts
+model/runQueryColumnDto.ts
+model/runQueryRequestDto.ts
+model/runQueryResultDto.ts
 model/settingsDto.ts
 model/supportedDatabaseDto.ts
 model/tableRowsDto.ts

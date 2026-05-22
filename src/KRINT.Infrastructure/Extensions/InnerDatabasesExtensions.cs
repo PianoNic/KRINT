@@ -86,6 +86,18 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerSchemaService, CouchbaseInnerSchemaService>();
             services.AddSingleton<IInnerSchemaServiceResolver, InnerSchemaServiceResolver>();
 
+            // Query console - SQL engines only for v1. Engines without an entry surface in the
+            // UI as "console not available" rather than throwing.
+            services.AddSingleton<IInnerQueryService, PostgresInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, TimescaleDbInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, PgVectorInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, CockroachDbInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, MySqlInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, MariaDbInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, MsSqlInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, ClickHouseInnerQueryService>();
+            services.AddSingleton<IInnerQueryServiceResolver, InnerQueryServiceResolver>();
+
             services.AddScoped<IBackupService, PostgresBackupService>();
             services.AddScoped<IBackupService, TimescaleDbBackupService>();
             services.AddScoped<IBackupService, MySqlBackupService>();
@@ -145,6 +157,24 @@ namespace KRINT.Infrastructure.Extensions
             _byEngine.TryGetValue(engine, out var svc)
                 ? svc
                 : throw new NotSupportedException($"No inner-database service registered for engine '{engine}'.");
+    }
+
+    public interface IInnerQueryServiceResolver
+    {
+        IInnerQueryService? TryResolve(string engine);
+        bool IsSupported(string engine);
+    }
+
+    internal sealed class InnerQueryServiceResolver(IEnumerable<IInnerQueryService> services) : IInnerQueryServiceResolver
+    {
+        private readonly Dictionary<string, IInnerQueryService> _byEngine =
+            services.ToDictionary(s => s.Engine, StringComparer.OrdinalIgnoreCase);
+
+        // Soft resolve: query console is opt-in per engine. The API returns 400 with a clear
+        // message when the engine has no console driver, rather than 500-ing.
+        public IInnerQueryService? TryResolve(string engine) =>
+            _byEngine.TryGetValue(engine, out var svc) ? svc : null;
+        public bool IsSupported(string engine) => _byEngine.ContainsKey(engine);
     }
 
     public interface IInnerUserServiceResolver
