@@ -14,6 +14,7 @@ export interface DatabaseInstanceDto {
     id: string;
     engine: string;
     version: string;
+    displayName: string;
     containerName: string;
     host: string;
     port: DatabaseInstanceDtoPort;

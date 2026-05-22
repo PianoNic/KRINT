@@ -25,6 +25,7 @@ export * from './provisionRequestDto';
 export * from './provisionResultDto';
 export * from './provisionUserSpec';
 export * from './provisionedDatabaseDto';
+export * from './renameDatabaseInstanceDto';
 export * from './runQueryColumnDto';
 export * from './runQueryRequestDto';
 export * from './runQueryResultDto';

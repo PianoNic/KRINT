@@ -13,6 +13,7 @@ import { ProvisionUserSpec } from './provisionUserSpec';
 export interface ProvisionRequestDto { 
     engine: string;
     version: string;
+    displayName: string;
     defaultDatabaseName?: string | null;
     databases?: Array<string>;
     users?: Array<ProvisionUserSpec>;

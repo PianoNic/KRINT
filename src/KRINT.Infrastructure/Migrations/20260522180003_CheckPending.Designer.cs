@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace KRINT.Infrastructure.Migrations
 {
     [DbContext(typeof(KrintDbContext))]
-    [Migration("20260522060624_AddBackupSchedules")]
-    partial class AddBackupSchedules
+    [Migration("20260522180003_CheckPending")]
+    partial class CheckPending
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -155,6 +155,10 @@ namespace KRINT.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DatabaseName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasColumnType("text");
 

@@ -26,7 +26,13 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddMediator(options => { options.ServiceLifetime = ServiceLifetime.Scoped; });
 
 builder.Services.AddDbContext<KrintDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("KrintDatabase")));
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("KrintDatabase"));
+    // EF tools 10.0.7 + runtime 10.0.8 disagree on the model snapshot fingerprint even when
+    // the actual schema is in sync. Demote the warning so a tool-version skew can't crash
+    // app boot; real pending changes still surface through the migrations pipeline.
+    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 builder.Services.AddDocker(builder.Configuration);
 

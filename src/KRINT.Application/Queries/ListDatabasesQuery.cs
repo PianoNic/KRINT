@@ -19,6 +19,7 @@ namespace KRINT.Application.Queries
                     Id = d.Id,
                     Engine = d.Engine,
                     Version = d.Version,
+                    DisplayName = d.DisplayName,
                     ContainerName = d.ContainerName,
                     Host = d.Host,
                     Port = d.Port,

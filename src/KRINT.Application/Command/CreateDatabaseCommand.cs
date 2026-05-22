@@ -16,6 +16,7 @@ namespace KRINT.Application.Command
     public record CreateDatabaseCommand(
         string Engine,
         string Version,
+        string DisplayName,
         string? DatabaseName = null,
         IReadOnlyList<string>? Plugins = null) : ICommand<ProvisionedDatabaseDto>;
 
@@ -149,6 +150,7 @@ namespace KRINT.Application.Command
                     Id = instanceId,
                     Engine = command.Engine,
                     Version = command.Version,
+                    DisplayName = command.DisplayName,
                     ContainerName = containerName,
                     ContainerId = createResult.ID,
                     Host = Host,

@@ -25,7 +25,7 @@
           >
             <ng-icon [name]="engineIcon(i.engine)" size="18" class="mt-0.5 shrink-0" />
             <div class="flex min-w-0 flex-1 flex-col">
-              <span class="truncate text-sm font-medium">{{ i.containerName }}</span>
+              <span class="truncate text-sm font-medium">{{ i.displayName }}</span>
               <span class="text-muted-foreground truncate font-mono text-[11px]">{{ instanceUrl(i) }}</span>
             </div>
             <span hlmBadge variant="secondary" class="shrink-0 px-1.5 py-0 text-[10px] uppercase">{{ i.engine }}</span>

@@ -93,7 +93,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           </button>
         </header>
         <ul class="flex-1 overflow-y-auto">
-          <li>
+          <li class="border-b">
             <button
               type="button"
               class="hover:bg-muted/60 flex w-full items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors"
@@ -121,7 +121,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
               >
                 <ng-icon [name]="engineIcon(i.engine)" size="18" class="mt-0.5 shrink-0" />
                 <div class="flex min-w-0 flex-1 flex-col">
-                  <span class="truncate text-sm font-medium">{{ i.containerName }}</span>
+                  <span class="truncate text-sm font-medium">{{ i.displayName }}</span>
                   <span class="text-muted-foreground truncate font-mono text-[11px]">{{ instanceUrl(i) }}</span>
                 </div>
                 <span hlmBadge variant="secondary" class="shrink-0 px-1.5 py-0 text-[10px] uppercase">{{ i.engine }}</span>
@@ -139,7 +139,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
         <header class="border-b flex items-center justify-between gap-2 px-4 py-2">
           <div class="flex min-w-0 flex-col">
             <span class="text-sm font-medium">
-              {{ selectedInstance()?.containerName ?? 'All instances' }}
+              {{ selectedInstance()?.displayName ?? 'All instances' }}
             </span>
             @if (selectedInstance(); as inst) {
               <span class="text-muted-foreground font-mono text-[11px]">{{ instanceUrl(inst) }}</span>
@@ -148,9 +148,15 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
             }
           </div>
           <div class="flex items-center gap-1">
-            <button hlmBtn type="button" size="sm" [disabled]="!selectedInstanceId() || creating()" (click)="create()">
+            @if (selectedInstanceId()) {
+              <button hlmBtn type="button" size="sm" [disabled]="creating()" (click)="create()">
+                <ng-icon name="lucidePlus" size="14" />
+                {{ creating() ? 'Snapshotting...' : 'Create backup' }}
+              </button>
+            }
+            <button hlmBtn variant="outline" size="sm" type="button" (click)="openScheduleDialog()">
               <ng-icon name="lucidePlus" size="14" />
-              {{ creating() ? 'Snapshotting...' : 'Create backup' }}
+              New schedule
             </button>
             <button
               hlmBtn
@@ -173,20 +179,6 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
             <ng-icon name="lucideCalendar" size="18" />
             Schedules
           </h2>
-          <p hlmCardDescription>
-            Pick a preset (hourly, daily 03:00, weekly…) or write a custom cron expression. KRINT runs a backup in the background whenever a schedule is due.
-          </p>
-          <div hlmCardAction class="flex gap-1">
-            <button
-              hlmBtn
-              size="sm"
-              type="button"
-              (click)="openScheduleDialog()"
-            >
-              <ng-icon name="lucidePlus" size="14" />
-              New schedule
-            </button>
-          </div>
         </div>
 
         <div hlmCardContent>

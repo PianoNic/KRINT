@@ -92,6 +92,7 @@ export class Create {
   // ----- form state -----
   protected readonly engine = signal<string | null>(null);
   protected readonly version = signal<string | null>(null);
+  protected readonly displayName = signal('');
   protected readonly defaultDbName = signal('');
   protected readonly databases = signal<string[]>([]);
   protected readonly users = signal<WizardUser[]>([]);
@@ -146,6 +147,14 @@ export class Create {
   protected readonly defaultDbError = computed(() =>
     this.nameError(this.defaultDbName(), { required: false }),
   );
+  // Display name is freeform - just length-check it. People want to put "Pangolin" or
+  // "Acme staging" in there, not snake_case identifiers.
+  protected readonly displayNameError = computed(() => {
+    const v = this.displayName().trim();
+    if (v === '') return 'Required.';
+    if (v.length > 64) return 'Must be 64 characters or fewer.';
+    return null;
+  });
   protected readonly databaseErrors = computed(() =>
     this.databases().map((d) => this.nameError(d, { required: true })),
   );
@@ -156,7 +165,7 @@ export class Create {
   protected readonly canNext = computed(() => {
     switch (this.step()) {
       case 1: return !!this.engine();
-      case 2: return !!this.version() && !this.defaultDbError();
+      case 2: return !!this.version() && !this.displayNameError() && !this.defaultDbError();
       case 3: return true;  // Plugins are always optional
       case 4: return this.databaseErrors().every((e) => e === null);
       case 5: return this.userNameErrors().every((e) => e === null);
@@ -293,6 +302,7 @@ export class Create {
     const payload = {
       engine: this.engine()!,
       version: this.version()!,
+      displayName: this.displayName().trim(),
       defaultDatabaseName: this.defaultDbName().trim() || null,
       databases: this.databases().map((d) => d.trim()).filter((d) => d !== ''),
       users: this.users().map((u) => ({

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -31,7 +31,6 @@ import { ThemeService, ThemeMode } from '../shared/services/theme.service';
     HlmAvatarImports,
     NgIcon,
     RouterLink,
-    RouterLinkActive,
   ],
   providers: [
     provideIcons({

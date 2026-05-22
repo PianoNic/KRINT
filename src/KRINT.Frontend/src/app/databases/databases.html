@@ -28,7 +28,7 @@
           <table hlmTable>
             <thead hlmTableHeader>
               <tr hlmTableRow>
-                <th hlmTableHead>Engine</th>
+                <th hlmTableHead>Name</th>
                 <th hlmTableHead>Version</th>
                 <th hlmTableHead>Container</th>
                 <th hlmTableHead>Host</th>
@@ -44,7 +44,10 @@
                   <td hlmTableCell>
                     <span class="inline-flex items-center gap-3 leading-none">
                       <ng-icon [name]="engineIcon(db.engine)" size="18" class="shrink-0" />
-                      <span class="text-sm">{{ db.engine }}</span>
+                      <span class="flex flex-col">
+                        <span class="text-sm font-medium">{{ db.displayName }}</span>
+                        <span class="text-muted-foreground text-[10px] uppercase">{{ db.engine }}</span>
+                      </span>
                     </span>
                   </td>
                   <td hlmTableCell>{{ db.version }}</td>

@@ -126,6 +126,26 @@
             </div>
 
             <div class="flex flex-col gap-2">
+              <label hlmLabel for="display-name">Name</label>
+              <input
+                hlmInput
+                id="display-name"
+                placeholder="e.g. Pangolin"
+                [value]="displayName()"
+                (input)="displayName.set($any($event.target).value)"
+                [attr.data-matches-spartan-invalid]="!!displayNameError()"
+                [attr.aria-invalid]="!!displayNameError() || null"
+              />
+              @if (displayNameError(); as err) {
+                <span class="text-destructive text-sm">{{ err }}</span>
+              } @else {
+                <span class="text-muted-foreground text-xs">
+                  Friendly label shown next to the engine logo. Doesn't affect the connection string.
+                </span>
+              }
+            </div>
+
+            <div class="flex flex-col gap-2">
               <label hlmLabel for="default-db">
                 Default database name <span class="text-muted-foreground">(optional)</span>
               </label>

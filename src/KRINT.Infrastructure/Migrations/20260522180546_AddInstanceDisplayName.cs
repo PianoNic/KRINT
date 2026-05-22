@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,11 +6,18 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace KRINT.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class AddBackupSchedules : Migration
+    public partial class AddInstanceDisplayName : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "DisplayName",
+                table: "DatabaseInstances",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
+
             migrationBuilder.CreateTable(
                 name: "BackupSchedules",
                 columns: table => new
@@ -38,6 +45,10 @@ namespace KRINT.Infrastructure.Migrations
         {
             migrationBuilder.DropTable(
                 name: "BackupSchedules");
+
+            migrationBuilder.DropColumn(
+                name: "DisplayName",
+                table: "DatabaseInstances");
         }
     }
 }

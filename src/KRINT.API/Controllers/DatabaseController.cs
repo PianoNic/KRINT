@@ -252,6 +252,21 @@ namespace KRINT.API.Controllers
             catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         }
 
+        [HttpPatch("{id:guid}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> RenameInstance(Guid id, [FromBody] RenameDatabaseInstanceDto body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new RenameDatabaseInstanceCommand(id, body.DisplayName), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
         [HttpPost("{id:guid}/query")]
         [ProducesResponseType(typeof(RunQueryResultDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
