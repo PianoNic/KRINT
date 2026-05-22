@@ -204,7 +204,11 @@
                   </tr>
                 }
                 @for (row of r.rows; track $index; let rowIdx = $index) {
-                  <tr hlmTableRow>
+                  <tr
+                    hlmTableRow
+                    [class.cursor-pointer]="canEditRow() && draft() === null"
+                    (dblclick)="canEditRow() && draft() === null && beginEdit(rowIdx)"
+                  >
                     @if (editingIndex() === rowIdx) {
                       @for (cell of row; track $index; let colIdx = $index) {
                         <td hlmTableCell class="font-mono text-xs">

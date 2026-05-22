@@ -204,7 +204,10 @@ export class Query {
       this.api.apiDatabaseIdDatabasesGet(id).subscribe({
         next: (dbs) => {
           this.databases.set(dbs);
-          if (dbs.length === 1) this.database.set(dbs[0]);
+          // Prefer the instance's provisioned default DB; fall back to the only DB present.
+          const instance = this.instances().find((i) => i.id === id);
+          const preferred = instance && dbs.includes(instance.databaseName) ? instance.databaseName : null;
+          this.database.set(preferred ?? (dbs.length === 1 ? dbs[0] : null));
         },
         error: (err) => this.error.set(messageOf(err)),
       });

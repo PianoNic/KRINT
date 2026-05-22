@@ -173,7 +173,15 @@ export class Browser {
       }
       this.loading.set(true);
       this.api.apiDatabaseIdDatabasesGet(id).subscribe({
-        next: (dbs) => { this.databases.set(dbs); this.loading.set(false); },
+        next: (dbs) => {
+          this.databases.set(dbs);
+          this.loading.set(false);
+          // Preselect: prefer the instance's provisioned default DB; otherwise the only DB
+          // present; otherwise leave the picker empty so the user makes the call.
+          const instance = this.instances().find((i) => i.id === id);
+          const preferred = instance && dbs.includes(instance.databaseName) ? instance.databaseName : null;
+          this.database.set(preferred ?? (dbs.length === 1 ? dbs[0] : null));
+        },
         error: (err) => { this.error.set(messageOf(err)); this.loading.set(false); },
       });
     });
