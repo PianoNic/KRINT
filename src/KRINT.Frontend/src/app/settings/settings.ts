@@ -104,21 +104,21 @@ import { SettingsDto } from '../api/model/settingsDto';
           </div>
         </section>
 
-        <section hlmCard>
-          <div hlmCardHeader>
-            <h2 hlmCardTitle>Vault</h2>
-            <p hlmCardDescription>Master key for AES-GCM encryption of stored secrets.</p>
-          </div>
-          <div hlmCardContent class="flex items-center gap-2 text-sm">
-            @if (s.vaultMasterKeyConfigured) {
-              <ng-icon name="lucideCheck" class="text-primary" size="18" />
-              <span>Master key configured.</span>
-            } @else {
+        @if (!s.vaultMasterKeyConfigured) {
+          <!-- Only surface the vault card when the master key is missing, since that's the
+               actionable case. When it's configured we just hide it - no point telling the
+               admin "everything is fine". -->
+          <section hlmCard>
+            <div hlmCardHeader>
+              <h2 hlmCardTitle>Vault</h2>
+              <p hlmCardDescription>Master key for AES-GCM encryption of stored secrets.</p>
+            </div>
+            <div hlmCardContent class="flex items-center gap-2 text-sm">
               <ng-icon name="lucideCircleAlert" class="text-destructive" size="18" />
               <span class="text-destructive">Master key missing - secrets cannot be stored.</span>
-            }
-          </div>
-        </section>
+            </div>
+          </section>
+        }
       } @else if (error(); as err) {
         <p class="text-destructive text-sm">{{ err }}</p>
       } @else {
