@@ -30,6 +30,31 @@ namespace KRINT.Infrastructure.Services
             return client.Containers.InspectContainerAsync(id, cancellationToken);
         }
 
+        public async Task<ContainerStatsResponse?> GetContainerStatsOnceAsync(string id, CancellationToken cancellationToken = default)
+        {
+            // Docker.DotNet streams stats via IProgress; we want a single snapshot, so Stream=false
+            // returns one response and exits. We deliberately leave OneShot off because OneShot
+            // mode strips precpu_stats - and without precpu we cannot compute the CPU delta needed
+            // for CPU%. Trade-off: the daemon takes ~1s to sample, but callers issue these in
+            // parallel so total wall time stays close to that 1s. Any failure (stopped, gone,
+            // daemon hiccup) collapses to null so callers can fall back to "0".
+            try
+            {
+                ContainerStatsResponse? captured = null;
+                var progress = new Progress<ContainerStatsResponse>(r => captured ??= r);
+                await client.Containers.GetContainerStatsAsync(
+                    id,
+                    new ContainerStatsParameters { Stream = false },
+                    progress,
+                    cancellationToken);
+                return captured;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public Task PullImageAsync(string image, string tag = "latest", CancellationToken cancellationToken = default)
         {
             return client.Images.CreateImageAsync(

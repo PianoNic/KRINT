@@ -178,10 +178,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
       <div class="grid flex-1 grid-rows-2 gap-4 overflow-hidden p-4">
       <section hlmCard class="flex min-h-0 flex-col">
         <div hlmCardHeader>
-          <h2 hlmCardTitle class="flex items-center gap-2">
-            <ng-icon name="lucideCalendar" size="18" />
-            Schedules
-          </h2>
+          <h2 hlmCardTitle>Schedules</h2>
         </div>
 
         <div hlmCardContent class="min-h-0 flex-1 overflow-auto">

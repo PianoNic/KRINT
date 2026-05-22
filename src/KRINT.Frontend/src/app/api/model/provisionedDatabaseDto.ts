@@ -7,7 +7,7 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
-import { DatabaseInstanceDtoPort } from './databaseInstanceDtoPort';
+import { DashboardStatsDtoTotalInstances } from './dashboardStatsDtoTotalInstances';
 
 
 export interface ProvisionedDatabaseDto { 
@@ -16,7 +16,7 @@ export interface ProvisionedDatabaseDto {
     version: string;
     containerName: string;
     host: string;
-    port: DatabaseInstanceDtoPort;
+    port: DashboardStatsDtoTotalInstances;
     username: string;
     databaseName: string;
     password: string;

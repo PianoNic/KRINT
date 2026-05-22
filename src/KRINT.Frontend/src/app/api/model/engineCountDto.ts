@@ -10,16 +10,8 @@
 import { DashboardStatsDtoTotalInstances } from './dashboardStatsDtoTotalInstances';
 
 
-export interface DatabaseInstanceDto { 
-    id: string;
+export interface EngineCountDto { 
     engine: string;
-    version: string;
-    displayName: string;
-    containerName: string;
-    host: string;
-    port: DashboardStatsDtoTotalInstances;
-    username: string;
-    databaseName: string;
-    createdAt: string;
+    count: DashboardStatsDtoTotalInstances;
 }
 

@@ -3,7 +3,7 @@
     <hlm-sidebar-header>
       <ul hlmSidebarMenu>
         <li hlmSidebarMenuItem>
-          <a hlmSidebarMenuButton size="lg" routerLink="/">
+          <a hlmSidebarMenuButton size="lg" routerLink="/" class="!w-56 mx-auto">
             <img
               src="icon.svg"
               alt="KRINT"
@@ -19,7 +19,7 @@
 
       <ul hlmSidebarMenu>
         <li hlmSidebarMenuItem>
-          <a hlmSidebarMenuButton routerLink="/create" class="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground">
+          <a hlmSidebarMenuButton routerLink="/create" class="!w-56 mx-auto bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground">
             <ng-icon name="lucidePlus" />
             <span>Create</span>
           </a>
@@ -35,6 +35,7 @@
               hlmSidebarMenuButton
               [routerLink]="item.route"
               [isActive]="isRouteActive(item.route)"
+              class="!w-56 mx-auto"
             >
               <ng-icon [name]="item.icon" />
               <span>{{ item.label }}</span>
@@ -47,7 +48,7 @@
     <hlm-sidebar-footer>
       <ul hlmSidebarMenu>
         <li hlmSidebarMenuItem>
-          <button hlmSidebarMenuButton size="lg" [hlmDropdownMenuTrigger]="userMenu" [side]="menuSide()" align="end">
+          <button hlmSidebarMenuButton size="lg" [hlmDropdownMenuTrigger]="userMenu" [side]="menuSide()" align="end" class="!w-56 mx-auto">
             <hlm-avatar class="rounded-full shrink-0 group-data-[collapsible=icon]:size-7 group-data-[collapsible=icon]:text-xs">
               @if (user().avatar) {
                 <img [src]="user().avatar" [alt]="user().name" hlmAvatarImage />

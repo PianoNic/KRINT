@@ -7,12 +7,12 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
-import { DatabaseInstanceDtoPort } from './databaseInstanceDtoPort';
+import { DashboardStatsDtoTotalInstances } from './dashboardStatsDtoTotalInstances';
 
 
 export interface PortRangeDto { 
     engine: string;
-    start: DatabaseInstanceDtoPort;
-    end: DatabaseInstanceDtoPort;
+    start: DashboardStatsDtoTotalInstances;
+    end: DashboardStatsDtoTotalInstances;
 }
 

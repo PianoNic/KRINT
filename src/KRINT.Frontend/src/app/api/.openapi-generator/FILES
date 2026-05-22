@@ -6,6 +6,7 @@ api/activity.service.ts
 api/api.ts
 api/app.service.ts
 api/backups.service.ts
+api/dashboard.service.ts
 api/database.service.ts
 api/settings.service.ts
 configuration.ts
@@ -24,10 +25,13 @@ model/createBackupScheduleDto.ts
 model/createDatabaseDto.ts
 model/createInnerDatabaseDto.ts
 model/createInnerUserDto.ts
+model/dashboardStatsDto.ts
+model/dashboardStatsDtoTotalCpuPercent.ts
+model/dashboardStatsDtoTotalInstances.ts
 model/databaseInstanceDto.ts
-model/databaseInstanceDtoPort.ts
 model/deleteRowDto.ts
 model/engineCapabilitiesDto.ts
+model/engineCountDto.ts
 model/enginePluginDto.ts
 model/grantInnerUserDto.ts
 model/innerUserPasswordDto.ts

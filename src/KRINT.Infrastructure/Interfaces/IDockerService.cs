@@ -10,6 +10,9 @@ namespace KRINT.Infrastructure.Interfaces
 
         Task<ContainerInspectResponse> InspectContainerAsync(string id, CancellationToken cancellationToken = default);
 
+        /// <summary>One-shot stats snapshot (Stream=false). Returns null if the container is stopped or unreachable.</summary>
+        Task<ContainerStatsResponse?> GetContainerStatsOnceAsync(string id, CancellationToken cancellationToken = default);
+
         Task PullImageAsync(string image, string tag = "latest", CancellationToken cancellationToken = default);
 
         Task<CreateContainerResponse> CreateContainerAsync(CreateContainerParameters parameters, CancellationToken cancellationToken = default);

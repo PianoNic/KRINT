@@ -7,15 +7,15 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
+import { DashboardStatsDtoTotalInstances } from './dashboardStatsDtoTotalInstances';
 import { RunQueryColumnDto } from './runQueryColumnDto';
 import { BackupEntryDtoSizeBytes } from './backupEntryDtoSizeBytes';
-import { DatabaseInstanceDtoPort } from './databaseInstanceDtoPort';
 
 
 export interface RunQueryResultDto { 
     columns: Array<RunQueryColumnDto>;
     rows: Array<Array<string>>;
-    rowsAffected: DatabaseInstanceDtoPort;
+    rowsAffected: DashboardStatsDtoTotalInstances;
     elapsedMs: BackupEntryDtoSizeBytes;
     truncated: boolean;
 }
