@@ -49,7 +49,7 @@ import { ActivityEntryDto } from '../api/model/activityEntryDto';
         </div>
       </header>
 
-      <div class="min-h-0 flex-1 overflow-auto">
+      <div class="min-h-0 flex-1 overflow-auto px-4">
         @if (filteredEntries().length === 0 && !loading()) {
           <p class="text-muted-foreground p-4 text-sm">
             @if (entries().length === 0) { No activity yet. } @else { No rows match "{{ filter() }}". }
