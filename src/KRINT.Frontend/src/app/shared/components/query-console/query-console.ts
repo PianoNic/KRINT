@@ -12,9 +12,10 @@ import {
   viewChild,
 } from '@angular/core';
 import { sql } from '@codemirror/lang-sql';
-import { oneDark } from '@codemirror/theme-one-dark';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
+import { tags as t } from '@lezer/highlight';
 import { basicSetup } from 'codemirror';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePlay, lucideTriangleAlert } from '@ng-icons/lucide';
@@ -193,11 +194,8 @@ export class QueryConsole implements AfterViewInit, OnDestroy {
         EditorView.updateListener.of((u) => {
           if (u.docChanged) this.sql.set(u.state.doc.toString());
         }),
-        EditorView.theme({
-          '&': { height: '14rem', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' },
-          '.cm-scroller': { overflow: 'auto' },
-        }),
-        ...(isDark ? [oneDark] : []),
+        krintEditorTheme(isDark),
+        syntaxHighlighting(krintHighlightStyle(isDark)),
       ],
     });
 
@@ -227,6 +225,101 @@ export class QueryConsole implements AfterViewInit, OnDestroy {
         },
       });
   }
+}
+
+// Editor chrome theme. Pulls colors from the Spartan/Tailwind tokens already on the document
+// so the editor visually blends with the rest of the app in both light and dark mode. We
+// avoid raw hex values; everything is hsl(var(--token)) or a transparency on currentColor.
+function krintEditorTheme(_isDark: boolean): import('@codemirror/state').Extension {
+  return EditorView.theme({
+    '&': {
+      height: '14rem',
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      backgroundColor: 'transparent',
+      color: 'hsl(var(--foreground))',
+      fontSize: '13px',
+    },
+    '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit' },
+    '.cm-content': { caretColor: 'hsl(var(--foreground))' },
+    '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'hsl(var(--foreground))' },
+    '&.cm-focused .cm-selectionBackground, ::selection': {
+      backgroundColor: 'hsl(var(--primary) / 0.25)',
+    },
+    '.cm-selectionBackground': { backgroundColor: 'hsl(var(--primary) / 0.15)' },
+    '.cm-gutters': {
+      backgroundColor: 'transparent',
+      color: 'hsl(var(--muted-foreground))',
+      borderRight: '1px solid hsl(var(--border))',
+    },
+    '.cm-activeLineGutter, .cm-activeLine': {
+      backgroundColor: 'hsl(var(--muted) / 0.4)',
+    },
+    '.cm-foldGutter .cm-gutterElement': { color: 'hsl(var(--muted-foreground))' },
+    // Tone the autocomplete popup to match Spartan's card surface.
+    '.cm-tooltip.cm-tooltip-autocomplete': {
+      backgroundColor: 'hsl(var(--popover))',
+      color: 'hsl(var(--popover-foreground))',
+      border: '1px solid hsl(var(--border))',
+      borderRadius: '6px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+      backgroundColor: 'hsl(var(--accent))',
+      color: 'hsl(var(--accent-foreground))',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li': { padding: '2px 8px' },
+    // Search panel + the matching-bracket halo.
+    '.cm-panels': { backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--card-foreground))' },
+    '.cm-matchingBracket, .cm-nonmatchingBracket': {
+      backgroundColor: 'hsl(var(--primary) / 0.15)',
+      outline: '1px solid hsl(var(--primary) / 0.4)',
+    },
+  });
+}
+
+// Syntax palette tuned for both themes. We pick colors that exist in Tailwind's slate/indigo/
+// emerald families so they stay readable on the Spartan dark canvas without the saturated
+// punch of oneDark. In light mode we shift to deeper variants of the same hues.
+function krintHighlightStyle(isDark: boolean): HighlightStyle {
+  const colors = isDark
+    ? {
+        keyword: '#c084fc',   // violet-400
+        type:    '#7dd3fc',   // sky-300
+        builtin: '#7dd3fc',
+        number:  '#f0abfc',   // fuchsia-300
+        string:  '#86efac',   // emerald-300
+        comment: '#94a3b8',   // slate-400
+        meta:    '#fda4af',   // rose-300
+        ident:   'hsl(var(--foreground))',
+        punct:   '#94a3b8',
+      }
+    : {
+        keyword: '#7c3aed',   // violet-600
+        type:    '#0369a1',   // sky-700
+        builtin: '#0369a1',
+        number:  '#a21caf',   // fuchsia-700
+        string:  '#047857',   // emerald-700
+        comment: '#64748b',   // slate-500
+        meta:    '#be123c',   // rose-700
+        ident:   'hsl(var(--foreground))',
+        punct:   '#64748b',
+      };
+
+  return HighlightStyle.define([
+    { tag: t.keyword, color: colors.keyword, fontWeight: '600' },
+    { tag: [t.controlKeyword, t.operatorKeyword, t.modifier], color: colors.keyword },
+    { tag: [t.typeName, t.className], color: colors.type },
+    { tag: [t.standard(t.variableName), t.special(t.variableName)], color: colors.builtin },
+    { tag: t.number, color: colors.number },
+    { tag: [t.string, t.special(t.string)], color: colors.string },
+    { tag: t.comment, color: colors.comment, fontStyle: 'italic' },
+    { tag: t.meta, color: colors.meta },
+    { tag: t.variableName, color: colors.ident },
+    { tag: [t.punctuation, t.bracket], color: colors.punct },
+    { tag: t.operator, color: colors.punct },
+    { tag: t.null, color: colors.meta },
+    { tag: t.bool, color: colors.meta },
+  ]);
 }
 
 function messageOf(err: unknown): string {
