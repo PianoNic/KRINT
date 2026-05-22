@@ -110,7 +110,7 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            // MySQL supports UPDATE ... LIMIT — combine with a match-count check to enforce exactly one.
+            // MySQL supports UPDATE ... LIMIT - combine with a match-count check to enforce exactly one.
             await using (var countCmd = new MySqlCommand(
                 $"SELECT COUNT(*) FROM (SELECT 1 FROM `{table}` WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s",
                 conn, tx))
@@ -122,7 +122,7 @@ namespace KRINT.Infrastructure.Services
                 }
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
                 var matches = raw is null || raw is DBNull ? 0 : Convert.ToInt64(raw, CultureInfo.InvariantCulture);
-                if (matches == 0) throw new InvalidOperationException("Row not found — it may have been modified or deleted since you loaded it.");
+                if (matches == 0) throw new InvalidOperationException("Row not found - it may have been modified or deleted since you loaded it.");
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches the original values. Refusing to update.");
             }
 
@@ -186,7 +186,7 @@ namespace KRINT.Infrastructure.Services
                         countCmd.Parameters.AddWithValue(param.ParameterName, param.Value!);
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
                 var matches = raw is null || raw is DBNull ? 0 : Convert.ToInt64(raw, CultureInfo.InvariantCulture);
-                if (matches == 0) throw new InvalidOperationException("Row not found — it may have been modified or deleted since you loaded it.");
+                if (matches == 0) throw new InvalidOperationException("Row not found - it may have been modified or deleted since you loaded it.");
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches. Refusing to delete.");
             }
 

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideBrain,
   lucideCheck,
   lucideChevronLeft,
   lucideChevronRight,
@@ -12,7 +13,7 @@ import {
   lucideTrash2,
   lucideX,
 } from '@ng-icons/lucide';
-import { simpleMariadb, simpleMongodb, simpleMysql, simplePostgresql } from '@ng-icons/simple-icons';
+import { simpleApachecassandra, simpleApachecouchdb, simpleApachesolr, simpleArangodb, simpleClickhouse, simpleCockroachlabs, simpleCouchbase, simpleElasticsearch, simpleEtcd, simpleInfluxdb, simpleMariadb, simpleMeilisearch, simpleMongodb, simpleMysql, simpleNeo4j, simpleOpensearch, simplePostgresql, simpleRedis, simpleScylladb, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -23,8 +24,11 @@ import { HlmTableImports } from '@spartan-ng/helm/table';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
+import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
+import { EngineCapabilitiesDto } from '../api/model/engineCapabilitiesDto';
+import { SupportedDatabaseDto } from '../api/model/supportedDatabaseDto';
 import { TableSummaryDto } from '../api/model/tableSummaryDto';
 import { TableRowsDto } from '../api/model/tableRowsDto';
 
@@ -48,6 +52,7 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
   ],
   providers: [
     provideIcons({
+      lucideBrain,
       lucideCheck,
       lucideChevronLeft,
       lucideChevronRight,
@@ -61,7 +66,26 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
       simplePostgresql,
       simpleMysql,
       simpleMongodb,
+      simpleApachecassandra,
+      simpleApachecouchdb,
+      simpleApachesolr,
+      simpleArangodb,
+      simpleClickhouse,
+      simpleCockroachlabs,
+      simpleCouchbase,
+      simpleElasticsearch,
+      simpleEtcd,
+      simpleInfluxdb,
       simpleMariadb,
+      simpleMeilisearch,
+      simpleNeo4j,
+      simpleOpensearch,
+      simpleRedis,
+      simpleScylladb,
+      simpleTimescale,
+      customMssql,
+      customQdrant,
+      customValkey,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,6 +97,7 @@ export class Browser {
   protected readonly nullToken = NULL_TOKEN;
 
   protected readonly instances = signal<ReadonlyArray<DatabaseInstanceDto>>([]);
+  protected readonly supported = signal<ReadonlyArray<SupportedDatabaseDto>>([]);
   protected readonly databases = signal<ReadonlyArray<string>>([]);
   protected readonly tables = signal<ReadonlyArray<TableSummaryDto>>([]);
   protected readonly rows = signal<TableRowsDto | null>(null);
@@ -96,14 +121,23 @@ export class Browser {
     this.instances().find((i) => i.id === this.instanceId()) ?? null,
   );
 
-  protected readonly canEdit = computed(() => {
+  protected readonly capabilities = computed<EngineCapabilitiesDto | null>(() => {
     const engine = this.selectedInstance()?.engine;
-    return engine === 'postgres' || engine === 'mysql' || engine === 'mariadb';
+    if (!engine) return null;
+    return this.supported().find((s) => s.key === engine)?.capabilities ?? null;
   });
-  protected readonly canDropTable = computed(() => {
-    // Drop works for all SQL engines + Mongo collections.
-    return !!this.selectedInstance();
-  });
+
+  // Convenience computed flags so the template stays readable.
+  protected readonly canInsertRow = computed(() => this.capabilities()?.supportsRowInsert ?? false);
+  protected readonly canEditRow   = computed(() => this.capabilities()?.supportsRowEdit ?? false);
+  protected readonly canDeleteRow = computed(() => this.capabilities()?.supportsRowDelete ?? false);
+  protected readonly canDropTable = computed(() => this.capabilities()?.supportsDropTable ?? false);
+  protected readonly tableTerm    = computed(() => this.capabilities()?.tableTerm ?? 'table');
+  protected readonly rowTerm      = computed(() => this.capabilities()?.rowTerm ?? 'row');
+  protected readonly databaseTerm = computed(() => this.capabilities()?.databaseTerm ?? 'database');
+
+  // Legacy alias kept so the template can keep using canEdit() until the next sweep.
+  protected readonly canEdit = this.canEditRow;
 
   protected readonly editingIndex = computed(() => {
     const d = this.draft();
@@ -122,6 +156,11 @@ export class Browser {
   constructor() {
     this.api.apiDatabaseGet().subscribe({
       next: (list) => this.instances.set(list),
+      error: (err) => this.error.set(messageOf(err)),
+    });
+
+    this.api.apiDatabaseSupportedGet().subscribe({
+      next: (list) => this.supported.set(list),
       error: (err) => this.error.set(messageOf(err)),
     });
 
@@ -184,7 +223,27 @@ export class Browser {
       case 'postgres': return 'simplePostgresql';
       case 'mysql':    return 'simpleMysql';
       case 'mongo':    return 'simpleMongodb';
-      case 'mariadb':  return 'simpleMariadb';
+      case 'mariadb':     return 'simpleMariadb';
+      case 'timescaledb': return 'simpleTimescale';
+      case 'redis':       return 'simpleRedis';
+      case 'cockroachdb': return 'simpleCockroachlabs';
+      case 'clickhouse':  return 'simpleClickhouse';
+      case 'cassandra':   return 'simpleApachecassandra';
+      case 'scylladb':    return 'simpleScylladb';
+      case 'couchdb':     return 'simpleApachecouchdb';
+      case 'elasticsearch': return 'simpleElasticsearch';
+      case 'opensearch':  return 'simpleOpensearch';
+      case 'arangodb':    return 'simpleArangodb';
+      case 'etcd':        return 'simpleEtcd';
+      case 'pgvector':    return 'simplePostgresql';
+      case 'neo4j':       return 'simpleNeo4j';
+      case 'influxdb':    return 'simpleInfluxdb';
+      case 'solr':        return 'simpleApachesolr';
+      case 'meilisearch': return 'simpleMeilisearch';
+      case 'qdrant':      return 'customQdrant';
+      case 'valkey':      return 'customValkey';
+      case 'mssql':       return 'customMssql';
+      case 'couchbase':   return 'simpleCouchbase';
       default:         return 'simplePostgresql';
     }
   }
@@ -217,7 +276,7 @@ export class Browser {
 
   protected readonly instanceLabel = (id: string): string => {
     const i = this.instances().find((x) => x.id === id);
-    return i ? `${i.engine} — ${i.containerName}` : id;
+    return i ? `${i.engine} - ${i.containerName}` : id;
   };
 
   // ----- draft helpers -----

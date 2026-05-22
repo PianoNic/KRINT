@@ -4,6 +4,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogDescription, HlmDialogHeader, HlmDialogTitle } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -23,6 +24,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
     HlmDialogDescription,
     HlmInputImports,
     HlmLabelImports,
+    HlmSelectImports,
     HlmTabsImports,
     HlmTooltipImports,
     NgIcon,
@@ -109,7 +111,7 @@ type DialogContext = { id: string; engine: string; containerName: string };
         @if (store.lastCredential(); as cred) {
           <div class="border-primary/30 bg-primary/5 flex items-start gap-2 rounded-md border p-3">
             <div class="flex-1 text-sm">
-              <p class="font-medium">Save this password — it won't be shown again.</p>
+              <p class="font-medium">Save this password - it won't be shown again.</p>
               <p class="text-muted-foreground mt-1">
                 User <code class="font-mono">{{ cred.name }}</code>
               </p>
@@ -137,9 +139,25 @@ type DialogContext = { id: string; engine: string; containerName: string };
         } @else {
           <ul class="divide-border divide-y rounded-md border">
             @for (name of store.users(); track name) {
-              <li class="flex items-center justify-between px-3 py-2">
+              <li class="flex items-center justify-between gap-2 px-3 py-2">
                 <span class="font-mono text-sm">{{ name }}</span>
-                <div class="flex gap-1">
+                <div class="flex items-center gap-1">
+                  @if (store.innerDatabases().length > 0) {
+                    <hlm-select
+                      [value]="null"
+                      (valueChange)="grantAccess(name, $event)"
+                      [disabled]="store.mutatingUsers()"
+                    >
+                      <hlm-select-trigger size="sm" class="h-8 min-w-[10rem] text-xs">
+                        <hlm-select-value placeholder="Grant access to…" />
+                      </hlm-select-trigger>
+                      <hlm-select-content *hlmSelectPortal>
+                        @for (db of store.innerDatabases(); track db) {
+                          <hlm-select-item [value]="db">{{ db }}</hlm-select-item>
+                        }
+                      </hlm-select-content>
+                    </hlm-select>
+                  }
                   <button
                     hlmBtn
                     variant="ghost"
@@ -233,6 +251,11 @@ export class DatabaseEditDialog {
     });
     if (!ok) return;
     this.store.deleteUser({ id: this.ctx.id, name });
+  }
+
+  protected grantAccess(user: string, database: string | null): void {
+    if (!database) return;
+    this.store.grantUserAccess({ id: this.ctx.id, name: user, database });
   }
 
   protected async resetUser(name: string): Promise<void> {

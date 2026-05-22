@@ -164,6 +164,20 @@ export const DatabasesStore = signalStore(
         ),
       ),
     ),
+    grantUserAccess: rxMethod<{ id: string; name: string; database: string }>(
+      pipe(
+        tap(() => patchState(store, { mutatingUsers: true, error: null })),
+        switchMap(({ id, name, database }) =>
+          api.apiDatabaseIdUsersNameGrantsPost(id, name, { database }).pipe(
+            tap({
+              next: () => patchState(store, { mutatingUsers: false }),
+              error: (err: unknown) =>
+                patchState(store, { mutatingUsers: false, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
     loadInner: rxMethod<string>(
       pipe(
         tap(() => patchState(store, { loadingInner: true, error: null })),

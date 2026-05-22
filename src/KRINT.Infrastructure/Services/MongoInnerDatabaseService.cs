@@ -24,7 +24,7 @@ namespace KRINT.Infrastructure.Services
         public Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(name);
-            // Mongo creates a database lazily — force it by running a no-op command against it.
+            // Mongo creates a database lazily - force it by running a no-op command against it.
             var client = CreateClient(target);
             var db = client.GetDatabase(name);
             return db.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1), cancellationToken: cancellationToken)

@@ -51,7 +51,7 @@ export class ConfirmService {
 
   open(ctx: ConfirmDialogContext): Promise<boolean> {
     return new Promise((resolve) => {
-      // Alert-dialog semantics: don't dismiss on backdrop click — the user must
+      // Alert-dialog semantics: don't dismiss on backdrop click - the user must
       // explicitly press Cancel or Confirm so destructive actions can't slip past.
       const ref = this.dialog.open(ConfirmDialog, {
         context: ctx,

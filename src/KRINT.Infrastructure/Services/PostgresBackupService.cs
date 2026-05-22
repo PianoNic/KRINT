@@ -4,11 +4,11 @@ namespace KRINT.Infrastructure.Services
 {
     public class PostgresBackupService(IDockerService docker) : IBackupService
     {
-        public string Engine => "postgres";
+        public virtual string Engine => "postgres";
 
         public async Task<BackupOutput> DumpAsync(BackupTarget target, CancellationToken cancellationToken = default)
         {
-            // pg_dump custom-format archive — restorable via pg_restore. Sent over stdout.
+            // pg_dump custom-format archive - restorable via pg_restore. Sent over stdout.
             var cmd = new List<string>
             {
                 "bash", "-c",

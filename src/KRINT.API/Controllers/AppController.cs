@@ -17,7 +17,7 @@ namespace KRINT.API.Controllers
         {
             var result = await mediator.Send(new AppQuery(), cancellationToken);
 
-            // The redirect target must match whatever URL the browser is currently on —
+            // The redirect target must match whatever URL the browser is currently on  - 
             // important when the bundled image is reached via a host-assigned random port
             // (Testcontainers) or behind a proxy. Prefer the caller's Origin header so a
             // split-origin dev setup (SPA on :4200, API on :5165) still points back at the

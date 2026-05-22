@@ -5,7 +5,7 @@ namespace KRINT.Infrastructure.Services
 {
     public class PostgresInnerDatabaseService : IInnerDatabaseService
     {
-        public string Engine => "postgres";
+        public virtual string Engine => "postgres";
 
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
@@ -31,7 +31,7 @@ namespace KRINT.Infrastructure.Services
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        public async Task DropAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
+        public virtual async Task DropAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(name);
             if (string.Equals(name, target.DefaultDatabase, StringComparison.OrdinalIgnoreCase))
@@ -40,9 +40,13 @@ namespace KRINT.Infrastructure.Services
             }
 
             await using var conn = await OpenAsync(target, cancellationToken);
-            await using var cmd = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", conn);
+            await using var cmd = new NpgsqlCommand(BuildDropSql(name), conn);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        // Postgres-only: WITH (FORCE) terminates open sessions. CockroachDB doesn't support
+        // the clause, so the subclass overrides this.
+        protected virtual string BuildDropSql(string name) => $"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)";
 
         private static async Task<NpgsqlConnection> OpenAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
         {

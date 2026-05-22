@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCheck, lucideCircleAlert } from '@ng-icons/lucide';
-import { simpleMariadb, simpleMongodb, simpleMysql, simplePostgresql } from '@ng-icons/simple-icons';
+import { lucideBrain, lucideCheck, lucideCircleAlert, lucideDatabase } from '@ng-icons/lucide';
+import { simpleApachecassandra, simpleApachecouchdb, simpleApachesolr, simpleArangodb, simpleClickhouse, simpleCockroachlabs, simpleCouchbase, simpleElasticsearch, simpleEtcd, simpleInfluxdb, simpleMariadb, simpleMeilisearch, simpleMongodb, simpleMysql, simpleNeo4j, simpleOpensearch, simplePostgresql, simpleRedis, simpleScylladb, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { ContentHeader } from '../shared/components/content-header/content-header';
+import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
 import { SettingsService } from '../api/api/settings.service';
 import { SettingsDto } from '../api/model/settingsDto';
 
@@ -20,12 +21,33 @@ import { SettingsDto } from '../api/model/settingsDto';
   ],
   providers: [
     provideIcons({
+      lucideBrain,
       lucideCheck,
       lucideCircleAlert,
+      lucideDatabase,
       simplePostgresql,
       simpleMysql,
       simpleMongodb,
+      simpleApachecassandra,
+      simpleApachecouchdb,
+      simpleApachesolr,
+      simpleArangodb,
+      simpleClickhouse,
+      simpleCockroachlabs,
+      simpleCouchbase,
+      simpleElasticsearch,
+      simpleEtcd,
+      simpleInfluxdb,
       simpleMariadb,
+      simpleMeilisearch,
+      simpleNeo4j,
+      simpleOpensearch,
+      simpleRedis,
+      simpleScylladb,
+      simpleTimescale,
+      customMssql,
+      customQdrant,
+      customValkey,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -98,7 +120,7 @@ import { SettingsDto } from '../api/model/settingsDto';
               <span>Master key configured.</span>
             } @else {
               <ng-icon name="lucideCircleAlert" class="text-destructive" size="18" />
-              <span class="text-destructive">Master key missing — secrets cannot be stored.</span>
+              <span class="text-destructive">Master key missing - secrets cannot be stored.</span>
             }
           </div>
         </section>
@@ -128,7 +150,27 @@ export class Settings {
       case 'postgres': return 'simplePostgresql';
       case 'mysql':    return 'simpleMysql';
       case 'mongo':    return 'simpleMongodb';
-      case 'mariadb':  return 'simpleMariadb';
+      case 'mariadb':     return 'simpleMariadb';
+      case 'timescaledb': return 'simpleTimescale';
+      case 'redis':       return 'simpleRedis';
+      case 'cockroachdb': return 'simpleCockroachlabs';
+      case 'clickhouse':  return 'simpleClickhouse';
+      case 'cassandra':   return 'simpleApachecassandra';
+      case 'scylladb':    return 'simpleScylladb';
+      case 'couchdb':     return 'simpleApachecouchdb';
+      case 'elasticsearch': return 'simpleElasticsearch';
+      case 'opensearch':  return 'simpleOpensearch';
+      case 'arangodb':    return 'simpleArangodb';
+      case 'etcd':        return 'simpleEtcd';
+      case 'pgvector':    return 'simplePostgresql';
+      case 'neo4j':       return 'simpleNeo4j';
+      case 'influxdb':    return 'simpleInfluxdb';
+      case 'solr':        return 'simpleApachesolr';
+      case 'meilisearch': return 'simpleMeilisearch';
+      case 'qdrant':      return 'customQdrant';
+      case 'valkey':      return 'customValkey';
+      case 'mssql':       return 'customMssql';
+      case 'couchbase':   return 'simpleCouchbase';
       default:         return 'simplePostgresql';
     }
   }

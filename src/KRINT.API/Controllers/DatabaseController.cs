@@ -175,6 +175,27 @@ namespace KRINT.API.Controllers
             }
         }
 
+        [HttpPost("{id:guid}/users/{name}/grants")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GrantUserAccess(Guid id, string name, [FromBody] GrantInnerUserDto body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new GrantInnerUserAccessCommand(id, name, body.Database), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         [HttpDelete("{id:guid}/users/{name}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

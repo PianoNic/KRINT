@@ -5,7 +5,7 @@ namespace KRINT.Tests.E2E;
 
 /// <summary>
 /// Per-test helpers on top of the session-scoped <see cref="KrintStack"/>.
-/// Each test creates its own browser context and does its own login — fast enough
+/// Each test creates its own browser context and does its own login - fast enough
 /// (~3s) and free of cross-test sessionStorage races.
 /// </summary>
 public static class KrintTestFixture

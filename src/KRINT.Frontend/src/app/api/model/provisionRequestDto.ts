@@ -16,5 +16,6 @@ export interface ProvisionRequestDto {
     defaultDatabaseName?: string | null;
     databases?: Array<string>;
     users?: Array<ProvisionUserSpec>;
+    plugins?: Array<string>;
 }
 

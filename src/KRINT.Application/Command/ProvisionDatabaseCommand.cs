@@ -14,8 +14,10 @@ namespace KRINT.Application.Command
             var req = command.Request;
 
             // 1. Create the instance (provisions the container, opens host port, stores root password).
+            // Plugins propagate down so CreateDatabaseCommand can swap the image, set env vars,
+            // and/or run post-readiness install steps.
             var instance = await mediator.Send(
-                new CreateDatabaseCommand(req.Engine, req.Version, req.DefaultDatabaseName),
+                new CreateDatabaseCommand(req.Engine, req.Version, req.DefaultDatabaseName, req.Plugins),
                 cancellationToken);
 
             var createdDatabases = new List<string>();

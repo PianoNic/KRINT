@@ -9,7 +9,7 @@ using Testcontainers.PostgreSql;
 namespace KRINT.Tests.E2E;
 
 /// <summary>
-/// Boots a complete throwaway KRINT stack inside Docker — Postgres, Keycloak with the
+/// Boots a complete throwaway KRINT stack inside Docker - Postgres, Keycloak with the
 /// pre-seeded e2e_runner user, and the bundled KRINT image (frontend + API) built from
 /// this repo's Dockerfile. The stack is asynchronously initialised once per test session
 /// via <see cref="GetAsync"/>, and disposed via <see cref="StopAsync"/> from a teardown
@@ -94,7 +94,7 @@ public sealed class KrintStack : IAsyncDisposable
             .Build();
         await postgres.StartAsync();
 
-        // Plain ContainerBuilder so we control the command ourselves — the Testcontainers
+        // Plain ContainerBuilder so we control the command ourselves - the Testcontainers
         // Keycloak module already injects start-dev which collides with our --import-realm flag.
         var keycloak = new ContainerBuilder()
             .WithImage("quay.io/keycloak/keycloak:26.6")
@@ -115,7 +115,7 @@ public sealed class KrintStack : IAsyncDisposable
         await keycloak.StartAsync();
 
         // The Angular OIDC client runs in the BROWSER (on the host), so the authority
-        // must resolve from there — localhost:<host-port>, not the docker-internal hostname.
+        // must resolve from there - localhost:<host-port>, not the docker-internal hostname.
         // The API also calls this URL for JWKS lookup, but host.docker.internal is reachable
         // from inside containers on Docker Desktop, so localhost works too once we map it.
         var keycloakHostPort = keycloak.GetMappedPublicPort(8080);
@@ -142,7 +142,7 @@ public sealed class KrintStack : IAsyncDisposable
             .WithEnvironment("Oidc__Scope", "openid profile email roles")
             .WithEnvironment("Cors__AllowedOrigins__0", "http://localhost")
             .WithEnvironment("Vault__MasterKey", Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)))
-            // /api/App is AllowAnonymous and returns 200 with the OIDC config — perfect
+            // /api/App is AllowAnonymous and returns 200 with the OIDC config - perfect
             // readiness probe. /openapi/v1.json is gated by IsDevelopment() so it 404s here.
             .WithWaitStrategy(Wait.ForUnixContainer()
                 .UntilHttpRequestIsSucceeded(r => r.ForPort(8080).ForPath("/api/App")))

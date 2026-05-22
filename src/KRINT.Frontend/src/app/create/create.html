@@ -37,7 +37,7 @@
 
         @if (res.users.length > 0) {
           <div class="flex flex-col gap-2">
-            <span class="text-muted-foreground text-sm">Users — save these passwords, they won't be shown again</span>
+            <span class="text-muted-foreground text-sm">Users - save these passwords, they won't be shown again</span>
             <ul class="divide-border divide-y rounded-md border">
               @for (u of res.users; track u.name) {
                 <li class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm">
@@ -88,17 +88,17 @@
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Pick an engine</h2>
             <p class="text-muted-foreground text-sm">Choose the database engine you want to provision.</p>
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               @for (s of supported(); track s.key) {
                 <button
                   type="button"
-                  class="hover:border-primary hover:bg-muted/50 flex flex-col items-center gap-3 rounded-lg border p-6 text-center transition-colors active:translate-y-px"
+                  class="hover:border-primary hover:bg-muted/50 flex flex-col items-center gap-2 rounded-lg border p-3 text-center transition-colors active:translate-y-px"
                   [class.border-primary]="engine() === s.key"
                   [class.bg-muted]="engine() === s.key"
                   (click)="selectEngine(s.key)"
                 >
-                  <ng-icon [name]="engineIcon(s.key)" size="40" />
-                  <span class="font-medium">{{ s.displayName }}</span>
+                  <ng-icon [name]="engineIcon(s.key)" size="28" />
+                  <span class="text-sm font-medium">{{ s.displayName }}</span>
                 </button>
               }
             </div>
@@ -149,8 +149,46 @@
           </div>
         }
 
-        <!-- ===== Step 3: Databases ===== -->
+        <!-- ===== Step 3: Plugins ===== -->
         @if (step() === 3) {
+          <div class="flex flex-col gap-4">
+            <h2 class="text-xl font-semibold">Plugins &amp; extensions</h2>
+            <p class="text-muted-foreground text-sm">
+              Optional add-ons enabled on this instance.
+            </p>
+
+            @if (availablePlugins().length === 0) {
+              <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+                No plugins available for this engine.
+              </p>
+            } @else {
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                @for (p of availablePlugins(); track p.key) {
+                  <button
+                    type="button"
+                    class="hover:bg-muted/40 flex items-start gap-3 rounded-md border p-3 text-left transition-colors"
+                    [class.border-primary]="isPluginSelected(p.key)"
+                    [class.bg-muted]="isPluginSelected(p.key)"
+                    (click)="togglePlugin(p.key)"
+                  >
+                    <hlm-checkbox
+                      [attr.aria-label]="'Enable ' + p.displayName"
+                      [checked]="isPluginSelected(p.key)"
+                      class="mt-0.5"
+                    />
+                    <span class="flex flex-1 flex-col gap-1">
+                      <span class="text-sm font-medium">{{ p.displayName }}</span>
+                      <span class="text-muted-foreground text-xs">{{ p.description }}</span>
+                    </span>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- ===== Step 4: Databases ===== -->
+        @if (step() === 4) {
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Logical databases</h2>
             <p class="text-muted-foreground text-sm">
@@ -192,12 +230,12 @@
           </div>
         }
 
-        <!-- ===== Step 4: Users ===== -->
-        @if (step() === 4) {
+        <!-- ===== Step 5: Users ===== -->
+        @if (step() === 5) {
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Users</h2>
             <p class="text-muted-foreground text-sm">
-              Define login users. Tick which databases each user can access — a fresh password is generated on launch.
+              Define login users. Tick which databases each user can access - a fresh password is generated on launch.
             </p>
 
             @if (users().length === 0) {
@@ -254,8 +292,8 @@
           </div>
         }
 
-        <!-- ===== Step 5: Review ===== -->
-        @if (step() === 5) {
+        <!-- ===== Step 6: Review ===== -->
+        @if (step() === 6) {
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Review &amp; launch</h2>
 
@@ -264,6 +302,14 @@
               <dd class="flex items-center gap-2 font-mono">
                 <ng-icon [name]="engineIcon(engine()!)" size="16" />
                 {{ engine() }} {{ version() }}
+              </dd>
+              <dt class="text-muted-foreground">Plugins</dt>
+              <dd>
+                @if (selectedPluginKeys().length === 0) {
+                  <span class="text-muted-foreground">none</span>
+                } @else {
+                  <span class="font-mono">{{ selectedPluginKeys().join(', ') }}</span>
+                }
               </dd>
               <dt class="text-muted-foreground">Default DB</dt>
               <dd class="font-mono">{{ defaultDbName().trim() || defaultDbPlaceholder() }}</dd>
@@ -301,7 +347,7 @@
           Back
         </button>
 
-        @if (step() < 5) {
+        @if (step() < 6) {
           <button hlmBtn type="button" (click)="next()" [disabled]="!canNext()">
             Next
             <ng-icon name="lucideArrowRight" size="16" />

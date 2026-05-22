@@ -60,7 +60,7 @@ import { ActivityEntryDto } from '../api/model/activityEntryDto';
                       <td hlmTableCell>
                         <span hlmBadge variant="secondary" class="font-mono text-xs">{{ e.action }}</span>
                       </td>
-                      <td hlmTableCell class="text-sm">{{ e.engine ?? '—' }}</td>
+                      <td hlmTableCell class="text-sm">{{ e.engine ?? ' - ' }}</td>
                       <td hlmTableCell class="font-mono text-xs">{{ e.target }}</td>
                       <td hlmTableCell class="text-muted-foreground text-xs">{{ e.details ?? '' }}</td>
                     </tr>

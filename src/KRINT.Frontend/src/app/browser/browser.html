@@ -21,7 +21,7 @@
           </hlm-select-trigger>
           <hlm-select-content *hlmSelectPortal>
             @for (i of instances(); track i.id) {
-              <hlm-select-item [value]="i.id">{{ i.engine }} — {{ i.containerName }}</hlm-select-item>
+              <hlm-select-item [value]="i.id">{{ i.engine }} - {{ i.containerName }}</hlm-select-item>
             }
           </hlm-select-content>
         </hlm-select>
@@ -52,12 +52,12 @@
       <!-- Table list -->
       <section hlmCard>
         <div hlmCardHeader>
-          <h3 hlmCardTitle class="text-base">Tables</h3>
+          <h3 hlmCardTitle class="text-base">{{ tableTerm() }}s</h3>
           <p hlmCardDescription class="text-xs">{{ tables().length }} entries</p>
         </div>
         <div hlmCardContent class="p-0">
           @if (tables().length === 0 && !loading()) {
-            <p class="text-muted-foreground p-4 text-sm">No tables/collections in this database.</p>
+            <p class="text-muted-foreground p-4 text-sm">No {{ tableTerm() }}s in this {{ databaseTerm() }}.</p>
           } @else {
             <ul class="divide-border divide-y">
               @for (t of tables(); track t.name) {
@@ -71,19 +71,20 @@
                     <span class="flex-1 truncate font-mono text-xs">{{ t.name }}</span>
                     <span class="text-muted-foreground text-[10px] uppercase">{{ t.kind }}</span>
                   </button>
-                  <button
-                    hlmBtn
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    class="mr-1 h-7 w-7 opacity-0 group-hover/row:opacity-100"
-                    [attr.aria-label]="'Drop ' + t.name"
-                    [hlmTooltip]="'Drop ' + t.name"
-                    [disabled]="!canDropTable()"
-                    (click)="dropTable(t.name); $event.stopPropagation()"
-                  >
-                    <ng-icon name="lucideTrash2" size="14" />
-                  </button>
+                  @if (canDropTable()) {
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      class="mr-1 h-7 w-7 opacity-0 group-hover/row:opacity-100"
+                      [attr.aria-label]="'Drop ' + t.name"
+                      [hlmTooltip]="'Drop ' + tableTerm() + ' ' + t.name"
+                      (click)="dropTable(t.name); $event.stopPropagation()"
+                    >
+                      <ng-icon name="lucideTrash2" size="14" />
+                    </button>
+                  }
                 </li>
               }
             </ul>
@@ -94,7 +95,7 @@
       <!-- Rows -->
       <section hlmCard>
         <div hlmCardHeader>
-          <h3 hlmCardTitle class="font-mono text-base">{{ table() ?? '—' }}</h3>
+          <h3 hlmCardTitle class="font-mono text-base">{{ table() ?? ' - ' }}</h3>
           <p hlmCardDescription>
             @if (rows()?.totalCount != null) {
               {{ offset() + 1 }}–{{ offset() + (rows()?.rows?.length ?? 0) }} of {{ rows()?.totalCount }}
@@ -105,18 +106,19 @@
             }
           </p>
           <div hlmCardAction class="flex gap-1">
-            <button
-              hlmBtn
-              variant="outline"
-              size="sm"
-              type="button"
-              [disabled]="!canEdit() || !table() || draft() !== null"
-              hlmTooltip="Insert a new row"
-              (click)="beginInsert()"
-            >
-              <ng-icon name="lucidePlus" size="14" />
-              Add row
-            </button>
+            @if (canInsertRow()) {
+              <button
+                hlmBtn
+                variant="outline"
+                size="sm"
+                type="button"
+                [disabled]="!table() || draft() !== null"
+                (click)="beginInsert()"
+              >
+                <ng-icon name="lucidePlus" size="14" />
+                Add {{ rowTerm() }}
+              </button>
+            }
             <button hlmBtn variant="outline" size="icon" type="button" (click)="prev()" [disabled]="!hasPrev() || loading()" aria-label="Previous page" hlmTooltip="Previous page">
               <ng-icon name="lucideChevronLeft" size="14" />
             </button>
@@ -230,30 +232,34 @@
                           }
                           <td hlmTableCell class="text-right">
                             <div class="flex items-center justify-end gap-1">
-                              <button
-                                hlmBtn
-                                variant="ghost"
-                                size="icon"
-                                type="button"
-                                aria-label="Edit row"
-                                hlmTooltip="Edit row"
-                                [disabled]="!canEdit() || draft() !== null"
-                                (click)="beginEdit(rowIdx)"
-                              >
-                                <ng-icon name="lucidePencil" size="14" />
-                              </button>
-                              <button
-                                hlmBtn
-                                variant="ghost"
-                                size="icon"
-                                type="button"
-                                aria-label="Delete row"
-                                hlmTooltip="Delete row"
-                                [disabled]="!canEdit() || draft() !== null || deletingRowIndex() !== null"
-                                (click)="deleteRow(rowIdx)"
-                              >
-                                <ng-icon name="lucideTrash2" size="14" />
-                              </button>
+                              @if (canEditRow()) {
+                                <button
+                                  hlmBtn
+                                  variant="ghost"
+                                  size="icon"
+                                  type="button"
+                                  [attr.aria-label]="'Edit ' + rowTerm()"
+                                  [hlmTooltip]="'Edit ' + rowTerm()"
+                                  [disabled]="draft() !== null"
+                                  (click)="beginEdit(rowIdx)"
+                                >
+                                  <ng-icon name="lucidePencil" size="14" />
+                                </button>
+                              }
+                              @if (canDeleteRow()) {
+                                <button
+                                  hlmBtn
+                                  variant="ghost"
+                                  size="icon"
+                                  type="button"
+                                  [attr.aria-label]="'Delete ' + rowTerm()"
+                                  [hlmTooltip]="'Delete ' + rowTerm()"
+                                  [disabled]="draft() !== null || deletingRowIndex() !== null"
+                                  (click)="deleteRow(rowIdx)"
+                                >
+                                  <ng-icon name="lucideTrash2" size="14" />
+                                </button>
+                              }
                             </div>
                           </td>
                         }

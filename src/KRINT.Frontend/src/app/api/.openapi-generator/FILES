@@ -27,6 +27,9 @@ model/createInnerUserDto.ts
 model/databaseInstanceDto.ts
 model/databaseInstanceDtoPort.ts
 model/deleteRowDto.ts
+model/engineCapabilitiesDto.ts
+model/enginePluginDto.ts
+model/grantInnerUserDto.ts
 model/innerUserPasswordDto.ts
 model/insertRowDto.ts
 model/models.ts

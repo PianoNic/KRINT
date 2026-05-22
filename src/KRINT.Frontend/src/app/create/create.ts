@@ -4,6 +4,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowLeft,
   lucideArrowRight,
+  lucideBrain,
   lucideCheck,
   lucideDatabase,
   lucideKeyRound,
@@ -11,7 +12,7 @@ import {
   lucideRocket,
   lucideTrash2,
 } from '@ng-icons/lucide';
-import { simpleMariadb, simpleMongodb, simpleMysql, simplePostgresql } from '@ng-icons/simple-icons';
+import { simpleApachecassandra, simpleApachecouchdb, simpleApachesolr, simpleArangodb, simpleClickhouse, simpleCockroachlabs, simpleCouchbase, simpleElasticsearch, simpleEtcd, simpleInfluxdb, simpleMariadb, simpleMeilisearch, simpleMongodb, simpleMysql, simpleNeo4j, simpleOpensearch, simplePostgresql, simpleRedis, simpleScylladb, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -21,6 +22,7 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
+import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
 import { SupportedDatabaseDto } from '../api/model/supportedDatabaseDto';
 import { ProvisionResultDto } from '../api/model/provisionResultDto';
@@ -45,6 +47,7 @@ type WizardUser = { name: string; grantDatabases: string[] };
     provideIcons({
       lucideArrowLeft,
       lucideArrowRight,
+      lucideBrain,
       lucideCheck,
       lucideDatabase,
       lucideKeyRound,
@@ -54,7 +57,26 @@ type WizardUser = { name: string; grantDatabases: string[] };
       simplePostgresql,
       simpleMysql,
       simpleMongodb,
+      simpleApachecassandra,
+      simpleApachecouchdb,
+      simpleApachesolr,
+      simpleArangodb,
+      simpleClickhouse,
+      simpleCockroachlabs,
+      simpleCouchbase,
+      simpleElasticsearch,
+      simpleEtcd,
+      simpleInfluxdb,
       simpleMariadb,
+      simpleMeilisearch,
+      simpleNeo4j,
+      simpleOpensearch,
+      simpleRedis,
+      simpleScylladb,
+      simpleTimescale,
+      customMssql,
+      customQdrant,
+      customValkey,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -65,13 +87,14 @@ export class Create {
   private readonly router = inject(Router);
 
   // ----- step state -----
-  protected readonly step = signal<1 | 2 | 3 | 4 | 5>(1);
-  protected readonly steps: ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5; label: string }> = [
+  protected readonly step = signal<1 | 2 | 3 | 4 | 5 | 6>(1);
+  protected readonly steps: ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5 | 6; label: string }> = [
     { n: 1, label: 'Engine' },
     { n: 2, label: 'Basics' },
-    { n: 3, label: 'Databases' },
-    { n: 4, label: 'Users' },
-    { n: 5, label: 'Review' },
+    { n: 3, label: 'Plugins' },
+    { n: 4, label: 'Databases' },
+    { n: 5, label: 'Users' },
+    { n: 6, label: 'Review' },
   ];
 
   // ----- form state -----
@@ -80,6 +103,7 @@ export class Create {
   protected readonly defaultDbName = signal('');
   protected readonly databases = signal<string[]>([]);
   protected readonly users = signal<WizardUser[]>([]);
+  protected readonly selectedPlugins = signal<ReadonlySet<string>>(new Set());
 
   // ----- async state -----
   protected readonly supported = signal<ReadonlyArray<SupportedDatabaseDto>>([]);
@@ -91,6 +115,14 @@ export class Create {
   protected readonly versions = computed(
     () => this.supported().find((s) => s.key === this.engine())?.versions ?? [],
   );
+
+  protected readonly availablePlugins = computed(
+    () => this.supported().find((s) => s.key === this.engine())?.plugins ?? [],
+  );
+
+  protected readonly hasPlugins = computed(() => this.availablePlugins().length > 0);
+
+  protected readonly selectedPluginKeys = computed(() => Array.from(this.selectedPlugins()));
 
   protected readonly defaultDbPlaceholder = computed(() => {
     switch (this.engine()) {
@@ -133,8 +165,9 @@ export class Create {
     switch (this.step()) {
       case 1: return !!this.engine();
       case 2: return !!this.version() && !this.defaultDbError();
-      case 3: return this.databaseErrors().every((e) => e === null);
-      case 4: return this.userNameErrors().every((e) => e === null);
+      case 3: return true;  // Plugins are always optional
+      case 4: return this.databaseErrors().every((e) => e === null);
+      case 5: return this.userNameErrors().every((e) => e === null);
       default: return true;
     }
   });
@@ -146,10 +179,23 @@ export class Create {
     });
 
     effect(() => {
-      // Reset version when engine changes.
+      // Reset version + plugins when engine changes.
       this.engine();
       this.version.set(null);
+      this.selectedPlugins.set(new Set());
     });
+  }
+
+  protected togglePlugin(key: string): void {
+    this.selectedPlugins.update((curr) => {
+      const next = new Set(curr);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  protected isPluginSelected(key: string): boolean {
+    return this.selectedPlugins().has(key);
   }
 
   protected engineIcon(key: string): string {
@@ -157,7 +203,27 @@ export class Create {
       case 'postgres': return 'simplePostgresql';
       case 'mysql':    return 'simpleMysql';
       case 'mongo':    return 'simpleMongodb';
-      case 'mariadb':  return 'simpleMariadb';
+      case 'mariadb':     return 'simpleMariadb';
+      case 'timescaledb': return 'simpleTimescale';
+      case 'redis':       return 'simpleRedis';
+      case 'cockroachdb': return 'simpleCockroachlabs';
+      case 'clickhouse':  return 'simpleClickhouse';
+      case 'cassandra':   return 'simpleApachecassandra';
+      case 'scylladb':    return 'simpleScylladb';
+      case 'couchdb':     return 'simpleApachecouchdb';
+      case 'elasticsearch': return 'simpleElasticsearch';
+      case 'opensearch':  return 'simpleOpensearch';
+      case 'arangodb':    return 'simpleArangodb';
+      case 'etcd':        return 'simpleEtcd';
+      case 'pgvector':    return 'simplePostgresql';
+      case 'neo4j':       return 'simpleNeo4j';
+      case 'influxdb':    return 'simpleInfluxdb';
+      case 'solr':        return 'simpleApachesolr';
+      case 'meilisearch': return 'simpleMeilisearch';
+      case 'qdrant':      return 'customQdrant';
+      case 'valkey':      return 'customValkey';
+      case 'mssql':       return 'customMssql';
+      case 'couchbase':   return 'simpleCouchbase';
       default:         return 'lucideDatabase';
     }
   }
@@ -168,13 +234,20 @@ export class Create {
 
   protected next(): void {
     if (!this.canNext()) return;
-    const s = this.step();
-    if (s < 5) this.step.set((s + 1) as 2 | 3 | 4 | 5);
+    let s = this.step();
+    if (s >= 6) return;
+    s = (s + 1) as 2 | 3 | 4 | 5 | 6;
+    // Skip the Plugins step when the engine doesn't have any.
+    if (s === 3 && !this.hasPlugins()) s = 4;
+    this.step.set(s);
   }
 
   protected back(): void {
-    const s = this.step();
-    if (s > 1) this.step.set((s - 1) as 1 | 2 | 3 | 4);
+    let s = this.step();
+    if (s <= 1) return;
+    s = (s - 1) as 1 | 2 | 3 | 4 | 5;
+    if (s === 3 && !this.hasPlugins()) s = 2;
+    this.step.set(s);
   }
 
   // ----- databases step -----
@@ -242,6 +315,7 @@ export class Create {
         name: u.name.trim(),
         grantDatabases: u.grantDatabases,
       })),
+      plugins: Array.from(this.selectedPlugins()),
     };
 
     this.api.apiDatabaseProvisionPost(payload).subscribe({

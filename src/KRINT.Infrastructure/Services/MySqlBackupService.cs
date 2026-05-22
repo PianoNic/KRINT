@@ -20,7 +20,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task RestoreAsync(BackupTarget target, Stream dump, CancellationToken cancellationToken = default)
         {
-            // Pipe the SQL dump into `mysql` over stdin — it replays statements from --all-databases.
+            // Pipe the SQL dump into `mysql` over stdin - it replays statements from --all-databases.
             var cmd = new List<string>
             {
                 "bash", "-c",

@@ -17,5 +17,7 @@ namespace KRINT.Application.Dtos
         public IReadOnlyList<string> Databases { get; init; } = Array.Empty<string>();
         /// <summary>Login users to create on the instance.</summary>
         public IReadOnlyList<ProvisionUserSpec> Users { get; init; } = Array.Empty<ProvisionUserSpec>();
+        /// <summary>Plugin keys to enable (must be in <see cref="SupportedDatabaseDto.Plugins"/>).</summary>
+        public IReadOnlyList<string> Plugins { get; init; } = Array.Empty<string>();
     }
 }

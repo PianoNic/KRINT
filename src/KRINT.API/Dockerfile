@@ -46,7 +46,7 @@ ENV ASPNETCORE_URLS=http://+:8080 \
 
 COPY --from=backend-build /app/publish .
 COPY --from=frontend-build /artifacts/frontend ./wwwroot
-# Default app config — overridable at runtime by setting KRINT_CONFIG to a mounted file.
+# Default app config - overridable at runtime by setting KRINT_CONFIG to a mounted file.
 COPY krint.yaml ./krint.yaml
 
 ENTRYPOINT ["dotnet", "KRINT.API.dll"]

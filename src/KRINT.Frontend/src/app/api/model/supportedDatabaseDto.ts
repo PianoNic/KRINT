@@ -7,6 +7,8 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
+import { EnginePluginDto } from './enginePluginDto';
+import { EngineCapabilitiesDto } from './engineCapabilitiesDto';
 
 
 export interface SupportedDatabaseDto { 
@@ -14,5 +16,7 @@ export interface SupportedDatabaseDto {
     displayName: string;
     image: string;
     versions: Array<string>;
+    capabilities: EngineCapabilitiesDto;
+    plugins?: Array<EnginePluginDto>;
 }
 

@@ -13,7 +13,11 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command
 {
-    public record CreateDatabaseCommand(string Engine, string Version, string? DatabaseName = null) : ICommand<ProvisionedDatabaseDto>;
+    public record CreateDatabaseCommand(
+        string Engine,
+        string Version,
+        string? DatabaseName = null,
+        IReadOnlyList<string>? Plugins = null) : ICommand<ProvisionedDatabaseDto>;
 
     public class CreateDatabaseCommandHandler : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
@@ -51,6 +55,15 @@ namespace KRINT.Application.Command
 
             var databaseName = ResolveDatabaseName(command.Engine, command.DatabaseName, spec.DefaultDatabase);
 
+            // Resolve selected plugins. DockerImageSwap replaces the image; EnvFlag appends env;
+            // PgExtension / ContainerExec are applied later after readiness.
+            var selectedPlugins = ResolvePlugins(command.Plugins);
+            var imageOverride = selectedPlugins.FirstOrDefault(p => p.InstallMode == Dtos.PluginInstallMode.DockerImageSwap)?.Payload;
+            var extraEnv = selectedPlugins
+                .Where(p => p.InstallMode == Dtos.PluginInstallMode.EnvFlag)
+                .Select(p => p.Payload)
+                .ToList();
+
             var instanceId = Guid.NewGuid();
             var instanceIdShort = instanceId.ToString("N")[..8];
             var containerName = $"krint-{spec.ShortName}-{instanceIdShort}";
@@ -58,15 +71,20 @@ namespace KRINT.Application.Command
 
             var password = _secretGenerator.Generate();
 
-            await _docker.PullImageAsync(spec.Image, command.Version, cancellationToken);
+            var imageName = imageOverride ?? spec.Image;
+            await _docker.PullImageAsync(imageName, command.Version, cancellationToken);
 
             var hostPort = await AllocateHostPortAsync(command.Engine, cancellationToken);
 
+            var env = BuildEnv(command.Engine, password, databaseName, spec.DefaultDatabase);
+            env.AddRange(extraEnv);
+
             var createParams = new CreateContainerParameters
             {
-                Image = $"{spec.Image}:{command.Version}",
+                Image = $"{imageName}:{command.Version}",
                 Name = containerName,
-                Env = BuildEnv(command.Engine, password, databaseName, spec.DefaultDatabase),
+                Env = env,
+                Cmd = spec.CmdFactory?.Invoke(password),
                 ExposedPorts = new Dictionary<string, EmptyStruct>
                 {
                     [$"{spec.InternalPort}/tcp"] = default,
@@ -89,57 +107,102 @@ namespace KRINT.Application.Command
             };
 
             var createResult = await _docker.CreateContainerAsync(createParams, cancellationToken);
-            await _docker.StartContainerAsync(createResult.ID, cancellationToken);
 
-            await _vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
-
-            // Wait for the engine inside the container to accept connections. Postgres especially
-            // needs a few seconds to initialise PGDATA on first start; without this poll the next
-            // op races into a still-booting server and Npgsql sees EOF on the SSL probe.
-            var readinessTarget = new InnerDatabaseTarget(
-                command.Engine, Host, hostPort,
-                spec.DefaultUsername, password, databaseName);
-            await WaitForReadyAsync(readinessTarget, cancellationToken);
-
-            var instance = new DatabaseInstance
+            // From here on, any exception means we own a half-provisioned container that the
+            // caller never sees. Track success and clean up in a finally — otherwise stale
+            // containers hold ports and break the next provision attempt.
+            var provisionedOk = false;
+            try
             {
-                Id = instanceId,
-                Engine = command.Engine,
-                Version = command.Version,
-                ContainerName = containerName,
-                ContainerId = createResult.ID,
-                Host = Host,
-                Port = hostPort,
-                Username = spec.DefaultUsername,
-                DatabaseName = databaseName,
-            };
-            _db.DatabaseInstances.Add(instance);
-            await _db.SaveChangesAsync(cancellationToken);
+                await _docker.StartContainerAsync(createResult.ID, cancellationToken);
+                await _vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
-            await _activity.LogAsync(
-                "instance.create",
-                containerName,
-                instance.Id,
-                command.Engine,
-                $"version={command.Version}, port={hostPort}",
-                cancellationToken);
+                // Wait for the engine inside the container to accept connections.
+                var readinessTarget = new InnerDatabaseTarget(
+                    command.Engine, Host, hostPort,
+                    spec.DefaultUsername, password, databaseName);
+                await WaitForReadyAsync(readinessTarget, cancellationToken);
 
-            var connectionString = ConnectionStringBuilder.Build(command.Engine, instance.Host, hostPort, instance.Username, password, instance.DatabaseName);
+                // pgvector engine entry: enable the extension once the container accepts connections.
+                if (string.Equals(command.Engine, "pgvector", StringComparison.OrdinalIgnoreCase))
+                {
+                    await RunPgInitSqlAsync(readinessTarget, "CREATE EXTENSION IF NOT EXISTS vector", cancellationToken);
+                }
 
-            return new ProvisionedDatabaseDto
+                // Apply post-readiness plugin steps. Order doesn't matter - each is idempotent.
+                foreach (var plugin in selectedPlugins)
+                {
+                    switch (plugin.InstallMode)
+                    {
+                        case Dtos.PluginInstallMode.PgExtension:
+                            await RunPgInitSqlAsync(readinessTarget, $"CREATE EXTENSION IF NOT EXISTS {plugin.Payload}", cancellationToken);
+                            break;
+                        case Dtos.PluginInstallMode.ContainerExec:
+                            await _docker.ExecCaptureAsync(createResult.ID, new[] { "sh", "-c", plugin.Payload }, cancellationToken);
+                            break;
+                        // DockerImageSwap + EnvFlag were already applied above.
+                    }
+                }
+
+                // Couchbase needs a cluster-init dance on first boot - set services, RAM quotas,
+                // admin credentials, then create the default bucket. Without this the cluster is
+                // unusable from the API.
+                if (string.Equals(command.Engine, "couchbase", StringComparison.OrdinalIgnoreCase))
+                {
+                    await RunCouchbaseInitAsync(readinessTarget, password, cancellationToken);
+                }
+
+                var instance = new DatabaseInstance
+                {
+                    Id = instanceId,
+                    Engine = command.Engine,
+                    Version = command.Version,
+                    ContainerName = containerName,
+                    ContainerId = createResult.ID,
+                    Host = Host,
+                    Port = hostPort,
+                    Username = spec.DefaultUsername,
+                    DatabaseName = databaseName,
+                };
+                _db.DatabaseInstances.Add(instance);
+                await _db.SaveChangesAsync(cancellationToken);
+
+                await _activity.LogAsync(
+                    "instance.create",
+                    containerName,
+                    instance.Id,
+                    command.Engine,
+                    $"version={command.Version}, port={hostPort}",
+                    cancellationToken);
+
+                var connectionString = ConnectionStringBuilder.Build(command.Engine, instance.Host, hostPort, instance.Username, password, instance.DatabaseName);
+
+                provisionedOk = true;
+                return new ProvisionedDatabaseDto
+                {
+                    Id = instance.Id,
+                    Engine = instance.Engine,
+                    Version = instance.Version,
+                    ContainerName = instance.ContainerName,
+                    Host = instance.Host,
+                    Port = instance.Port,
+                    Username = instance.Username,
+                    DatabaseName = instance.DatabaseName,
+                    Password = password,
+                    ConnectionString = connectionString,
+                    CreatedAt = instance.CreatedAt,
+                };
+            }
+            finally
             {
-                Id = instance.Id,
-                Engine = instance.Engine,
-                Version = instance.Version,
-                ContainerName = instance.ContainerName,
-                Host = instance.Host,
-                Port = instance.Port,
-                Username = instance.Username,
-                DatabaseName = instance.DatabaseName,
-                Password = password,
-                ConnectionString = connectionString,
-                CreatedAt = instance.CreatedAt,
-            };
+                if (!provisionedOk)
+                {
+                    // Tear down the container + volume + vault entry so a retry isn't blocked
+                    // by a half-provisioned state holding the host port.
+                    try { await _docker.RemoveContainerAsync(createResult.ID, force: true, CancellationToken.None); } catch { }
+                    try { await _vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(containerName), CancellationToken.None); } catch { }
+                }
+            }
         }
 
         private record EngineSpec(
@@ -148,25 +211,102 @@ namespace KRINT.Application.Command
             int InternalPort,
             string DefaultUsername,
             string DefaultDatabase,
-            string DataPath);
+            string DataPath,
+            // Optional CMD override. The Redis image's default ENTRYPOINT doesn't read REDIS_PASSWORD,
+            // so we explicitly pass `--requirepass <pw>` as the container command.
+            Func<string, IList<string>?>? CmdFactory = null);
 
         private static EngineSpec ResolveEngineSpec(string engine, string version)
         {
             switch (engine)
             {
                 case "postgres":
-                    // pg 18+ stores data in /var/lib/postgresql/<major>/docker — mount the parent.
-                    // pg <=17 uses PGDATA=/var/lib/postgresql/data — mount that directly.
+                    // pg 18+ stores data in /var/lib/postgresql/<major>/docker - mount the parent.
+                    // pg <=17 uses PGDATA=/var/lib/postgresql/data - mount that directly.
                     var pgDataPath = TryGetMajorVersion(version) is { } major && major >= 18
                         ? "/var/lib/postgresql"
                         : "/var/lib/postgresql/data";
                     return new EngineSpec("postgres", "pg", 5432, "postgres", "postgres", pgDataPath);
+                case "timescaledb":
+                    // timescale/timescaledb tags use Postgres <=17 layout (PGDATA=/var/lib/postgresql/data).
+                    return new EngineSpec("timescale/timescaledb", "tsdb", 5432, "postgres", "postgres", "/var/lib/postgresql/data");
                 case "mysql":
                     return new EngineSpec("mysql", "mysql", 3306, "root", "mysql", "/var/lib/mysql");
                 case "mariadb":
                     return new EngineSpec("mariadb", "maria", 3306, "root", "mariadb", "/var/lib/mysql");
                 case "mongo":
                     return new EngineSpec("mongo", "mongo", 27017, "admin", "admin", "/data/db");
+                case "redis":
+                    // Redis has no built-in user concept at provision time - auth is via requirepass
+                    // (sent as the password). Username is left as "default" to match Redis 6+ ACL conventions.
+                    return new EngineSpec("redis", "redis", 6379, "default", "0", "/data",
+                        CmdFactory: pwd => new[] { "redis-server", "--requirepass", pwd, "--appendonly", "yes" });
+                case "cockroachdb":
+                    // `start-single-node --insecure` skips TLS/auth so the generated password is ignored
+                    // at the engine layer. The vault still stores the password for parity with other
+                    // engines, but the Postgres client connects as root with no password.
+                    return new EngineSpec("cockroachdb/cockroach", "crdb", 26257, "root", "defaultdb", "/cockroach/cockroach-data",
+                        CmdFactory: _ => new[] { "start-single-node", "--insecure", "--accept-sql-without-tls" });
+                case "clickhouse":
+                    // ClickHouse image takes CLICKHOUSE_USER/CLICKHOUSE_PASSWORD/CLICKHOUSE_DB env vars.
+                    // We publish the HTTP port (8123) - that's what ClickHouse.Client speaks.
+                    return new EngineSpec("clickhouse/clickhouse-server", "ch", 8123, "default", "default", "/var/lib/clickhouse");
+                case "cassandra":
+                    // Cassandra image doesn't take a password env. We provision with auth disabled.
+                    return new EngineSpec("cassandra", "cass", 9042, "cassandra", "system", "/var/lib/cassandra");
+                case "scylladb":
+                    // ScyllaDB image is API-compatible with Cassandra; same defaults.
+                    return new EngineSpec("scylladb/scylla", "scylla", 9042, "cassandra", "system", "/var/lib/scylla",
+                        CmdFactory: _ => new[] { "--smp", "1", "--memory", "750M", "--overprovisioned", "1" });
+                case "couchdb":
+                    // COUCHDB_USER / COUCHDB_PASSWORD seed the admin account on first boot.
+                    return new EngineSpec("couchdb", "couch", 5984, "admin", "default", "/opt/couchdb/data");
+                case "elasticsearch":
+                    // ELASTIC_PASSWORD is read from env; xpack.security.enabled is on by default in 8.x.
+                    return new EngineSpec("elasticsearch", "es", 9200, "elastic", "_cluster", "/usr/share/elasticsearch/data");
+                case "opensearch":
+                    // OpenSearch 2.12+ requires OPENSEARCH_INITIAL_ADMIN_PASSWORD on first start; admin user is `admin`.
+                    return new EngineSpec("opensearchproject/opensearch", "os", 9200, "admin", "_cluster", "/usr/share/opensearch/data");
+                case "arangodb":
+                    // ARANGO_ROOT_PASSWORD seeds the root account; _system is always present.
+                    return new EngineSpec("arangodb", "arango", 8529, "root", "_system", "/var/lib/arangodb3");
+                case "etcd":
+                    // Bind etcd to all interfaces so we can reach it from the host. Auth off by default.
+                    return new EngineSpec("quay.io/coreos/etcd", "etcd", 2379, "root", "default", "/etcd-data",
+                        CmdFactory: _ => new[] {
+                            "/usr/local/bin/etcd",
+                            "--data-dir=/etcd-data",
+                            "--listen-client-urls=http://0.0.0.0:2379",
+                            "--advertise-client-urls=http://0.0.0.0:2379",
+                        });
+                case "pgvector":
+                    // pgvector/pgvector tags use Postgres <=17 layout. CREATE EXTENSION vector runs
+                    // after the container is ready (see InitSqlFactory below).
+                    return new EngineSpec("pgvector/pgvector", "pgvec", 5432, "postgres", "postgres", "/var/lib/postgresql/data");
+                case "neo4j":
+                    // NEO4J_AUTH is read as "user/password" - we pass it via env. Default DB is "neo4j".
+                    return new EngineSpec("neo4j", "neo4j", 7687, "neo4j", "neo4j", "/data");
+                case "influxdb":
+                    // Influx 2.x init env vars set the org/bucket/admin token on first boot.
+                    return new EngineSpec("influxdb", "influx", 8086, "admin", "krint", "/var/lib/influxdb2");
+                case "solr":
+                    return new EngineSpec("solr", "solr", 8983, "solr", "_cluster", "/var/solr");
+                case "meilisearch":
+                    // MEILI_MASTER_KEY is used as the bearer token.
+                    return new EngineSpec("getmeili/meilisearch", "meili", 7700, "default", "_cluster", "/meili_data");
+                case "qdrant":
+                    // QDRANT__SERVICE__API_KEY is sent in the api-key header by our HTTP client.
+                    return new EngineSpec("qdrant/qdrant", "qdrant", 6333, "default", "_cluster", "/qdrant/storage");
+                case "valkey":
+                    // Drop-in Redis fork - same CMD shape.
+                    return new EngineSpec("valkey/valkey", "valkey", 6379, "default", "0", "/data",
+                        CmdFactory: pwd => new[] { "valkey-server", "--requirepass", pwd, "--appendonly", "yes" });
+                case "mssql":
+                    // SA password must be ≥8 chars, mixed case, digit, special. SecretGenerator already does this.
+                    return new EngineSpec("mcr.microsoft.com/mssql/server", "mssql", 1433, "sa", "master", "/var/opt/mssql");
+                case "couchbase":
+                    // First-boot cluster init happens after readiness - see RunCouchbaseInitAsync below.
+                    return new EngineSpec("couchbase", "cb", 8091, "Administrator", "default", "/opt/couchbase/var");
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
@@ -190,6 +330,8 @@ namespace KRINT.Application.Command
             switch (engine)
             {
                 case "postgres":
+                case "timescaledb":
+                    // TimescaleDB image reuses stock Postgres env vars.
                     var pgEnv = new List<string> { $"POSTGRES_PASSWORD={password}" };
                     if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
                         pgEnv.Add($"POSTGRES_DB={databaseName}");
@@ -214,15 +356,203 @@ namespace KRINT.Application.Command
                         "MONGO_INITDB_ROOT_USERNAME=admin",
                         $"MONGO_INITDB_ROOT_PASSWORD={password}",
                     };
+                case "redis":
+                    // The official redis image reads REDIS_PASSWORD when the command isn't overridden.
+                    // We add `--requirepass <pw>` as the container command so it definitely applies.
+                    return new List<string> { $"REDIS_PASSWORD={password}" };
+                case "cockroachdb":
+                    // --insecure mode doesn't read a password from env. Nothing to set.
+                    return new List<string>();
+                case "clickhouse":
+                    var chEnv = new List<string>
+                    {
+                        $"CLICKHOUSE_USER=default",
+                        $"CLICKHOUSE_PASSWORD={password}",
+                        // The image lets non-root users in by default - turn that off.
+                        $"CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1",
+                    };
+                    if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
+                        chEnv.Add($"CLICKHOUSE_DB={databaseName}");
+                    return chEnv;
+                case "cassandra":
+                case "scylladb":
+                    // Both images run with auth disabled by default; no env vars needed.
+                    return new List<string>();
+                case "couchdb":
+                    return new List<string>
+                    {
+                        "COUCHDB_USER=admin",
+                        $"COUCHDB_PASSWORD={password}",
+                    };
+                case "elasticsearch":
+                    return new List<string>
+                    {
+                        $"ELASTIC_PASSWORD={password}",
+                        // Single-node cluster, no TLS for the dev local case.
+                        "discovery.type=single-node",
+                        "xpack.security.enabled=true",
+                        "xpack.security.http.ssl.enabled=false",
+                        "ES_JAVA_OPTS=-Xms512m -Xmx512m",
+                    };
+                case "opensearch":
+                    return new List<string>
+                    {
+                        "discovery.type=single-node",
+                        // The image refuses to boot without this on >=2.12.
+                        $"OPENSEARCH_INITIAL_ADMIN_PASSWORD={password}",
+                        "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m",
+                        // Disable the security demo certs check - we still talk HTTPS to it, the
+                        // service client just accepts the self-signed cert.
+                        "DISABLE_INSTALL_DEMO_CONFIG=false",
+                    };
+                case "arangodb":
+                    return new List<string> { $"ARANGO_ROOT_PASSWORD={password}" };
+                case "etcd":
+                    return new List<string>();
+                case "pgvector":
+                    var pgvecEnv = new List<string> { $"POSTGRES_PASSWORD={password}" };
+                    if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
+                        pgvecEnv.Add($"POSTGRES_DB={databaseName}");
+                    return pgvecEnv;
+                case "neo4j":
+                    return new List<string>
+                    {
+                        $"NEO4J_AUTH=neo4j/{password}",
+                        // Accept the Community licence non-interactively.
+                        "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes",
+                    };
+                case "influxdb":
+                    return new List<string>
+                    {
+                        "DOCKER_INFLUXDB_INIT_MODE=setup",
+                        "DOCKER_INFLUXDB_INIT_USERNAME=admin",
+                        $"DOCKER_INFLUXDB_INIT_PASSWORD={password}",
+                        "DOCKER_INFLUXDB_INIT_ORG=krint",
+                        "DOCKER_INFLUXDB_INIT_BUCKET=default",
+                        // The init token is our auth secret - we send it in Authorization: Token ...
+                        $"DOCKER_INFLUXDB_INIT_ADMIN_TOKEN={password}",
+                    };
+                case "solr":
+                    return new List<string>();   // No auth by default; nothing to inject.
+                case "meilisearch":
+                    return new List<string>
+                    {
+                        $"MEILI_MASTER_KEY={password}",
+                        "MEILI_ENV=production",
+                    };
+                case "qdrant":
+                    return new List<string> { $"QDRANT__SERVICE__API_KEY={password}" };
+                case "valkey":
+                    return new List<string>();   // Auth comes via --requirepass on the command line.
+                case "mssql":
+                    return new List<string>
+                    {
+                        "ACCEPT_EULA=Y",
+                        $"MSSQL_SA_PASSWORD={password}",
+                        "MSSQL_PID=Developer",
+                    };
+                case "couchbase":
+                    // The image expects cluster init via HTTP after boot - see RunCouchbaseInitAsync.
+                    return new List<string>();
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
         }
 
+        private static IReadOnlyList<Dtos.EnginePluginDto> ResolvePlugins(IReadOnlyList<string>? keys)
+        {
+            if (keys is null || keys.Count == 0) return Array.Empty<Dtos.EnginePluginDto>();
+            var catalog = Queries.GetSupportedDatabasesQueryHandler.AllPluginsByKey;
+            var result = new List<Dtos.EnginePluginDto>();
+            foreach (var key in keys.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (catalog.TryGetValue(key, out var plugin)) result.Add(plugin);
+                // Unknown keys are silently dropped - the FE only exposes catalog plugins.
+            }
+            return result;
+        }
+
+        private static async Task RunCouchbaseInitAsync(InnerDatabaseTarget target, string password, CancellationToken cancellationToken)
+        {
+            // The official Couchbase image boots into "uninitialized" mode. Three steps:
+            // 1) Set services on this node, 2) Set RAM quotas, 3) Create admin user + bucket.
+            using var http = new HttpClient { BaseAddress = new Uri($"http://{target.Host}:{target.Port}"), Timeout = TimeSpan.FromSeconds(30) };
+
+            var deadline = DateTime.UtcNow.AddMinutes(2);
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    var probe = await http.GetAsync("/pools", cancellationToken);
+                    if (probe.IsSuccessStatusCode) break;
+                }
+                catch { /* keep polling */ }
+                await Task.Delay(2000, cancellationToken);
+            }
+
+            await PostFormAsync(http, "/node/controller/setupServices", new() { ["services"] = "kv,n1ql,index" }, cancellationToken);
+            await PostFormAsync(http, "/pools/default", new() { ["memoryQuota"] = "512", ["indexMemoryQuota"] = "256" }, cancellationToken);
+            await PostFormAsync(http, "/settings/web", new()
+            {
+                ["password"] = password,
+                ["username"] = target.Username,
+                ["port"] = "8091",
+            }, cancellationToken);
+
+            // Authenticated from here on.
+            var token = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{target.Username}:{password}"));
+            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", token);
+            await PostFormAsync(http, "/pools/default/buckets", new()
+            {
+                ["name"] = target.DefaultDatabase,
+                ["ramQuotaMB"] = "256",
+                ["bucketType"] = "couchbase",
+            }, cancellationToken);
+        }
+
+        private static async Task PostFormAsync(HttpClient http, string path, Dictionary<string, string> form, CancellationToken cancellationToken)
+        {
+            using var content = new FormUrlEncodedContent(form);
+            using var resp = await http.PostAsync(path, content, cancellationToken);
+            // Some couchbase endpoints return non-2xx but still succeed (e.g. already-initialised); log and continue.
+            if (!resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadAsStringAsync(cancellationToken);
+                if (!body.Contains("already initialized", StringComparison.OrdinalIgnoreCase) && !body.Contains("Bucket with given name already exists", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Couchbase init step {path} failed: {(int)resp.StatusCode} {body}");
+            }
+        }
+
+        private static async Task RunPgInitSqlAsync(InnerDatabaseTarget target, string sql, CancellationToken cancellationToken)
+        {
+            var csb = new Npgsql.NpgsqlConnectionStringBuilder
+            {
+                Host = target.Host,
+                Port = target.Port,
+                Username = target.Username,
+                Password = target.Password,
+                Database = target.DefaultDatabase,
+                Pooling = false,
+                Timeout = 5,
+            };
+            await using var conn = new Npgsql.NpgsqlConnection(csb.ConnectionString);
+            await conn.OpenAsync(cancellationToken);
+            await using var cmd = new Npgsql.NpgsqlCommand(sql, conn);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
         {
             var inner = _innerDbs.Resolve(target.Engine);
-            var deadline = DateTime.UtcNow.AddSeconds(45);
+            // Cold-boot envelope per engine. JVM-heavy ones (Cassandra, Scylla, ES, OpenSearch,
+            // Solr, Neo4j, Couchbase) routinely need >60s on first start; SQL engines + cache
+            // stores come up in a handful of seconds.
+            var ceilingSeconds = target.Engine switch
+            {
+                "cassandra" or "scylladb" or "elasticsearch" or "opensearch" or "neo4j" or "solr" or "couchbase" => 180,
+                _ => 60,
+            };
+            var deadline = DateTime.UtcNow.AddSeconds(ceilingSeconds);
             var delayMs = 500;
             Exception? last = null;
 
@@ -241,7 +571,7 @@ namespace KRINT.Application.Command
                 }
             }
             throw new InvalidOperationException(
-                $"{target.Engine} container did not become ready within 45s.", last);
+                $"{target.Engine} container did not become ready within {ceilingSeconds}s.", last);
         }
 
         private async Task<int> AllocateHostPortAsync(string engine, CancellationToken cancellationToken)

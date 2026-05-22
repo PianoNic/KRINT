@@ -58,7 +58,7 @@ namespace KRINT.API
                 try { cron = CronExpression.Parse(schedule.CronExpression); }
                 catch (Exception ex)
                 {
-                    log.LogWarning(ex, "Schedule {Id} has an invalid cron expression — disabling.", schedule.Id);
+                    log.LogWarning(ex, "Schedule {Id} has an invalid cron expression - disabling.", schedule.Id);
                     schedule.Enabled = false;
                     schedule.LastStatus = "error";
                     schedule.LastError = ex.Message;

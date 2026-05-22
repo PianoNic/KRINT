@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using KRINT.Infrastructure.Interfaces;
@@ -108,42 +109,59 @@ namespace KRINT.Infrastructure.Services
 
         public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default)
         {
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            // The MultiplexedStream stdin path doesn't half-close reliably (pg_restore / mysql
+            // hang forever waiting on EOF). Sidestep it: push the input as a tar to /tmp inside
+            // the container, then rerun the command with stdin redirected from that file.
+            // Requires the caller to invoke the actual work via a shell (bash/sh -c "..."),
+            // which every existing IBackupService.RestoreAsync does.
+            if (command.Count != 3 || command[1] != "-c" || (command[0] != "bash" && command[0] != "sh"))
+            {
+                throw new InvalidOperationException(
+                    "ExecWithStdinAsync requires a [shell, -c, script] command so the input can be redirected from a temp file.");
+            }
+
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             var ct = linkedCts.Token;
 
-            var exec = await client.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
+            var tmpName = $"krint-input-{Guid.NewGuid():N}.bin";
+            var tmpPath = $"/tmp/{tmpName}";
+
+            // Read all of stdin into memory (the dumps are bounded by what fits comfortably;
+            // streaming directly would re-introduce the original hang). Then tar it.
+            using var dumpCopy = new MemoryStream();
+            await stdin.CopyToAsync(dumpCopy, 81920, ct);
+            var dumpBytes = dumpCopy.ToArray();
+
+            using var tar = new MemoryStream();
+            await using (var writer = new TarWriter(tar, TarEntryFormat.Ustar, leaveOpen: true))
             {
-                Cmd = command,
-                AttachStdin = true,
-                AttachStdout = true,
-                AttachStderr = true,
-            }, ct);
+                var entry = new UstarTarEntry(TarEntryType.RegularFile, tmpName)
+                {
+                    Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                    DataStream = new MemoryStream(dumpBytes),
+                };
+                await writer.WriteEntryAsync(entry, ct);
+            }
+            tar.Position = 0;
 
-            using var stream = await client.Exec.StartAndAttachContainerExecAsync(exec.ID, tty: false, ct);
+            await client.Containers.ExtractArchiveToContainerAsync(
+                containerId,
+                new ContainerPathStatParameters { Path = "/tmp", AllowOverwriteDirWithFile = false },
+                tar, ct);
 
-            // CopyOutputToAsync handles all three streams (in/out/err) concurrently, returning
-            // when the server closes the connection. This is more reliable than the manual
-            // write-then-read pattern, which races on which side completes first.
-            using var stdout = new MemoryStream();
-            using var stderr = new MemoryStream();
+            // Rewrite the script to redirect stdin from the staged file. e.g.
+            //   bash -c "pg_restore ..." -> bash -c "pg_restore ... < /tmp/krint-input-xxx.bin"
+            var rewritten = new[] { command[0], command[1], command[2] + " < " + tmpPath };
+
             try
             {
-                await stream.CopyOutputToAsync(stdin, stdout, stderr, ct);
+                await ExecCaptureAsync(containerId, rewritten, ct);
             }
-            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            finally
             {
-                throw new TimeoutException(
-                    $"docker exec on {containerId} exceeded 2 minutes (command: {string.Join(' ', command)}).");
-            }
-
-            var inspect = await client.Exec.InspectContainerExecAsync(exec.ID, ct);
-            if (inspect.ExitCode != 0)
-            {
-                var stderrText = System.Text.Encoding.UTF8.GetString(stderr.ToArray());
-                var stdoutText = System.Text.Encoding.UTF8.GetString(stdout.ToArray());
-                throw new InvalidOperationException(
-                    $"exec exited with code {inspect.ExitCode}: {stderrText}{(string.IsNullOrEmpty(stdoutText) ? string.Empty : $" / stdout: {stdoutText}")}");
+                try { await ExecCaptureAsync(containerId, new[] { "rm", "-f", tmpPath }, CancellationToken.None); }
+                catch { /* best-effort cleanup */ }
             }
         }
     }

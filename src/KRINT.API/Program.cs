@@ -12,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddKrintConfig(builder.Environment);
 
 // When the Angular dist is baked into the image (production), serve it from wwwroot/browser
-// (Angular CLI's default output path). In dev we don't add this — the frontend runs separately
+// (Angular CLI's default output path). In dev we don't add this - the frontend runs separately
 // on its own port. The RootPath is only consulted in production.
 builder.Services.AddSpaStaticFiles(opts => { opts.RootPath = "wwwroot/browser"; });
 

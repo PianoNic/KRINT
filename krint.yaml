@@ -1,7 +1,26 @@
 krint:
   port_ranges:
-    postgres: 30000-30199
-    mysql:    30200-30399
-    mariadb:  30400-30599
-    mssql:    30600-30799
-    mongo:    30800-30999
+    postgres:     30000-30099
+    timescaledb:  30100-30199
+    mysql:        30200-30399
+    mariadb:      30400-30599
+    mssql:        30600-30799
+    mongo:        30800-30999
+    redis:        31000-31199
+    cockroachdb:    31200-31399
+    clickhouse:     31400-31599
+    cassandra:      31600-31799
+    scylladb:       31800-31999
+    couchdb:        32000-32199
+    elasticsearch:  32200-32399
+    opensearch:     32400-32599
+    arangodb:       32600-32799
+    etcd:           32800-32999
+    pgvector:       33000-33199
+    neo4j:          33200-33399
+    influxdb:       33400-33599
+    solr:           33600-33799
+    meilisearch:    33800-33999
+    qdrant:         34000-34199
+    valkey:         34200-34399
+    couchbase:      34400-34599

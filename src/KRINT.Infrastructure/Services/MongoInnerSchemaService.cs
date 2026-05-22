@@ -44,7 +44,7 @@ namespace KRINT.Infrastructure.Services
         public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
         {
             // Mongo edits require document-level semantics (replace by _id, type-aware patches).
-            // Out of scope for v1 row editing — surface a clear error to the UI.
+            // Out of scope for v1 row editing - surface a clear error to the UI.
             throw new NotSupportedException("Row editing is not supported for Mongo yet.");
         }
 

@@ -6,7 +6,7 @@ namespace KRINT.Infrastructure.Services
 {
     public class PostgresInnerSchemaService : IInnerSchemaService
     {
-        public string Engine => "postgres";
+        public virtual string Engine => "postgres";
 
         public async Task<IReadOnlyList<TableSummary>> ListTablesAsync(InnerDatabaseTarget target, string database, CancellationToken cancellationToken = default)
         {
@@ -111,7 +111,7 @@ namespace KRINT.Infrastructure.Services
                 }
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
                 var matches = raw is long l ? l : 0;
-                if (matches == 0) throw new InvalidOperationException("Row not found — it may have been modified or deleted since you loaded it.");
+                if (matches == 0) throw new InvalidOperationException("Row not found - it may have been modified or deleted since you loaded it.");
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches the original values. Refusing to update.");
             }
 
@@ -165,7 +165,7 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            // Match-count guard — refuse to delete if zero or >1 rows match the row the UI sent.
+            // Match-count guard - refuse to delete if zero or >1 rows match the row the UI sent.
             await using (var countCmd = new NpgsqlCommand(
                 $"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s",
                 conn, tx))
@@ -175,7 +175,7 @@ namespace KRINT.Infrastructure.Services
                         countCmd.Parameters.AddWithValue(param.ParameterName, param.Value!);
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
                 var matches = raw is long l ? l : 0;
-                if (matches == 0) throw new InvalidOperationException("Row not found — it may have been modified or deleted since you loaded it.");
+                if (matches == 0) throw new InvalidOperationException("Row not found - it may have been modified or deleted since you loaded it.");
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches. Refusing to delete.");
             }
 
