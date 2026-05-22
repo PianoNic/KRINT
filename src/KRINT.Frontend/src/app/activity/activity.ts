@@ -28,8 +28,8 @@ import { ActivityEntryDto } from '../api/model/activityEntryDto';
 
     <!-- Bare table layout: the toolbar pins to the top, the table beneath it claims the
          remaining space and scrolls its own body. -->
-    <section class="flex flex-1 min-h-0 flex-col">
-      <header class="mx-4 flex items-center justify-between gap-2 border-y py-2">
+    <section class="flex flex-1 min-h-0 flex-col border-t">
+      <header class="mx-4 flex items-center justify-between gap-2 border-b py-2">
         <h2 class="text-sm font-medium">Activity</h2>
         <div class="flex items-center gap-2">
           <div class="relative">
