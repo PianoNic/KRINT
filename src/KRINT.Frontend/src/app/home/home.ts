@@ -60,12 +60,6 @@ import { DashboardStatsDto } from '../api/model/dashboardStatsDto';
           <p class="text-muted-foreground text-sm">One click. One key. Your database is ready.</p>
         </div>
         <div class="flex items-center gap-2">
-          @if (live()) {
-            <span hlmBadge variant="secondary" class="gap-1.5">
-              <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live
-            </span>
-          }
           <a hlmBtn size="sm" routerLink="/create">
             <ng-icon name="lucidePlus" size="16" />
             Create
@@ -180,7 +174,6 @@ export class Home implements OnDestroy {
 
   protected readonly stats = signal<DashboardStatsDto | null>(null);
   protected readonly loading = signal(false);
-  protected readonly live = signal(false);
   protected readonly error = signal<string | null>(null);
 
   // The OpenAPI generator wraps int/long behind opaque interfaces (TotalInstances,
@@ -224,13 +217,12 @@ export class Home implements OnDestroy {
       const conn = await this.hub.getConnection();
       const stream = conn.stream<DashboardStatsDto>('StreamStats', 2500);
       this.streamSub = stream.subscribe({
-        next: (snapshot) => { this.stats.set(snapshot); this.live.set(true); this.error.set(null); },
-        error: () => this.live.set(false),
-        complete: () => this.live.set(false),
+        next: (snapshot) => { this.stats.set(snapshot); this.error.set(null); },
+        error: () => { /* fall back to REST snapshot; manual Refresh still works */ },
+        complete: () => { /* nothing to do */ },
       });
     } catch {
       // Hub unreachable — leave the REST snapshot in place. The manual Refresh button still works.
-      this.live.set(false);
     }
   }
 
