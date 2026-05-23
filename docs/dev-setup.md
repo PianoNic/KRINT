@@ -44,7 +44,7 @@ Verify with `dotnet user-secrets list --project src/KRINT.API`.
 
 ## 2. Application config — `krint.yaml`
 
-Non-secret app config lives in **`krint.yaml`** at the repo root. The API loads it via `IConfigurationBuilder.AddKrintYaml(env)` (see `src/KRINT.API/Extensions/KrintConfigExtensions.cs`), which walks up from the content root to find the file. Override the path with the `KRINT_CONFIG` environment variable.
+Non-secret app config lives in **`krint.yaml`** at the repo root. The API loads it via `services.AddKrintConfig(env)` (see `src/KRINT.API/Extensions/KrintConfigExtensions.cs`), which walks up from the content root to find the file. Override the path with the `KRINT_CONFIG` environment variable.
 
 Currently used to declare which host ports each engine is allowed to bind:
 
