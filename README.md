@@ -22,13 +22,13 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 
 ## Features
 
-- **15 engines** — PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Elasticsearch, Qdrant.
-- **Plugins** — pgvector, PostGIS, pg_trgm, Redis Stack, APOC, Graph Data Science, and more, opt-in at provision time.
-- **Browse & query** — row/document browser plus an ad-hoc SQL console for the SQL engines (Ctrl/Cmd+Enter to run).
-- **Backups** — manual or cron-scheduled; download or restore in place.
-- **Users & access** — create logins, reset passwords, grant per-database access.
-- **OIDC auth** — bring your own provider or use the bundled Keycloak.
-- **Capability-aware UI** — engines without "users" or "rows" simply don't show those controls.
+- **15 engines**: PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Elasticsearch, Qdrant.
+- **Plugins**: pgvector, PostGIS, pg_trgm, Redis Stack, APOC, Graph Data Science, and more, opt-in at provision time.
+- **Browse & query**: row/document browser plus an ad-hoc SQL console for the SQL engines (Ctrl/Cmd+Enter to run).
+- **Backups**: manual or cron-scheduled; download or restore in place.
+- **Users & access**: create logins, reset passwords, grant per-database access.
+- **OIDC auth**: bring your own provider or use the bundled Keycloak.
+- **Capability-aware UI**: engines without "users" or "rows" simply don't show those controls.
 
 ## Screenshots
 

@@ -68,7 +68,7 @@ export function Template(props: {
 
     return (
         <div className="grid min-h-svh lg:grid-cols-[40%_60%]">
-            {/* Branding panel — left on desktop, hidden on mobile */}
+            {/* Branding panel: left on desktop, hidden on mobile */}
             <div className="bg-primary relative hidden lg:block dark:bg-white/5 order-1">
                 <div className="absolute right-0 top-0 w-full max-w-62.5 xl:max-w-112.5">
                     <img src={shape} alt="grid" />
@@ -89,7 +89,7 @@ export function Template(props: {
                 </div>
             </div>
 
-            {/* Main content (form) — right on desktop */}
+            {/* Main content (form), right on desktop */}
             <div className="flex flex-col gap-4 px-4 py-0 pb-6 lg:p-6 lg:md:p-10 lg:pt-10 min-h-screen lg:min-h-0 order-2">
                 {enabledLanguages.length > 1 && (
                     <div className="absolute top-4 inset-s-4 z-20 flex gap-2">
