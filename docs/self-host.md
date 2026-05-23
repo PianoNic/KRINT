@@ -12,18 +12,17 @@ The image: `ghcr.io/pianonic/krint:latest` (also `pianonic/krint:latest` on Dock
 
 ## TL;DR
 
-```bash
-git clone https://github.com/PianoNic/KRINT.git
-cd KRINT
+There are two flavours of self-host:
 
-cp .env.example .env            # then edit it - see "Environment" below
-docker compose up -d            # pulls krint + postgres + keycloak, starts everything
-
-# Wait ~30s for Keycloak to import the realm on first boot, then:
-open http://localhost:5000      # KRINT UI
-```
-
-Everything is wired in the shipped `compose.yml`, so you don't need to add or override services. A single `.env` configures the stack.
+1. **Clone the repo** if you want the bundled Keycloak (zero-config auth). The repo's `compose.yml` includes Keycloak, the realm import, and the dev-mode `build:` block:
+   ```bash
+   git clone https://github.com/PianoNic/KRINT.git
+   cd KRINT
+   cp .env.example .env            # edit before first start, see "Environment"
+   docker compose up -d            # postgres + keycloak + krint
+   open http://localhost:5000
+   ```
+2. **Image-only** if you already run an OIDC provider (Pocket ID, Authentik, Auth0, ...) and just want KRINT + its app DB. Drop a single `compose.yml` (snippet below) and `.env` into any directory, no clone needed. See "Using your own OIDC provider" further down.
 
 ---
 
@@ -184,9 +183,57 @@ On the IdP side, configure the client with:
 | Scopes                | `openid profile email`. `roles` is optional, KRINT tolerates its absence    |
 | Group/user restriction| Make sure the user logging in is allowed to access the client               |
 
-### Compose changes
+### Compose for image users (no clone, no bundled Keycloak)
 
-Edit the shipped `compose.yml`:
+Drop this `compose.yml` next to a matching `.env` and run `docker compose up -d`:
+
+```yaml
+services:
+  db:
+    image: postgres:18.3
+    container_name: krint-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: krint
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d krint"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  krint:
+    image: ghcr.io/pianonic/krint:latest
+    container_name: krint
+    restart: unless-stopped
+    # Required: krint runs in its own container, so localhost there is its loopback, not the
+    # Docker host. The readiness probe for provisioned DB containers reaches them via
+    # host.docker.internal, which host-gateway aliases to the host on Docker Engine 20.10+.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=change-me"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # Windows: //var/run/docker.sock:/var/run/docker.sock
+      - ./backups:/app/backups                       # Bind for easy access from the host
+
+volumes:
+  postgres-data:
+```
+
+The image ships a default `krint.yaml` (port ranges, etc.); only bind-mount your own if you want to override it.
+
+### Editing the cloned compose (path 1)
+
+If you went with the bundled-Keycloak clone path and now want to switch to your own IdP, edit the shipped `compose.yml`:
 
 1. **Delete the `keycloak` service** and its `volumes:` `keycloak-data:` entry.
 2. From the `krint` service, **remove** `Oidc__InternalAuthority` and the `depends_on: keycloak` line.
@@ -269,6 +316,7 @@ Cors__AllowedOrigins__0=https://krint.example.com
 | CORS error in the browser console on `/realms/krint/protocol/openid-connect/token` | The Keycloak client's web origins don't include the SPA origin. Edit `keycloak/krint-realm.json` (or use the admin UI), add your origin to `webOrigins`, drop `krint_keycloak-data` volume, restart. |
 | CORS error in the browser console on `/api/*`                                    | `Cors__AllowedOrigins__0` doesn't match the SPA origin (no trailing slash).                                                  |
 | Create fails with `Cannot connect to the Docker daemon`                          | The Docker socket isn't mounted into `krint`. Verify the `/var/run/docker.sock` bind exists in the running container.        |
+| Provision or upgrade fails with `Failed to connect to 127.0.0.1:<port>` after 60s | `krint` can't reach the host's published port via its own loopback. Make sure the krint service has `extra_hosts: ["host.docker.internal:host-gateway"]` in `compose.yml`. The shipped compose has it; older self-host compose files won't. |
 | Dashboard 500 with `SocketException (13): Permission denied`                     | You're running the container as non-root on a host where the docker socket isn't readable by that UID/GID. The shipped image runs as root for this reason. If you've overridden `user:` in compose, add `group_add: ["<host-docker-gid>"]` or drop the override. |
 | `No free host port in range` when provisioning                                   | `krint.yaml`'s `port_ranges` exhausted. Either delete a previous instance or expand the range and `docker compose restart krint`. |
 | Keycloak admin works but the krint realm 404s                                    | Realm import was skipped because the data volume already existed. `docker compose down && docker volume rm krint_keycloak-data && docker compose up -d`. |
