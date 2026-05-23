@@ -266,7 +266,7 @@
                   </tr>
                 }
                 @for (row of r.rows; track $index; let rowIdx = $index) {
-                  <tr hlmTableRow>
+                  <tr hlmTableRow [hlmContextMenuTrigger]="canDeleteRow() ? rowMenu : null">
                     @for (cell of row; track $index; let colIdx = $index) {
                       <td
                         hlmTableCell
@@ -308,18 +308,20 @@
                           >
                             <ng-icon name="lucideEllipsisVertical" size="14" />
                           </button>
-                          <ng-template #rowMenu>
-                            <div hlmDropdownMenu>
-                              <button hlmDropdownMenuItem type="button" (click)="deleteRow(rowIdx)">
-                                <ng-icon name="lucideTrash2" size="14" />
-                                Delete {{ rowTerm() }}
-                              </button>
-                            </div>
-                          </ng-template>
                         }
                       </div>
                     </td>
                   </tr>
+                  <!-- Hoisted out of the cell so the row-level [hlmContextMenuTrigger] can reach
+                       it too. ng-template renders nothing on its own. -->
+                  <ng-template #rowMenu>
+                    <div hlmDropdownMenu>
+                      <button hlmDropdownMenuItem type="button" (click)="deleteRow(rowIdx)">
+                        <ng-icon name="lucideTrash2" size="14" />
+                        Delete {{ rowTerm() }}
+                      </button>
+                    </div>
+                  </ng-template>
                 }
               </tbody>
             </table>

@@ -17,6 +17,7 @@ import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCoc
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
+import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
@@ -45,6 +46,7 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
     HlmBadgeImports,
     HlmButtonImports,
     HlmCardImports,
+    HlmContextMenuImports,
     HlmDropdownMenuImports,
     HlmInputImports,
     HlmSelectImports,
