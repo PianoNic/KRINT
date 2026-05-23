@@ -1,52 +1,64 @@
-# KRINT — Claude workflow rules (enforced)
+# KRINT — Claude workflow rules
 
-## Branch + PR flow
+Never push to `main`. Every change goes:
 
-**Never work on `main`.** Every change goes through an issue → branch → PR.
+1. **Issue** — open one (or pick existing). Must carry at least one label from `gh label list`.
+2. **Branch** — `feature/<issue#>_PascalCase` for new / refactor / docs, `fix/<issue#>_PascalCase` for bugs.
+3. **PR** — short imperative title; body is *summary + `Closes #<issue>`* only; at least one label.
+4. **Squash-merge + delete branch** (remote + local). Sync `main` with `git fetch --prune && git reset --hard origin/main`.
 
-1. **Open a GitHub issue first** (or pick an existing one). Issue must carry a label — see `gh label list` for the valid set; never invent a new label.
-2. **Branch name:** `feature/<issue#>_PascalCase` for new capabilities / refactors / docs, `fix/<issue#>_PascalCase` for bugfixes. The slash-prefix is the only thing that varies; the number is the issue this PR closes; the PascalCase suffix is a short summary (no hyphens / underscores between words).
-   - ✅ `feature/12_DropKrintAcronym`
-   - ✅ `fix/8_DockerSocketPermission`
-   - ❌ `selfhost-fixes`, `chore/drop-krint-acronym`, `docs/byo-oidc`
-3. **PR title:** short imperative — same style as commit subjects.
-4. **PR body — only two things:**
-   - One-paragraph Summary (or a tight bullet list if it spans multiple concerns).
-   - `Closes #<issue>` line.
-   - **No test plan.** No "## Test plan" / `- [x]` checklists.
-5. **PR must carry at least one label.** Pass `--label <name>` on `gh pr create`; never open unlabeled.
-6. **Merge:** squash-merge, delete branch (remote + local). Sync local `main` via `git fetch --prune && git reset --hard origin/main`.
+## Branch naming
 
-## Commit messages
+The slash-prefix is the only thing that varies between the two shapes. PascalCase suffix is a short summary — no hyphens, no underscores between words.
 
-**Subject = short imperative starting with a verb in past tense.** Pattern to default to:
+- ✅ `feature/12_DropKrintAcronym`
+- ✅ `feature/15_TightenReadmeIntro`
+- ✅ `fix/8_DockerSocketPermission`
+- ❌ `selfhost-fixes` (no type prefix, no issue number, kebab-case)
+- ❌ `chore/drop-krint-acronym` (`chore/` is not a valid type; kebab-case)
+- ❌ `feature/document-byo-oidc` (missing issue number, kebab-case)
 
-- `Implemented <thing>` — for new functionality
-- `Fixed <thing>` or `Fixed <thing> problem` — for bug fixes
-- `Updated <thing>` — for non-bug changes to existing behavior
-- `Removed <thing>` — for deletions
+## PR body
 
-Drift is allowed when the pattern reads awkwardly, but stay imperative-past and keep the subject under ~72 chars. Examples that fit:
+Two things, in order:
 
+1. One-paragraph summary (or a tight bullet list if it genuinely spans multiple concerns).
+2. `Closes #<issue>`.
+
+**No** `## Test plan` section, `## Why` / `## Changes` / `## Notes` headers, or `- [x]` checklists. The local verification step is yours — it doesn't belong on the PR.
+
+Example of a good PR body:
+
+```
+Adds a Buy Me a Coffee link next to the GitHub icon in the content header.
+Uses simpleBuymeacoffee from the already-installed @ng-icons/simple-icons
+package, so no new deps.
+
+Closes #14
+```
+
+## Commit subject
+
+Past-tense imperative, verb first. Default verbs:
+
+- `Added <thing>` — small additions (a config option, missing field, single file)
+- `Implemented <thing>` — new functionality of meaningful size
+- `Fixed <thing>` (or `Fixed <thing> problem`) — bug fixes
+- `Updated <thing>` — non-bug changes to existing behavior
+- `Removed <thing>` — deletions
+
+Keep under ~72 chars. Drift is allowed when the pattern reads awkwardly, but stay verb-led and past-tense. The body (when one is needed) explains the **why**, not the what.
+
+Examples that fit:
+
+- `Added Buy Me a Coffee link to the content header`
 - `Implemented BYO OIDC provider docs`
 - `Fixed Docker socket permission on Windows`
 - `Updated release-drafter to include documentation + CI/CD`
+- `Removed K/R/I/N/T tagline from README and SPA`
 
-Body (when one is needed) is plain prose or bullets explaining the **why**, not the what. No `Co-Authored-By` lines.
+**Never** add `Co-Authored-By:` trailers — the user is the sole author.
 
-## Labels in scope (KRINT)
+## Labels
 
-`feature`, `enhancement`, `bug`, `refactor`, `documentation`, `CI/CD` are all in the release-drafter changelog. `duplicate` is administrative — never use it on a real PR.
-
-If multiple labels apply, pass them comma-separated: `--label feature,documentation`.
-
-## Anti-checklist (don't do this)
-
-- ❌ Committing or pushing directly to `main`.
-- ❌ Opening a PR without a linked issue.
-- ❌ Opening a PR or issue without a label.
-- ❌ Branch names without the `<type>/<issue#>_PascalCase` shape.
-- ❌ PRs with a "Test plan" section.
-- ❌ Verbose multi-section PR bodies (Why / Changes / Test plan / Notes / etc.).
-- ❌ `Co-Authored-By: Claude ...` trailers on commits.
-- ❌ Inventing new labels.
+Pick from `gh label list` (authoritative — don't memorise here). For KRINT today the active set is `feature`, `enhancement`, `bug`, `refactor`, `documentation`, `CI/CD`. Pass multiple comma-separated if accurate: `--label feature,documentation`. Never invent a new label without asking first.
