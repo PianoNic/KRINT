@@ -4,36 +4,62 @@ services:
     container_name: krint-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: d4vpas8w0rd13!!!
       POSTGRES_DB: krint
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
+      - ./keycloak/init-keycloak-db.sql:/docker-entrypoint-initdb.d/10-keycloak-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d krint"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.6
     container_name: krint-keycloak
     restart: unless-stopped
-    command: start --optimized --import-realm
+    command: start --import-realm
+    env_file: .env
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
-      KC_HOSTNAME: ${KC_HOSTNAME}
-      KC_HTTP_ENABLED: "true"
-      KC_PROXY_HEADERS: xforwarded
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://db:5432/keycloak
-      KC_DB_USERNAME: ${KC_DB_USERNAME}
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: d4vpas8w0rd13!!!
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - ./keycloak/krint-realm.json:/opt/keycloak/data/import/krint-realm.json:ro
       - ./keycloak/keycloakify/dist_keycloak/keycloak-theme-for-kc-all-other-versions.jar:/opt/keycloak/providers/krint-keycloak-theme.jar:ro
       - keycloak-data:/opt/keycloak/data
+
+  krint:
+    image: ghcr.io/pianonic/krint:latest
+    build:
+      context: .
+      dockerfile: src/KRINT.API/Dockerfile
+    container_name: krint
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=d4vpas8w0rd13!!!"
+      Oidc__InternalAuthority: "http://keycloak:8080/realms/krint"
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    ports:
+      - "5000:8080"
+    volumes:
+      - //var/run/docker.sock:/var/run/docker.sock
+      - ./backups:/app/backups
+      - ./krint.yaml:/app/krint.yaml:ro
 
 volumes:
   postgres-data:

@@ -1,8 +1,19 @@
 <Project>
 
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <_VersionFile>$(MSBuildThisFileDirectory)..\application.properties</_VersionFile>
   </PropertyGroup>
+
+  <Target Name="_ReadVersionFromProperties"
+          BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo;_GenerateRestoreProjectSpec;Build"
+          Condition="Exists('$(_VersionFile)')">
+    <XmlPeek XmlInputPath="$(_VersionFile)" Query="/properties/version/text()">
+      <Output TaskParameter="Result" ItemName="_VersionFromFile" />
+    </XmlPeek>
+    <PropertyGroup>
+      <Version>@(_VersionFromFile)</Version>
+    </PropertyGroup>
+  </Target>
 
   <!--
     Centralised NuGet audit suppressions.

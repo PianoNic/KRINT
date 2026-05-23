@@ -1,7 +1,9 @@
+using KRINT.API;
 using KRINT.API.Extensions;
 using KRINT.API.OpenApi;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
+using KRINT.Infrastructure.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -9,19 +11,16 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
 builder.Services.AddKrintConfig(builder.Environment);
 
-// When the Angular dist is baked into the image (production), serve it from wwwroot/browser
-// (Angular CLI's default output path). In dev we don't add this - the frontend runs separately
-// on its own port. The RootPath is only consulted in production.
-builder.Services.AddSpaStaticFiles(opts => { opts.RootPath = "wwwroot/browser"; });
+builder.Services.AddSpaStaticFiles(options => { options.RootPath = "wwwroot"; });
 
 builder.Services.AddControllers();
 
-// Required so ActivityLogger can read the current user out of the request scope to
-// stamp every audit row with the acting Keycloak account.
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<KRINT.Infrastructure.Interfaces.ICurrentUserService, KRINT.API.HttpCurrentUserService>();
+builder.Services.AddScoped<ICurrentUserService, HttpCurrentUserService>();
 
 builder.Services.AddOpenApi(options =>
 {
@@ -31,13 +30,15 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddMediator(options => { options.ServiceLifetime = ServiceLifetime.Scoped; });
 
 builder.Services.AddDbContext<KrintDbContext>(options =>
-{
-    options.UseNpgsql(builder.Configuration.GetConnectionString("KrintDatabase"));
-    // EF tools 10.0.7 + runtime 10.0.8 disagree on the model snapshot fingerprint even when
-    // the actual schema is in sync. Demote the warning so a tool-version skew can't crash
-    // app boot; real pending changes still surface through the migrations pipeline.
-    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-});
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("KrintDatabase"),
+        npgsqlOptions => npgsqlOptions
+        .EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorCodesToAdd: null
+        )
+    ));
 
 builder.Services.AddDocker(builder.Configuration);
 
@@ -51,14 +52,20 @@ builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? throw new InvalidOperationException("Cors:AllowedOrigins not configured");
-
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy .WithOrigins(allowedOrigins) .AllowAnyHeader() .AllowAnyMethod()));
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = builder.Configuration["Oidc:Authority"];
+        // In Docker the API talks to Keycloak via the compose network (http://keycloak:8080),
+        // but browsers see it on the public URL (http://localhost:8080). Tokens are issued with
+        // the public URL as iss, so MetadataAddress points at the internal URL for key fetch,
+        // while ValidIssuer is pinned to the public URL the browser used.
+        var publicAuthority = builder.Configuration["Oidc:Authority"];
+        var internalAuthority = builder.Configuration["Oidc:InternalAuthority"] ?? publicAuthority;
+        options.MetadataAddress = $"{internalAuthority!.TrimEnd('/')}/.well-known/openid-configuration";
         options.RequireHttpsMetadata = builder.Configuration.GetValue("Oidc:RequireHttpsMetadata", true);
+        options.TokenValidationParameters.ValidIssuer = publicAuthority;
         options.TokenValidationParameters.NameClaimType = "name";
         options.TokenValidationParameters.RoleClaimType = "roles";
         options.TokenValidationParameters.ValidateAudience = false;
@@ -92,21 +99,23 @@ if (app.Environment.IsDevelopment())
     }).AllowAnonymous();
 }
 
-app.UseCors();
+app.UseStaticFiles();
 
+if (app.Environment.IsProduction())
+    app.UseSpaStaticFiles();
+
+app.UseRouting();
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Serve the bundled Angular SPA. In dev (no wwwroot/browser) this is a no-op; in the
-// bundled image the multi-stage Dockerfile copies the dist into wwwroot/browser and any
-// non-API path falls through to index.html so client-side routing works.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseStaticFiles();
-    app.UseSpaStaticFiles();
-    app.MapFallbackToFile("index.html");
-}
+// The Dockerfile copies the Angular dist/browser contents directly into wwwroot, so
+// index.html sits at /app/wwwroot/index.html in the image. AllowAnonymous is required
+// because the global FallbackPolicy would otherwise 401 the SPA shell before the user
+// has had a chance to authenticate via Keycloak.
+if (app.Environment.IsProduction())
+    app.MapFallbackToFile("index.html").AllowAnonymous();
 
 app.Run();
