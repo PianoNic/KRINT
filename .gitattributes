@@ -1,0 +1,3 @@
+# OpenAPI Generator emits LF-terminated files; pin the entire generated client to LF so
+# Windows autocrlf doesn't mark the whole folder as "modified" after every regen.
+src/KRINT.Frontend/src/app/api/** text eol=lf
