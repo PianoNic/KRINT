@@ -182,7 +182,7 @@
         </div>
       </header>
 
-      <div class="flex-1 overflow-auto">
+      <div class="flex-1 overflow-auto px-4">
         @if (rows(); as r) {
           @if (r.rows.length === 0 && !inserting()) {
             <p class="text-muted-foreground p-6 text-sm">No {{ rowTerm() }}s.</p>
