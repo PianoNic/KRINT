@@ -502,17 +502,15 @@ export class Backups {
     });
   }
 
-  /** Multipart upload of a user-picked file to the import endpoint. Sends via HttpClient
-   *  rather than the generated client because the generator doesn't model IFormFile cleanly. */
+  /** Uploads a user-picked file to the import endpoint via the generated client. The new
+   *  BackupEntries row is unshifted into the list so it shows up immediately. */
   protected importPicked(files: FileList | null): void {
     const file = files?.[0];
     const id = this.selectedInstanceId();
     if (!file || !id) return;
     this.importing.set(true);
     this.error.set(null);
-    const form = new FormData();
-    form.append('file', file, file.name);
-    this.http.post<BackupEntryDto>(`${environment.apiBaseUrl}/api/Backups/instance/${id}/import`, form).subscribe({
+    this.api.apiBackupsInstanceInstanceIdImportPost(id, file).subscribe({
       next: (entry) => {
         this.entries.update((curr) => [entry, ...curr]);
         this.importing.set(false);
