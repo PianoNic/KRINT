@@ -1,8 +1,10 @@
 <app-content-header />
 
-<section class="grid flex-1 min-h-0 grid-cols-[260px_240px_1fr] gap-0 border-t">
-  <!-- ===== Pane 1: Instance rail ===== -->
-  <aside class="border-r flex flex-col overflow-hidden">
+<section class="grid flex-1 min-h-0 grid-cols-[260px_1fr] gap-0 border-t">
+  <!-- ===== Left rail: Instances stacked above Entities, 50/50 vertical split ===== -->
+  <aside class="border-r flex flex-col overflow-hidden min-h-0">
+  <!-- ===== Top half: Instance list ===== -->
+  <div class="flex-1 min-h-0 flex flex-col overflow-hidden border-b">
     <header class="flex items-center justify-between px-3 py-2 border-b">
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold uppercase tracking-wide">Instances</span>
@@ -36,10 +38,10 @@
         <li class="text-muted-foreground p-4 text-center text-xs">No instances yet.</li>
       }
     </ul>
-  </aside>
+  </div>
 
-  <!-- ===== Pane 2: Database picker + Entities ===== -->
-  <aside class="border-r flex flex-col overflow-hidden">
+  <!-- ===== Bottom half: Database picker + Entities ===== -->
+  <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
     @if (!instanceId()) {
       <p class="text-muted-foreground p-4 text-center text-xs">Pick an instance.</p>
     } @else {
@@ -95,9 +97,10 @@
         </ul>
       }
     }
+  </div>
   </aside>
 
-  <!-- ===== Pane 3: Rows / Query ===== -->
+  <!-- ===== Main pane: Rows / Query ===== -->
   <main class="flex flex-col overflow-hidden">
     <!-- Tab switcher pinned at the top of the right pane. Query tab is enabled as soon as
          an instance + database is picked; you don't need a table selected to run SQL. -->
