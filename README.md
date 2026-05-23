@@ -24,9 +24,11 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 
 - **15 engines**: PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Elasticsearch, Qdrant.
 - **Plugins**: pgvector, PostGIS, pg_trgm, Redis Stack, APOC, Graph Data Science, and more, opt-in at provision time.
+- **Live dashboard**: KPI cards, per-engine breakdown, and recent activity stream in over SignalR so the homepage stays current without refreshes.
 - **Browse & query**: spreadsheet-style in-cell editing of rows + an ad-hoc SQL console for the SQL engines (Ctrl/Cmd+Enter to run).
+- **Container console**: live-tail container logs and open an interactive `bash` / `sh` shell into any provisioned instance, all from the browser via xterm.js over a SignalR stream.
 - **Backups**: manual, cron-scheduled, or upload your own dump from disk; download or restore in place. Each backup is tagged with the source engine version.
-- **Version upgrade**: dump-restore-swap a provisioned instance to a newer engine version without changing its host port.
+- **Version upgrade**: dump-restore-swap a provisioned instance to a newer engine version without changing its host port. The pre-upgrade snapshot is kept automatically.
 - **Users & access**: create logins, reset passwords, grant per-database access.
 - **OIDC auth**: bring your own provider (Pocket ID, Authentik, Auth0, ...) or use the bundled Keycloak.
 - **Capability-aware UI**: engines without "users" or "rows" simply don't show those controls.
@@ -39,26 +41,44 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 ## Screenshots
 
 <p align="center">
+  <img src="assets/screenshots/home.png" width="49%" alt="Live dashboard" />
   <img src="assets/screenshots/instances.png" width="49%" alt="Instances list" />
-  <img src="assets/screenshots/create-engine.png" width="49%" alt="Create wizard - engine picker" />
 </p>
 <p align="center">
+  <img src="assets/screenshots/create-engine.png" width="49%" alt="Create wizard - engine picker" />
   <img src="assets/screenshots/create-plugins.png" width="49%" alt="Create wizard - plugins step" />
-  <img src="assets/screenshots/backups.png" width="49%" alt="Backups and schedules" />
 </p>
 <p align="center">
   <img src="assets/screenshots/browser.png" width="49%" alt="Database browser" />
   <img src="assets/screenshots/query.png" width="49%" alt="Query console" />
 </p>
 <p align="center">
+  <img src="assets/screenshots/console-logs.png" width="49%" alt="Container logs streaming" />
+  <img src="assets/screenshots/console-exec.png" width="49%" alt="Interactive container shell" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/backups.png" width="49%" alt="Backups and schedules" />
+  <img src="assets/screenshots/backup-schedule-dialog.png" width="49%" alt="Schedule a backup" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/instance-details.png" width="49%" alt="Instance details" />
+  <img src="assets/screenshots/instance-edit.png" width="49%" alt="Edit instance: databases + users" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/instance-upgrade.png" width="49%" alt="Engine version upgrade" />
   <img src="assets/screenshots/activity.png" width="49%" alt="Activity log" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/settings.png" width="49%" alt="Settings" />
 </p>
 
 ## Tech stack
 
 - **.NET 10** ASP.NET Core API (Mediator pattern, EF Core, Clean Architecture: API / Application / Domain / Infrastructure)
 - **Angular 21** + Signals + Spartan UI (helm/brain) for the SPA
-- **Docker.DotNet** drives container lifecycle (create, start, exec, tar-extract for restores)
+- **SignalR** hubs for live dashboard updates, container log tailing, and interactive shell over WebSockets
+- **xterm.js** in the browser for the container console (logs + interactive TTY)
+- **Docker.DotNet** drives container lifecycle (create, start, exec, tar-extract for restores); a hand-rolled npipe/unix-socket HTTP upgrade client handles the interactive exec stdin path
 - **Keycloak** for OIDC; Keycloakify for the bundled login theme
 - **TUnit** + **Microsoft.Playwright** for end-to-end tests against a live stack
 - **OpenAPI** at `/openapi/v1.json`; the Angular client is regenerated via `bun run apigen`
