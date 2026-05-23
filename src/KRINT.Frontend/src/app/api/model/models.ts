@@ -42,3 +42,4 @@ export * from './tableRowsDtoTotalCount';
 export * from './tableSummaryDto';
 export * from './toggleScheduleBody';
 export * from './updateRowDto';
+export * from './upgradeDatabaseDto';

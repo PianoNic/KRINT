@@ -58,6 +58,7 @@ model/tableRowsDtoTotalCount.ts
 model/tableSummaryDto.ts
 model/toggleScheduleBody.ts
 model/updateRowDto.ts
+model/upgradeDatabaseDto.ts
 param.ts
 provide-api.ts
 query.params.ts

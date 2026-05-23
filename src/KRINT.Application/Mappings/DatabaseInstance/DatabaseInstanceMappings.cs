@@ -9,6 +9,7 @@ namespace KRINT.Application.Mappings.DatabaseInstance
             Id = d.Id,
             Engine = d.Engine,
             Version = d.Version,
+            PreviousVersion = d.PreviousVersion,
             DisplayName = d.DisplayName,
             ContainerName = d.ContainerName,
             Host = d.Host,

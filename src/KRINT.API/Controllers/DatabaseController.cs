@@ -393,6 +393,22 @@ namespace KRINT.API.Controllers
             catch (InvalidOperationException ex) { return Conflict(new { error = ex.Message }); }
         }
 
+        [HttpPost("{id:guid}/upgrade")]
+        [ProducesResponseType(typeof(DatabaseInstanceDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Upgrade(Guid id, [FromBody] UpgradeDatabaseDto body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await mediator.Send(new UpgradeDatabaseCommand(id, body.TargetVersion), cancellationToken);
+                return Ok(result);
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
         [HttpPost("{id:guid}/users/{name}/reset-password")]
         [ProducesResponseType(typeof(InnerUserPasswordDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
