@@ -295,34 +295,38 @@
                         <td hlmTableCell class="font-mono text-xs">{{ truncate(cell) }}</td>
                       }
                       <td hlmTableCell class="text-right">
-                        <div class="flex items-center justify-end gap-1">
-                          @if (canEditRow()) {
+                        <div class="flex items-center justify-end">
+                          @if (canEditRow() || canDeleteRow()) {
                             <button
                               hlmBtn
                               variant="ghost"
                               size="icon"
                               type="button"
-                              [attr.aria-label]="'Edit ' + rowTerm()"
-                              [hlmTooltip]="'Edit ' + rowTerm()"
-                              [disabled]="draft() !== null"
-                              (click)="beginEdit(rowIdx)"
-                            >
-                              <ng-icon name="lucidePencil" size="14" />
-                            </button>
-                          }
-                          @if (canDeleteRow()) {
-                            <button
-                              hlmBtn
-                              variant="ghost"
-                              size="icon"
-                              type="button"
-                              [attr.aria-label]="'Delete ' + rowTerm()"
-                              [hlmTooltip]="'Delete ' + rowTerm()"
+                              class="h-7 w-7"
+                              [attr.aria-label]="'Row actions'"
+                              [hlmTooltip]="'Row actions'"
                               [disabled]="draft() !== null || deletingRowIndex() !== null"
-                              (click)="deleteRow(rowIdx)"
+                              [hlmDropdownMenuTrigger]="rowMenu"
+                              align="end"
                             >
-                              <ng-icon name="lucideTrash2" size="14" />
+                              <ng-icon name="lucideEllipsisVertical" size="14" />
                             </button>
+                            <ng-template #rowMenu>
+                              <div hlmDropdownMenu>
+                                @if (canEditRow()) {
+                                  <button hlmDropdownMenuItem type="button" (click)="beginEdit(rowIdx)">
+                                    <ng-icon name="lucidePencil" size="14" />
+                                    Edit {{ rowTerm() }}
+                                  </button>
+                                }
+                                @if (canDeleteRow()) {
+                                  <button hlmDropdownMenuItem type="button" (click)="deleteRow(rowIdx)">
+                                    <ng-icon name="lucideTrash2" size="14" />
+                                    Delete {{ rowTerm() }}
+                                  </button>
+                                }
+                              </div>
+                            </ng-template>
                           }
                         </div>
                       </td>
