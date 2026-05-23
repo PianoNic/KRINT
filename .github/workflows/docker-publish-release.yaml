@@ -53,8 +53,7 @@ jobs:
             --title "Bumped application.properties to $TAG_VERSION for release" \
             --body "Bumped application.properties to $TAG_VERSION for release" \
             --label CI/CD)
-          gh pr review "$PR_URL" --approve
-          gh pr merge "$PR_URL" --squash --delete-branch
+          gh pr merge "$PR_URL" --admin --squash --delete-branch
 
   build-and-push-multiarch:
     name: Build and Push Multi-Arch Docker Images
