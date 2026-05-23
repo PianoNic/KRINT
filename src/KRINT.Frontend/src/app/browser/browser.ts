@@ -437,9 +437,9 @@ export class Browser {
     this.editError.set(null);
   }
 
-  /** PATCH every row that has pending edits. Each row is sent with its full new value vector
-   *  (pending cells overlaid on top of server cells) so the backend's existing diff path can
-   *  pick out the changed columns. Failures stop further rows; partial saves stay applied. */
+  /** PATCH every dirty row in a single bulk request. The backend wraps the batch in one
+   *  transaction (on Postgres-family engines) so Save is all-or-nothing - on any per-row
+   *  failure the whole thing rolls back and no rows in the table change. */
   protected saveChanges(): void {
     const r = this.rows();
     const id = this.instanceId(); const db = this.database(); const tbl = this.table();
@@ -455,35 +455,34 @@ export class Browser {
     this.editError.set(null);
 
     const sequence = Array.from(rowsToSave).sort((a, b) => a - b);
-    const saveNext = (i: number): void => {
-      if (i >= sequence.length) {
-        this.saving.set(false);
-        this.pendingEdits.set(new Map());
-        return;
-      }
-      const rowIdx = sequence[i];
+    // Materialise the new value vector for each dirty row, then send everything in one call.
+    const updates = sequence.map((rowIdx) => {
       const original = r.rows[rowIdx];
-      const newValues = original.map((cell, colIdx) => {
+      const newValues = original.map((_, colIdx) => {
         const v = this.cellValue(rowIdx, colIdx);
         return v === NULL_TOKEN ? null : v;
       });
-      this.api.apiDatabaseIdBrowseDatabaseTablesTableRowsPatch(id, db, tbl, {
-        columns: r.columns,
-        originalValues: original,
-        newValues,
-      } as any).subscribe({
-        next: () => {
-          this.rows.update((curr) =>
-            curr === null
-              ? curr
-              : { ...curr, rows: curr.rows.map((row, j) => (j === rowIdx ? (newValues as unknown as string[]) : row)) },
-          );
-          saveNext(i + 1);
-        },
-        error: (err) => { this.editError.set(messageOf(err)); this.saving.set(false); },
-      });
-    };
-    saveNext(0);
+      return { rowIdx, originalValues: original, newValues };
+    });
+
+    this.api.apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch(id, db, tbl, {
+      columns: r.columns,
+      updates: updates.map(({ originalValues, newValues }) => ({ originalValues, newValues })),
+    } as any).subscribe({
+      next: () => {
+        this.rows.update((curr) => {
+          if (curr === null) return curr;
+          const byRow = new Map(updates.map((u) => [u.rowIdx, u.newValues]));
+          return {
+            ...curr,
+            rows: curr.rows.map((row, j) => byRow.has(j) ? (byRow.get(j) as unknown as string[]) : row),
+          };
+        });
+        this.pendingEdits.set(new Map());
+        this.saving.set(false);
+      },
+      error: (err) => { this.editError.set(messageOf(err)); this.saving.set(false); },
+    });
   }
 
   protected saveDraft(): void {

@@ -21,6 +21,9 @@ model/appDto.ts
 model/backupEntryDto.ts
 model/backupEntryDtoSizeBytes.ts
 model/backupScheduleDto.ts
+model/bulkUpdateRowEntryDto.ts
+model/bulkUpdateRowsDto.ts
+model/columnInfoDto.ts
 model/createBackupScheduleDto.ts
 model/createDatabaseDto.ts
 model/createInnerDatabaseDto.ts

@@ -21,6 +21,8 @@ import { ApiDatabaseIdBrowseDatabaseTablesTableRowsGetLimitParameter } from '../
 // @ts-ignore
 import { ApiDatabaseIdBrowseDatabaseTablesTableRowsGetOffsetParameter } from '../model/apiDatabaseIdBrowseDatabaseTablesTableRowsGetOffsetParameter';
 // @ts-ignore
+import { BulkUpdateRowsDto } from '../model/bulkUpdateRowsDto';
+// @ts-ignore
 import { CreateDatabaseDto } from '../model/createDatabaseDto';
 // @ts-ignore
 import { CreateInnerDatabaseDto } from '../model/createInnerDatabaseDto';
@@ -253,6 +255,90 @@ export class DatabaseService extends BaseService {
         return this.httpClient.request<any>('delete', `${basePath}${localVarPath}`,
             {
                 context: localVarHttpContext,
+                responseType: <any>responseType_,
+                ...(withCredentials ? { withCredentials } : {}),
+                headers: localVarHeaders,
+                observe: observe,
+                ...(localVarTransferCache !== undefined ? { transferCache: localVarTransferCache } : {}),
+                reportProgress: reportProgress
+            }
+        );
+    }
+
+    /**
+     * @endpoint patch /api/Database/{id}/browse/{database}/tables/{table}/rows/bulk
+     * @param id 
+     * @param database 
+     * @param table 
+     * @param bulkUpdateRowsDto 
+     * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+     * @param reportProgress flag to report request and response progress.
+     * @param options additional options
+     */
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch(id: string, database: string, table: string, bulkUpdateRowsDto: BulkUpdateRowsDto, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch(id: string, database: string, table: string, bulkUpdateRowsDto: BulkUpdateRowsDto, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch(id: string, database: string, table: string, bulkUpdateRowsDto: BulkUpdateRowsDto, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<any>>;
+    public apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch(id: string, database: string, table: string, bulkUpdateRowsDto: BulkUpdateRowsDto, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        if (id === null || id === undefined) {
+            throw new Error('Required parameter id was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch.');
+        }
+        if (database === null || database === undefined) {
+            throw new Error('Required parameter database was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch.');
+        }
+        if (table === null || table === undefined) {
+            throw new Error('Required parameter table was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch.');
+        }
+        if (bulkUpdateRowsDto === null || bulkUpdateRowsDto === undefined) {
+            throw new Error('Required parameter bulkUpdateRowsDto was null or undefined when calling apiDatabaseIdBrowseDatabaseTablesTableRowsBulkPatch.');
+        }
+
+        let localVarHeaders = this.defaultHeaders;
+
+        // authentication (OAuth2) required
+        localVarHeaders = this.configuration.addCredentialToHeaders('OAuth2', 'Authorization', localVarHeaders, 'Bearer ');
+
+        const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
+            'text/plain',
+            'application/json',
+            'text/json'
+        ]);
+        if (localVarHttpHeaderAcceptSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Accept', localVarHttpHeaderAcceptSelected);
+        }
+
+        const localVarHttpContext: HttpContext = options?.context ?? new HttpContext();
+
+        const localVarTransferCache: boolean = options?.transferCache ?? true;
+
+
+        // to determine the Content-Type header
+        const consumes: string[] = [
+            'application/json',
+            'text/json',
+            'application/*+json'
+        ];
+        const httpContentTypeSelected: string | undefined = this.configuration.selectHeaderContentType(consumes);
+        if (httpContentTypeSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Content-Type', httpContentTypeSelected);
+        }
+
+        let responseType_: 'text' | 'json' | 'blob' = 'json';
+        if (localVarHttpHeaderAcceptSelected) {
+            if (localVarHttpHeaderAcceptSelected.startsWith('text')) {
+                responseType_ = 'text';
+            } else if (this.configuration.isJsonMime(localVarHttpHeaderAcceptSelected)) {
+                responseType_ = 'json';
+            } else {
+                responseType_ = 'blob';
+            }
+        }
+
+        let localVarPath = `/api/Database/${this.configuration.encodeParam({name: "id", value: id, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: "uuid"})}/browse/${this.configuration.encodeParam({name: "database", value: database, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/tables/${this.configuration.encodeParam({name: "table", value: table, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}/rows/bulk`;
+        const { basePath, withCredentials } = this.configuration;
+        return this.httpClient.request<any>('patch', `${basePath}${localVarPath}`,
+            {
+                context: localVarHttpContext,
+                body: bulkUpdateRowsDto,
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,
