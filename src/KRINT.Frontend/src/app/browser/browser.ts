@@ -344,6 +344,15 @@ export class Browser {
     return this.draft()?.values[colIndex] === NULL_TOKEN;
   }
 
+  /** True for columns the DB owns. Today: `id` (case-insensitive), which is a SERIAL key
+   *  on the seeded schema. The UI renders these as disabled inputs and the insert payload
+   *  drops them so Postgres generates the value. */
+  protected isProtectedColumn(colIndex: number): boolean {
+    const r = this.rows();
+    const name = r?.columns[colIndex];
+    return name?.toLowerCase() === 'id';
+  }
+
   protected draftValue(colIndex: number): string {
     const v = this.draft()?.values[colIndex];
     return v === undefined || v === NULL_TOKEN ? '' : v;
@@ -359,9 +368,18 @@ export class Browser {
     this.editError.set(null);
 
     if (d.mode === 'insert') {
+      // Strip DB-owned columns (id) so the database generates them. Otherwise an empty
+      // string from the input would either be rejected (SERIAL NOT NULL) or coerced.
+      const insertCols: string[] = [];
+      const insertVals: (string | null)[] = [];
+      for (let i = 0; i < r.columns.length; i++) {
+        if (r.columns[i].toLowerCase() === 'id') continue;
+        insertCols.push(r.columns[i]);
+        insertVals.push(newValues[i]);
+      }
       this.api.apiDatabaseIdBrowseDatabaseTablesTableRowsPost(id, db, tbl, {
-        columns: r.columns,
-        values: newValues,
+        columns: insertCols,
+        values: insertVals,
       } as any).subscribe({
         next: () => {
           this.cancelDraft();
