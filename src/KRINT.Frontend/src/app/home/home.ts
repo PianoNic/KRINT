@@ -56,7 +56,7 @@ import { DashboardStatsDto } from '../api/model/dashboardStatsDto';
       <header class="flex items-center justify-between gap-2">
         <div class="min-w-0">
           <h1 class="text-2xl font-semibold">Welcome to KRINT</h1>
-          <p class="text-muted-foreground text-sm">Keyed · Replicated · Isolated · Networked · Transactional</p>
+          <p class="text-muted-foreground text-sm">One click. One key. Your database is ready.</p>
         </div>
         <div class="flex items-center gap-2">
           <a hlmBtn size="sm" routerLink="/create">

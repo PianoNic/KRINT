@@ -7,12 +7,18 @@ categories:
   - title: '✨ Enhancements'
     labels:
       - 'enhancement'
-  - title: '🛠️ Refactors'
-    labels:
-      - 'refactor'
   - title: '🐛 Bug Fixes'
     labels:
       - 'bug'
+  - title: '🛠️ Refactors'
+    labels:
+      - 'refactor'
+  - title: '📚 Documentation'
+    labels:
+      - 'documentation'
+  - title: '🔧 CI / Build'
+    labels:
+      - 'CI/CD'
 
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 

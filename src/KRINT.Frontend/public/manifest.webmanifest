@@ -1,7 +1,7 @@
 {
   "name": "KRINT",
   "short_name": "KRINT",
-  "description": "Keyed · Replicated · Isolated · Networked · Transactional",
+  "description": "One click. One key. Your database is ready.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B1220",

@@ -2,7 +2,7 @@
   <img src="assets/krint-icon.svg" width="180" alt="KRINT Logo" />
 </p>
 <p align="center">
-  <strong>KRINT - Keyed - Replicated - Isolated - Networked - Transactional</strong><br/>
+  <strong>KRINT</strong><br/>
   One click. One key. Your database is ready.
 </p>
 <p align="center">
@@ -14,25 +14,15 @@
 
 ---
 
-> **Heads up:** KRINT is under active development. The main branch builds end-to-end and the 23 supported engines provision cleanly, but features land here before they're documented.
+> **Heads up:** KRINT is under active development. The main branch builds end-to-end and the 15 supported engines provision cleanly, but features land here before they're documented.
 
 ## What is KRINT?
 
 KRINT is a self-hosted database-provisioning platform. Pick an engine, click Launch, and KRINT spins up a containerised instance with credentials, a host port, and a connection string already in hand. Browse rows, manage users, schedule backups, install extensions - all from the SPA.
 
-Every instance ships with the five properties that give the project its name:
-
-| Letter | Property      | What it means                                              |
-| ------ | ------------- | ---------------------------------------------------------- |
-| **K**  | Keyed         | Each instance gets a unique connection string + vaulted credentials |
-| **R**  | Replicated    | Built-in backups with cron scheduling and one-click restore |
-| **I**  | Isolated      | Each engine runs in its own Docker container               |
-| **N**  | Networked     | Connection string ready to paste into your app             |
-| **T**  | Transactional | Real databases - no toys, no mocks                         |
-
 ## Features
 
-- **23 supported engines** out of the box - PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, ScyllaDB, CouchDB, Couchbase, ArangoDB, Neo4j, Redis, Valkey, etcd, Elasticsearch, OpenSearch, Apache Solr, Meilisearch, InfluxDB, Qdrant.
+- **15 supported engines** out of the box - PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Elasticsearch, Qdrant.
 - **Plugin store** - opt-in extensions during provision: pgvector / PostGIS / pg_trgm for Postgres, Redis Stack modules, APOC / Graph Data Science for Neo4j, and more.
 - **Row browser** - list, edit, insert, delete rows across SQL engines; document/keyspace browsing for Mongo, Cassandra, Redis, Couchbase, etc.
 - **Query console** - lives on the Browser page as a second tab, pre-scoped to the currently-selected instance + database. Runs ad-hoc SQL against Postgres, MySQL/MariaDB, SQL Server, CockroachDB, TimescaleDB, pgvector, ClickHouse. Ctrl/Cmd+Enter to fire, row cap built in.
@@ -67,21 +57,6 @@ Every instance ships with the five properties that give the project its name:
 - **Keycloak** for OIDC; Keycloakify for the bundled login theme
 - **TUnit** + **Microsoft.Playwright** for end-to-end tests against a live stack
 - **OpenAPI** at `/openapi/v1.json`; the Angular client is regenerated via `bun run apigen`
-
-## Project layout
-
-```
-src/
-├── KRINT.API/             ASP.NET Core entry point, controllers, Dockerfile
-├── KRINT.Application/     Commands, queries, DTOs (Mediator handlers)
-├── KRINT.Domain/          Entities, value objects, domain rules
-├── KRINT.Infrastructure/  Docker, per-engine inner services, persistence, secrets vault
-├── KRINT.Frontend/        Angular 21 SPA
-└── KRINT.Tests/           TUnit + Playwright E2E
-keycloak/                  Custom theme (Keycloakify) + realm config
-```
-
-Dependencies flow inward: `API -> Application -> Domain`. `Infrastructure` implements interfaces declared in `Application` / `Domain`.
 
 ## Getting started
 
