@@ -1,5 +1,7 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using KRINT.Application.Options;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Interfaces;
 
@@ -7,7 +9,7 @@ namespace KRINT.Application.Command.DatabaseInstance
 {
     public record DeleteDatabaseCommand(Guid Id) : ICommand;
 
-    public class DeleteDatabaseCommandHandler(KrintDbContext db, IDockerService docker, ISecretsVaultService vault, IActivityLogger activity) : ICommandHandler<DeleteDatabaseCommand>
+    public class DeleteDatabaseCommandHandler(KrintDbContext db, IDockerService docker, ISecretsVaultService vault, IActivityLogger activity, IOptions<KrintOptions> options) : ICommandHandler<DeleteDatabaseCommand>
     {
         public async ValueTask<Unit> Handle(DeleteDatabaseCommand command, CancellationToken cancellationToken)
         {
@@ -19,8 +21,18 @@ namespace KRINT.Application.Command.DatabaseInstance
             try { await docker.RemoveContainerAsync(instance.ContainerId, force: true, cancellationToken); }
             catch { /* container may already be gone */ }
 
+            // We don't know whether THIS instance was provisioned in Volume or HostFolder mode
+            // (settings can change between create and delete), so we try both cleanups. Each is
+            // idempotent / harmless if the target doesn't exist.
             try { await docker.RemoveVolumeAsync(volumeName, force: true, cancellationToken); }
             catch { /* volume may already be gone */ }
+
+            var hostFolder = options.Value.Storage.TryResolveHostFolderForContainer(instance.ContainerName);
+            if (hostFolder is not null && Directory.Exists(hostFolder))
+            {
+                try { Directory.Delete(hostFolder, recursive: true); }
+                catch { /* not accessible from this process; user can clean up manually */ }
+            }
 
             await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken);
 

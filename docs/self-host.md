@@ -153,9 +153,28 @@ To pin a version, replace `:latest` with a tag. See https://github.com/PianoNic/
 | `postgres-data` volume  | KRINT's metadata DB + Keycloak's DB (users, sessions, realm config).                                            |
 | `keycloak-data` volume  | Keycloak's writeable state (kept separately from the DB).                                                       |
 | `./backups/` (bind)     | Dumps written by **Backups** for instances that support `pg_dump` / `mysqldump` / `mongodump` / Redis snapshot. Visible directly in your repo folder, gitignored. |
-| *(per-instance volumes)*| Each provisioned engine gets its own auto-named volume (`krint-<engine>-<id>-data`).                            |
+| *(per-instance volumes)*| Each provisioned engine gets its own auto-named volume (`krint-<engine>-<id>-data`) when `storage.mode: Volume` (default).                            |
+| *(per-instance host folders)* | When `storage.mode: HostFolder`, each instance bind-mounts a subdirectory of `storage.host_path` instead — see [Storing instance data on a host folder](#storing-instance-data-on-a-host-folder). |
 
 Back up `postgres-data`, `keycloak-data`, and `./backups/` before any major upgrade. Provisioned-instance volumes are independent and survive `docker compose down` of the KRINT stack.
+
+### Storing instance data on a host folder
+
+By default each provisioned instance lives in a named Docker volume that's invisible to the host filesystem. If you'd rather see and back up the raw data files yourself, switch `krint.yaml`:
+
+```yaml
+krint:
+  storage:
+    mode: HostFolder
+    host_path: /data/krint     # absolute path on the Docker HOST (not in the KRINT container)
+```
+
+After restart, every **new** provision bind-mounts `${host_path}/${containerName}` to the engine's data directory. Existing instances keep whatever they were provisioned with.
+
+Two gotchas:
+
+- **Permissions**: engines like Postgres run as a specific UID inside the container and refuse to start if they can't write to the data directory. Docker handles this automatically for named volumes; for bind mounts it's on you (`chown 999:999 /data/krint`, etc.) the first time you point KRINT at a fresh folder. If a provision fails right after the container starts, check `docker logs`.
+- **Delete cleanup**: KRINT calls `Directory.Delete(...)` on the subfolder when you delete an instance. If KRINT runs inside a container, it can only do that if `${host_path}` is mounted into the KRINT container at the same path — otherwise the subfolder stays behind and you clean it up by hand.
 
 ---
 

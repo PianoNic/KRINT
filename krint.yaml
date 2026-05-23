@@ -1,4 +1,22 @@
 krint:
+  # Where provisioned instances persist their data.
+  #
+  #   mode: Volume      -> each instance gets a named docker volume "krint-{slug}-data".
+  #                        Docker manages the storage; the host doesn't need a preset path.
+  #                        This is the default and matches the historical behaviour.
+  #
+  #   mode: HostFolder  -> bind-mount {host_path}/{containerName} into each container's data
+  #                        directory. Pick this when you want to back up or inspect the
+  #                        on-disk files directly from the host.
+  #
+  # Switching modes only affects NEW provisions; existing instances keep whatever bind
+  # they were created with. When KRINT itself runs inside a container and you want
+  # `Delete instance` to also wipe the host folder, mount {host_path} into the KRINT
+  # container at the same path (otherwise Directory.Delete fails silently and you
+  # remove the subdirectory by hand).
+  storage:
+    mode: Volume
+    # host_path: /data/krint        # required if mode is HostFolder
   port_ranges:
     postgres:     30000-30099
     timescaledb:  30100-30199
