@@ -40,9 +40,47 @@ namespace KRINT.Infrastructure.Services
                 if (raw is long l) total = l;
             }
 
+            var columnInfos = await FetchColumnInfosAsync(conn, table, cancellationToken);
+
             await using var cmd = new NpgsqlCommand($"SELECT * FROM \"{table}\" LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-            return await ReadRowsAsync(reader, total, cancellationToken);
+            return await ReadRowsAsync(reader, total, columnInfos, cancellationToken);
+        }
+
+        private static async Task<IReadOnlyList<ColumnInfo>> FetchColumnInfosAsync(NpgsqlConnection conn, string table, CancellationToken cancellationToken)
+        {
+            // Joining information_schema.columns with pg_constraint (via pg_attribute) so we can
+            // surface IsPrimaryKey + IsGenerated to the UI without per-column round-trips.
+            await using var cmd = new NpgsqlCommand("""
+                SELECT  c.column_name,
+                        c.udt_name,
+                        c.is_nullable = 'YES'                    AS nullable,
+                        COALESCE(pk.is_pk, FALSE)                AS is_pk,
+                        c.is_identity = 'YES' OR c.is_generated <> 'NEVER' AS is_generated
+                FROM    information_schema.columns c
+                LEFT JOIN (
+                    SELECT a.attname AS column_name, TRUE AS is_pk
+                    FROM   pg_index i
+                    JOIN   pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+                    WHERE  i.indrelid = quote_ident(@t)::regclass AND i.indisprimary
+                ) pk ON pk.column_name = c.column_name
+                WHERE  c.table_schema NOT IN ('pg_catalog','information_schema')
+                AND    c.table_name = @t
+                ORDER BY c.ordinal_position;
+            """, conn);
+            cmd.Parameters.AddWithValue("@t", table);
+            var results = new List<ColumnInfo>();
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                results.Add(new ColumnInfo(
+                    Name: reader.GetString(0),
+                    Type: reader.GetString(1),
+                    Nullable: reader.GetBoolean(2),
+                    IsPrimaryKey: reader.GetBoolean(3),
+                    IsGenerated: reader.GetBoolean(4)));
+            }
+            return results;
         }
 
         public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
@@ -184,7 +222,7 @@ namespace KRINT.Infrastructure.Services
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        private static async Task<TableRows> ReadRowsAsync(NpgsqlDataReader reader, long? total, CancellationToken cancellationToken)
+        private static async Task<TableRows> ReadRowsAsync(NpgsqlDataReader reader, long? total, IReadOnlyList<ColumnInfo>? columnInfos, CancellationToken cancellationToken)
         {
             var columns = new List<string>();
             for (var i = 0; i < reader.FieldCount; i++) columns.Add(reader.GetName(i));
@@ -200,7 +238,7 @@ namespace KRINT.Infrastructure.Services
                 }
                 rows.Add(row);
             }
-            return new TableRows(columns, rows, total);
+            return new TableRows(columns, rows, total, columnInfos);
         }
 
         private static async Task<NpgsqlConnection> OpenAsync(InnerDatabaseTarget target, string database, CancellationToken cancellationToken)

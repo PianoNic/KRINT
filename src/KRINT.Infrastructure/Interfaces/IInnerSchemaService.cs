@@ -2,7 +2,16 @@ namespace KRINT.Infrastructure.Interfaces
 {
     public record TableSummary(string Name, string Kind /* "table" | "view" | "collection" */);
 
-    public record TableRows(IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<string?>> Rows, long? TotalCount);
+    /// <summary>Per-column metadata so the UI can render type-aware inputs and know which
+    /// columns to mark read-only. Engines that can't or don't populate this leave it null on
+    /// TableRows; the frontend falls back to its hardcoded protected-column list in that case.</summary>
+    public record ColumnInfo(string Name, string Type, bool Nullable, bool IsPrimaryKey, bool IsGenerated);
+
+    public record TableRows(
+        IReadOnlyList<string> Columns,
+        IReadOnlyList<IReadOnlyList<string?>> Rows,
+        long? TotalCount,
+        IReadOnlyList<ColumnInfo>? ColumnInfos = null);
 
     /// <summary>
     /// Identifies a single row by the values it had when it was last read. Same column order as TableRows.Columns.

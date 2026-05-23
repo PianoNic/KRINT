@@ -43,6 +43,8 @@ namespace KRINT.Infrastructure.Services
                 if (raw is not null && raw is not DBNull) total = Convert.ToInt64(raw, CultureInfo.InvariantCulture);
             }
 
+            var columnInfos = await FetchColumnInfosAsync(conn, database, table, cancellationToken);
+
             await using var cmd = new MySqlCommand($"SELECT * FROM `{table}` LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -60,7 +62,35 @@ namespace KRINT.Infrastructure.Services
                 }
                 rows.Add(row);
             }
-            return new TableRows(columns, rows, total);
+            return new TableRows(columns, rows, total, columnInfos);
+        }
+
+        private static async Task<IReadOnlyList<ColumnInfo>> FetchColumnInfosAsync(MySqlConnection conn, string database, string table, CancellationToken cancellationToken)
+        {
+            await using var cmd = new MySqlCommand("""
+                SELECT  column_name,
+                        column_type,
+                        is_nullable = 'YES'                                  AS nullable,
+                        column_key = 'PRI'                                   AS is_pk,
+                        extra LIKE '%auto_increment%' OR extra LIKE '%GENERATED%' AS is_generated
+                FROM    information_schema.columns
+                WHERE   table_schema = @s AND table_name = @t
+                ORDER BY ordinal_position;
+            """, conn);
+            cmd.Parameters.AddWithValue("@s", database);
+            cmd.Parameters.AddWithValue("@t", table);
+            var results = new List<ColumnInfo>();
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                results.Add(new ColumnInfo(
+                    Name: reader.GetString(0),
+                    Type: reader.GetString(1),
+                    Nullable: reader.GetBoolean(2),
+                    IsPrimaryKey: reader.GetBoolean(3),
+                    IsGenerated: reader.GetBoolean(4)));
+            }
+            return results;
         }
 
         public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)

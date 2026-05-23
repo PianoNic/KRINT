@@ -7,12 +7,14 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
+import { ColumnInfoDto } from './columnInfoDto';
 import { TableRowsDtoTotalCount } from './tableRowsDtoTotalCount';
 
 
-export interface TableRowsDto { 
+export interface TableRowsDto {
     columns: Array<string>;
     rows: Array<Array<string>>;
     totalCount?: TableRowsDtoTotalCount | null;
+    columnInfos?: Array<ColumnInfoDto> | null;
 }
 
