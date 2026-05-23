@@ -7,6 +7,7 @@ import { Create } from './create/create';
 import { Browser } from './browser/browser';
 import { Backups } from './backups/backups';
 import { Activity } from './activity/activity';
+import { Console } from './console/console';
 import { Settings } from './settings/settings';
 
 export const routes: Routes = [
@@ -22,6 +23,7 @@ export const routes: Routes = [
       // Standalone /query was folded into /browser as a tab in the right pane.
       { path: 'query', redirectTo: 'browser' },
       { path: 'backups', component: Backups },
+      { path: 'console', component: Console },
       { path: 'activity', component: Activity },
       { path: 'settings', component: Settings },
       // legacy alias

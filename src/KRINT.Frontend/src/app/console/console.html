@@ -1,0 +1,82 @@
+<app-content-header />
+
+<section class="grid flex-1 min-h-0 grid-cols-[260px_1fr] grid-rows-[minmax(0,1fr)] gap-0 border-t">
+  <!-- ===== Left rail: instance picker (mirrors Browser) ===== -->
+  <aside class="border-r flex flex-col overflow-hidden min-h-0">
+    <header class="flex items-center justify-between px-3 py-2 border-b">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wide">Instances</span>
+        <span hlmBadge variant="secondary" class="px-1.5 py-0 text-[10px]">{{ instances().length }}</span>
+      </div>
+      <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" aria-label="Restart stream" hlmTooltip="Restart stream" (click)="refresh()">
+        <ng-icon name="lucideRefreshCw" size="14" />
+      </button>
+    </header>
+    <ul class="flex-1 overflow-y-auto">
+      @for (i of instances(); track i.id) {
+        <li>
+          <button
+            type="button"
+            class="hover:bg-muted/60 relative flex w-full items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors"
+            [class.border-primary]="i.id === instanceId()"
+            [class.bg-muted]="i.id === instanceId()"
+            [class.border-transparent]="i.id !== instanceId()"
+            (click)="selectInstance(i.id)"
+          >
+            <ng-icon [name]="engineIcon(i.engine)" size="18" class="mt-0.5 shrink-0" />
+            <div class="flex min-w-0 flex-1 flex-col">
+              <span class="truncate text-sm font-medium">{{ i.displayName }}</span>
+              <span class="text-muted-foreground truncate font-mono text-[11px]">{{ instanceUrl(i) }}</span>
+            </div>
+            <span hlmBadge variant="secondary" class="shrink-0 px-1.5 py-0 text-[10px] uppercase">{{ i.engine }}</span>
+          </button>
+        </li>
+      }
+      @if (instances().length === 0) {
+        <li class="text-muted-foreground p-4 text-center text-xs">No instances yet.</li>
+      }
+    </ul>
+  </aside>
+
+  <!-- ===== Right pane: Logs / Exec tabs ===== -->
+  <div class="flex min-h-0 min-w-0 flex-col overflow-hidden">
+    @if (!instanceId()) {
+      <p class="text-muted-foreground p-8 text-center text-sm">Pick an instance to view its container.</p>
+    } @else {
+      <!-- Header bar lives outside hlm-tabs so the tab content can claim 100% of the
+           remaining vertical space without the header eating into the xterm canvas. -->
+      <div class="flex items-center justify-between border-b px-3 py-2">
+        <div class="flex items-center gap-1">
+          <button hlmBtn type="button" size="sm" [variant]="activeTab() === 'logs' ? 'secondary' : 'ghost'" (click)="setTab('logs')">Logs</button>
+          <button hlmBtn type="button" size="sm" [variant]="activeTab() === 'exec' ? 'secondary' : 'ghost'" (click)="setTab('exec')">Exec</button>
+        </div>
+        <div class="flex items-center gap-2">
+          @if (activeTab() === 'logs') {
+            <span class="text-muted-foreground text-[11px] uppercase tracking-wide">{{ logsStatus() }}</span>
+            <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" [hlmTooltip]="logsPaused() ? 'Resume' : 'Pause'" (click)="togglePause()">
+              <ng-icon [name]="logsPaused() ? 'lucidePlay' : 'lucidePause'" size="14" />
+            </button>
+            <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" hlmTooltip="Clear" (click)="clearLogs()">
+              <ng-icon name="lucideEraser" size="14" />
+            </button>
+          } @else {
+            <span class="text-muted-foreground text-[11px] uppercase tracking-wide">{{ execStatus() }}</span>
+            <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" hlmTooltip="Restart shell" (click)="refresh()">
+              <ng-icon name="lucideRefreshCw" size="14" />
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- The xterm host fills whatever's left below the header. Switching tabs remounts
+           the relevant terminal; the effect in console.ts tears down the old one first. -->
+      <div class="relative flex-1 min-h-0 bg-[#0a0a0a]">
+        @if (activeTab() === 'logs') {
+          <div #logsContainer class="absolute inset-0"></div>
+        } @else {
+          <div #execContainer class="absolute inset-0"></div>
+        }
+      </div>
+    }
+  </div>
+</section>
