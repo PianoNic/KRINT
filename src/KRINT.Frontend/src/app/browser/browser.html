@@ -201,29 +201,33 @@
                   <tr hlmTableRow class="bg-primary/5">
                     @for (c of r.columns; track c; let colIdx = $index) {
                       <td hlmTableCell class="font-mono text-xs">
-                        <div class="flex items-center gap-1">
-                          <input
-                            hlmInput
-                            class="h-7 flex-1 font-mono text-xs"
-                            [value]="draftValue(colIdx)"
-                            [disabled]="isDraftNull(colIdx) || saving()"
-                            [placeholder]="isDraftNull(colIdx) ? 'NULL' : c"
-                            (input)="updateDraft(colIdx, $any($event.target).value)"
-                          />
-                          <button
-                            hlmBtn
-                            variant="ghost"
-                            size="icon"
-                            type="button"
-                            class="h-7 w-7 shrink-0"
-                            [attr.aria-label]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
-                            [hlmTooltip]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
-                            [disabled]="saving()"
-                            (click)="toggleDraftNull(colIdx)"
-                          >
-                            <span class="text-[10px]">∅</span>
-                          </button>
-                        </div>
+                        @if (isProtectedColumn(colIdx)) {
+                          <span class="text-muted-foreground italic">auto</span>
+                        } @else {
+                          <div class="flex items-center gap-1">
+                            <input
+                              hlmInput
+                              class="h-7 flex-1 font-mono text-xs"
+                              [value]="draftValue(colIdx)"
+                              [disabled]="isDraftNull(colIdx) || saving()"
+                              [placeholder]="isDraftNull(colIdx) ? 'NULL' : c"
+                              (input)="updateDraft(colIdx, $any($event.target).value)"
+                            />
+                            <button
+                              hlmBtn
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              class="h-7 w-7 shrink-0"
+                              [attr.aria-label]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                              [hlmTooltip]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                              [disabled]="saving()"
+                              (click)="toggleDraftNull(colIdx)"
+                            >
+                              <span class="text-[10px]">∅</span>
+                            </button>
+                          </div>
+                        }
                       </td>
                     }
                     <td hlmTableCell class="text-right">
@@ -247,29 +251,33 @@
                     @if (editingIndex() === rowIdx) {
                       @for (cell of row; track $index; let colIdx = $index) {
                         <td hlmTableCell class="font-mono text-xs">
-                          <div class="flex items-center gap-1">
-                            <input
-                              hlmInput
-                              class="h-7 flex-1 font-mono text-xs"
-                              [value]="draftValue(colIdx)"
-                              [disabled]="isDraftNull(colIdx) || saving()"
-                              [placeholder]="isDraftNull(colIdx) ? 'NULL' : ''"
-                              (input)="updateDraft(colIdx, $any($event.target).value)"
-                            />
-                            <button
-                              hlmBtn
-                              variant="ghost"
-                              size="icon"
-                              type="button"
-                              class="h-7 w-7 shrink-0"
-                              [attr.aria-label]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
-                              [hlmTooltip]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
-                              [disabled]="saving()"
-                              (click)="toggleDraftNull(colIdx)"
-                            >
-                              <span class="text-[10px]">∅</span>
-                            </button>
-                          </div>
+                          @if (isProtectedColumn(colIdx)) {
+                            <span class="text-muted-foreground">{{ cell }}</span>
+                          } @else {
+                            <div class="flex items-center gap-1">
+                              <input
+                                hlmInput
+                                class="h-7 flex-1 font-mono text-xs"
+                                [value]="draftValue(colIdx)"
+                                [disabled]="isDraftNull(colIdx) || saving()"
+                                [placeholder]="isDraftNull(colIdx) ? 'NULL' : ''"
+                                (input)="updateDraft(colIdx, $any($event.target).value)"
+                              />
+                              <button
+                                hlmBtn
+                                variant="ghost"
+                                size="icon"
+                                type="button"
+                                class="h-7 w-7 shrink-0"
+                                [attr.aria-label]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                                [hlmTooltip]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
+                                [disabled]="saving()"
+                                (click)="toggleDraftNull(colIdx)"
+                              >
+                                <span class="text-[10px]">∅</span>
+                              </button>
+                            </div>
+                          }
                         </td>
                       }
                       <td hlmTableCell class="text-right">
