@@ -8,7 +8,7 @@
         <span class="text-xs font-semibold uppercase tracking-wide">Instances</span>
         <span hlmBadge variant="secondary" class="px-1.5 py-0 text-[10px]">{{ instances().length }}</span>
       </div>
-      <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" aria-label="Refresh instances" hlmTooltip="Refresh" (click)="reloadInstances()">
+      <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" aria-label="Refresh instances, databases, and entities" hlmTooltip="Refresh" (click)="refreshAll()">
         <ng-icon name="lucideRefreshCw" size="14" />
       </button>
     </header>

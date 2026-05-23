@@ -231,6 +231,22 @@ export class Browser {
     });
   }
 
+  /** Refresh the whole left rail: instances, databases for the selected instance, and
+   *  entities for the selected database. Used by the header refresh button so one click
+   *  rehydrates everything visible. */
+  protected refreshAll(): void {
+    this.reloadInstances();
+    const id = this.instanceId();
+    if (!id) return;
+    this.loading.set(true);
+    this.api.apiDatabaseIdDatabasesGet(id).subscribe({
+      next: (dbs) => { this.databases.set(dbs); this.loading.set(false); },
+      error: (err) => { this.error.set(messageOf(err)); this.loading.set(false); },
+    });
+    const db = this.database();
+    if (db) this.refreshTables(id, db);
+  }
+
   protected instanceUrl(i: DatabaseInstanceDto): string {
     return `${i.host}:${i.port}/${i.databaseName}`;
   }
