@@ -306,6 +306,9 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
                         <span class="inline-flex items-center gap-2 leading-none">
                           <ng-icon [name]="engineIcon(e.engine)" size="16" class="shrink-0" />
                           <span class="text-sm">{{ e.engine }}</span>
+                          @if (e.engineVersion) {
+                            <span hlmBadge variant="secondary" class="px-1.5 py-0 font-mono text-[10px]">{{ e.engineVersion }}</span>
+                          }
                         </span>
                       </td>
                       <td hlmTableCell class="font-mono text-xs">{{ instanceNameFor(e.instanceId) }}</td>

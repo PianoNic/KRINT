@@ -33,6 +33,7 @@ namespace KRINT.Application.Command.Backup
             {
                 InstanceId = instance.Id,
                 Engine = instance.Engine,
+                EngineVersion = instance.Version,
                 FileName = fileName,
                 FilePath = fullPath,
                 SizeBytes = command.Content.LongLength,
