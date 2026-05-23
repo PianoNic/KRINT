@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using Docker.DotNet.Models;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -422,34 +420,42 @@ namespace KRINT.Application.Command.Database
         {
             var range = _options.GetPortRange(engine);
 
-            var used = await db.DatabaseInstances
+            // 1) Ports KRINT already recorded as in-use for this engine.
+            var usedInDb = await db.DatabaseInstances
                 .Where(d => d.Engine == engine && d.Port >= range.Start && d.Port <= range.End)
                 .Select(d => d.Port)
                 .ToHashSetAsync(cancellationToken);
 
+            // 2) Ports actually published by any container on the Docker host - covers orphans
+            //    left over from a wiped krint DB, prior deploys, or anything else binding a port
+            //    in the configured range. Binding TcpListener on 127.0.0.1 from inside the krint
+            //    container would only check the container's own loopback, not the host, so this
+            //    Docker-level inspection is the only reliable signal.
+            var dockerPorts = await GetPublishedHostPortsAsync(cancellationToken);
+
             for (var port = range.Start; port <= range.End; port++)
             {
-                if (used.Contains(port)) continue;
-                if (!IsPortFree(port)) continue;
+                if (usedInDb.Contains(port)) continue;
+                if (dockerPorts.Contains(port)) continue;
                 return port;
             }
 
             throw new InvalidOperationException($"No free host port in range {range.Start}-{range.End} for engine '{engine}'.");
         }
 
-        private static bool IsPortFree(int port)
+        private async Task<HashSet<int>> GetPublishedHostPortsAsync(CancellationToken cancellationToken)
         {
-            try
+            var taken = new HashSet<int>();
+            var containers = await docker.ListContainersAsync(all: true, cancellationToken);
+            foreach (var c in containers)
             {
-                using var listener = new TcpListener(IPAddress.Loopback, port);
-                listener.Start();
-                listener.Stop();
-                return true;
+                if (c.Ports == null) continue;
+                foreach (var p in c.Ports)
+                {
+                    if (p.PublicPort != 0) taken.Add((int)p.PublicPort);
+                }
             }
-            catch (SocketException)
-            {
-                return false;
-            }
+            return taken;
         }
     }
 }
