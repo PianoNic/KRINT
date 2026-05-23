@@ -80,32 +80,34 @@ export const QUERY_SUPPORTED_ENGINES = new Set<string>([
           </div>
 
           @if (r.columns.length > 0) {
-            <div hlmTable class="text-xs">
-              <div hlmTHead>
-                <div hlmTr>
-                  @for (c of r.columns; track c.name) {
-                    <div hlmTh class="font-mono">
-                      {{ c.name }}
-                      <span class="text-muted-foreground">({{ c.typeName }})</span>
-                    </div>
-                  }
-                </div>
-              </div>
-              <div hlmTBody>
-                @for (row of r.rows; track $index) {
-                  <div hlmTr>
-                    @for (cell of row; track $index) {
-                      <div hlmTd class="font-mono">
-                        @if (cell === null) {
-                          <span class="text-muted-foreground italic">NULL</span>
-                        } @else {
-                          {{ cell }}
-                        }
-                      </div>
+            <div class="border-input overflow-x-auto rounded-md border">
+              <table hlmTable class="text-xs">
+                <thead hlmTableHeader>
+                  <tr hlmTableRow>
+                    @for (c of r.columns; track c.name) {
+                      <th hlmTableHead class="font-mono whitespace-nowrap">
+                        {{ c.name }}
+                        <span class="text-muted-foreground">({{ c.typeName }})</span>
+                      </th>
                     }
-                  </div>
-                }
-              </div>
+                  </tr>
+                </thead>
+                <tbody hlmTableBody>
+                  @for (row of r.rows; track $index) {
+                    <tr hlmTableRow>
+                      @for (cell of row; track $index) {
+                        <td hlmTableCell class="font-mono whitespace-nowrap align-top">
+                          @if (cell === null) {
+                            <span class="text-muted-foreground italic">NULL</span>
+                          } @else {
+                            {{ cell }}
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
           }
         }
