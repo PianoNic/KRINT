@@ -58,21 +58,6 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 - **TUnit** + **Microsoft.Playwright** for end-to-end tests against a live stack
 - **OpenAPI** at `/openapi/v1.json`; the Angular client is regenerated via `bun run apigen`
 
-## Project layout
-
-```
-src/
-├── KRINT.API/             ASP.NET Core entry point, controllers, Dockerfile
-├── KRINT.Application/     Commands, queries, DTOs (Mediator handlers)
-├── KRINT.Domain/          Entities, value objects, domain rules
-├── KRINT.Infrastructure/  Docker, per-engine inner services, persistence, secrets vault
-├── KRINT.Frontend/        Angular 21 SPA
-└── KRINT.Tests/           TUnit + Playwright E2E
-keycloak/                  Custom theme (Keycloakify) + realm config
-```
-
-Dependencies flow inward: `API -> Application -> Domain`. `Infrastructure` implements interfaces declared in `Application` / `Domain`.
-
 ## Getting started
 
 ### Prerequisites
