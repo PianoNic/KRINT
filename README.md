@@ -14,7 +14,7 @@
 
 ---
 
-> **Heads up:** KRINT is under active development. The main branch builds end-to-end and the 15 supported engines provision cleanly, but features land here before they're documented.
+> **Heads up:** KRINT is in early development. Expect rough edges and breaking changes between versions.
 
 ## What is KRINT?
 
@@ -22,14 +22,13 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 
 ## Features
 
-- **15 supported engines** out of the box - PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Elasticsearch, Qdrant.
-- **Plugin store** - opt-in extensions during provision: pgvector / PostGIS / pg_trgm for Postgres, Redis Stack modules, APOC / Graph Data Science for Neo4j, and more.
-- **Row browser** - list, edit, insert, delete rows across SQL engines; document/keyspace browsing for Mongo, Cassandra, Redis, Couchbase, etc.
-- **Query console** - lives on the Browser page as a second tab, pre-scoped to the currently-selected instance + database. Runs ad-hoc SQL against Postgres, MySQL/MariaDB, SQL Server, CockroachDB, TimescaleDB, pgvector, ClickHouse. Ctrl/Cmd+Enter to fire, row cap built in.
-- **Backups + scheduling** - manual or cron-scheduled; download as a file or restore in place. UTC-aware cron with friendly presets.
-- **User & access management** - create logins, reset passwords, grant access per logical database.
-- **OIDC / Keycloak** auth out of the box (admin/admin in the bundled dev realm).
-- **Capability-aware UI** - engines without a concept of "users" or "rows" simply don't show those controls.
+- **15 engines** — PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Elasticsearch, Qdrant.
+- **Plugins** — pgvector, PostGIS, pg_trgm, Redis Stack, APOC, Graph Data Science, and more, opt-in at provision time.
+- **Browse & query** — row/document browser plus an ad-hoc SQL console for the SQL engines (Ctrl/Cmd+Enter to run).
+- **Backups** — manual or cron-scheduled; download or restore in place.
+- **Users & access** — create logins, reset passwords, grant per-database access.
+- **OIDC auth** — bring your own provider or use the bundled Keycloak.
+- **Capability-aware UI** — engines without "users" or "rows" simply don't show those controls.
 
 ## Screenshots
 
