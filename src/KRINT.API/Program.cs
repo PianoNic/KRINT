@@ -65,10 +65,6 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.Wi
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        // In Docker the API talks to Keycloak via the compose network (http://keycloak:8080),
-        // but browsers see it on the public URL (http://localhost:8080). Tokens are issued with
-        // the public URL as iss, so MetadataAddress points at the internal URL for key fetch,
-        // while ValidIssuer is pinned to the public URL the browser used.
         var publicAuthority = builder.Configuration["Oidc:Authority"];
         var internalAuthority = builder.Configuration["Oidc:InternalAuthority"] ?? publicAuthority;
         options.MetadataAddress = $"{internalAuthority!.TrimEnd('/')}/.well-known/openid-configuration";
@@ -78,9 +74,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters.RoleClaimType = "roles";
         options.TokenValidationParameters.ValidateAudience = false;
 
-        // Browsers can't set Authorization headers on the WebSocket handshake. The standard
-        // SignalR pattern is for the JS client to put the access token on the query string,
-        // which we hoist back onto the request here.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -135,11 +128,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
+app.MapHub<DashboardHub>("/hubs/dashboard").RequireAuthorization();
 
-// The Dockerfile copies the Angular dist/browser contents directly into wwwroot, so
-// index.html sits at /app/wwwroot/index.html in the image. AllowAnonymous is required
-// because the global FallbackPolicy would otherwise 401 the SPA shell before the user
-// has had a chance to authenticate via Keycloak.
 if (app.Environment.IsProduction())
     app.MapFallbackToFile("index.html").AllowAnonymous();
 

@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
+import { DashboardHubService } from './dashboard-hub.service';
 import { lucideCircleCheckBig, lucideCpu, lucideDatabase, lucideMemoryStick, lucidePlus, lucideRefreshCw } from '@ng-icons/lucide';
 import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -59,6 +60,12 @@ import { DashboardStatsDto } from '../api/model/dashboardStatsDto';
           <p class="text-muted-foreground text-sm">One click. One key. Your database is ready.</p>
         </div>
         <div class="flex items-center gap-2">
+          @if (live()) {
+            <span hlmBadge variant="secondary" class="gap-1.5">
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live
+            </span>
+          }
           <a hlmBtn size="sm" routerLink="/create">
             <ng-icon name="lucidePlus" size="16" />
             Create
@@ -166,11 +173,14 @@ import { DashboardStatsDto } from '../api/model/dashboardStatsDto';
     </section>
   `,
 })
-export class Home {
+export class Home implements OnDestroy {
   private readonly api = inject(DashboardService);
+  private readonly hub = inject(DashboardHubService);
+  private streamSub: { dispose(): void } | null = null;
 
   protected readonly stats = signal<DashboardStatsDto | null>(null);
   protected readonly loading = signal(false);
+  protected readonly live = signal(false);
   protected readonly error = signal<string | null>(null);
 
   // The OpenAPI generator wraps int/long behind opaque interfaces (TotalInstances,
@@ -185,7 +195,16 @@ export class Home {
   });
 
   constructor() {
+    // Show something immediately via the one-shot REST call so the page doesn't sit blank
+    // while the hub negotiates. The stream then takes over and overwrites with fresh data.
     this.reload();
+    void this.startStream();
+  }
+
+  ngOnDestroy(): void {
+    try { this.streamSub?.dispose(); } catch { /* already gone */ }
+    this.streamSub = null;
+    void this.hub.stop();
   }
 
   protected reload(): void {
@@ -198,6 +217,21 @@ export class Home {
         this.loading.set(false);
       },
     });
+  }
+
+  private async startStream(): Promise<void> {
+    try {
+      const conn = await this.hub.getConnection();
+      const stream = conn.stream<DashboardStatsDto>('StreamStats', 2500);
+      this.streamSub = stream.subscribe({
+        next: (snapshot) => { this.stats.set(snapshot); this.live.set(true); this.error.set(null); },
+        error: () => this.live.set(false),
+        complete: () => this.live.set(false),
+      });
+    } catch {
+      // Hub unreachable — leave the REST snapshot in place. The manual Refresh button still works.
+      this.live.set(false);
+    }
   }
 
   protected engineIcon(engine: string): string {
