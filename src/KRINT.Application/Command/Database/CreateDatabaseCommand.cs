@@ -156,7 +156,7 @@ namespace KRINT.Application.Command.Database
             }
         }
 
-        private record EngineSpec(
+        internal record EngineSpec(
             string Image,
             string ShortName,
             int InternalPort,
@@ -167,7 +167,7 @@ namespace KRINT.Application.Command.Database
             // so we explicitly pass `--requirepass <pw>` as the container command.
             Func<string, IList<string>?>? CmdFactory = null);
 
-        private static EngineSpec ResolveEngineSpec(string engine, string version)
+        internal static EngineSpec ResolveEngineSpec(string engine, string version)
         {
             switch (engine)
             {
@@ -242,7 +242,7 @@ namespace KRINT.Application.Command.Database
         // pgvector/pgvector tags are pg<major>. The user picks an upstream Postgres version
         // (e.g. "18.4" or "18"); we extract the major and produce "pg18". If the user already
         // typed something pg-shaped (e.g. "pg17") we pass it through unchanged.
-        private static string PgVectorTagFor(string postgresVersion)
+        internal static string PgVectorTagFor(string postgresVersion)
         {
             if (postgresVersion.StartsWith("pg", StringComparison.OrdinalIgnoreCase))
                 return postgresVersion;
@@ -257,7 +257,7 @@ namespace KRINT.Application.Command.Database
             return requested;
         }
 
-        private static List<string> BuildEnv(string engine, string password, string databaseName, string defaultDatabaseName)
+        internal static List<string> BuildEnv(string engine, string password, string databaseName, string defaultDatabaseName)
         {
             switch (engine)
             {

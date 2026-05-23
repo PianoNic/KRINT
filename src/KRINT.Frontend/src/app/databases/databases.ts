@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideBrain, lucideDatabase, lucideEllipsisVertical, lucideEye, lucidePencil, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
+import { lucideArrowUpCircle, lucideBrain, lucideDatabase, lucideEllipsisVertical, lucideEye, lucidePencil, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -17,6 +17,7 @@ import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { DatabaseDetailsDialog } from './database-details-dialog';
 import { DatabaseEditDialog } from './database-edit-dialog';
+import { DatabaseUpgradeDialog } from './database-upgrade-dialog';
 
 @Component({
   selector: 'app-databases',
@@ -33,6 +34,7 @@ import { DatabaseEditDialog } from './database-edit-dialog';
   ],
   providers: [
     provideIcons({
+      lucideArrowUpCircle,
       lucideBrain,
       lucideDatabase,
       lucideEllipsisVertical,
@@ -76,6 +78,13 @@ export class Databases {
     this.dialog.open(DatabaseEditDialog, {
       context: { id: db.id, engine: db.engine, containerName: db.containerName, displayName: db.displayName },
       contentClass: 'sm:max-w-[640px]',
+    });
+  }
+
+  protected upgradeInstance(db: DatabaseInstanceDto): void {
+    this.dialog.open(DatabaseUpgradeDialog, {
+      context: { id: db.id, engine: db.engine, containerName: db.containerName, currentVersion: db.version },
+      contentClass: 'sm:max-w-[480px]',
     });
   }
 

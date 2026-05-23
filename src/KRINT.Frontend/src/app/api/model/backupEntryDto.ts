@@ -10,7 +10,7 @@
 import { BackupEntryDtoSizeBytes } from './backupEntryDtoSizeBytes';
 
 
-export interface BackupEntryDto {
+export interface BackupEntryDto { 
     id: string;
     instanceId: string;
     engine: string;

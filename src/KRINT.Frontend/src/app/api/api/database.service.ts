@@ -60,6 +60,8 @@ import { TableRowsDto } from '../model/tableRowsDto';
 import { TableSummaryDto } from '../model/tableSummaryDto';
 // @ts-ignore
 import { UpdateRowDto } from '../model/updateRowDto';
+// @ts-ignore
+import { UpgradeDatabaseDto } from '../model/upgradeDatabaseDto';
 
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS }                     from '../variables';
@@ -1154,6 +1156,82 @@ export class DatabaseService extends BaseService {
             {
                 context: localVarHttpContext,
                 body: runQueryRequestDto,
+                responseType: <any>responseType_,
+                ...(withCredentials ? { withCredentials } : {}),
+                headers: localVarHeaders,
+                observe: observe,
+                ...(localVarTransferCache !== undefined ? { transferCache: localVarTransferCache } : {}),
+                reportProgress: reportProgress
+            }
+        );
+    }
+
+    /**
+     * @endpoint post /api/Database/{id}/upgrade
+     * @param id 
+     * @param upgradeDatabaseDto 
+     * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+     * @param reportProgress flag to report request and response progress.
+     * @param options additional options
+     */
+    public apiDatabaseIdUpgradePost(id: string, upgradeDatabaseDto: UpgradeDatabaseDto, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<DatabaseInstanceDto>;
+    public apiDatabaseIdUpgradePost(id: string, upgradeDatabaseDto: UpgradeDatabaseDto, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<DatabaseInstanceDto>>;
+    public apiDatabaseIdUpgradePost(id: string, upgradeDatabaseDto: UpgradeDatabaseDto, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<DatabaseInstanceDto>>;
+    public apiDatabaseIdUpgradePost(id: string, upgradeDatabaseDto: UpgradeDatabaseDto, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        if (id === null || id === undefined) {
+            throw new Error('Required parameter id was null or undefined when calling apiDatabaseIdUpgradePost.');
+        }
+        if (upgradeDatabaseDto === null || upgradeDatabaseDto === undefined) {
+            throw new Error('Required parameter upgradeDatabaseDto was null or undefined when calling apiDatabaseIdUpgradePost.');
+        }
+
+        let localVarHeaders = this.defaultHeaders;
+
+        // authentication (OAuth2) required
+        localVarHeaders = this.configuration.addCredentialToHeaders('OAuth2', 'Authorization', localVarHeaders, 'Bearer ');
+
+        const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
+            'text/plain',
+            'application/json',
+            'text/json'
+        ]);
+        if (localVarHttpHeaderAcceptSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Accept', localVarHttpHeaderAcceptSelected);
+        }
+
+        const localVarHttpContext: HttpContext = options?.context ?? new HttpContext();
+
+        const localVarTransferCache: boolean = options?.transferCache ?? true;
+
+
+        // to determine the Content-Type header
+        const consumes: string[] = [
+            'application/json',
+            'text/json',
+            'application/*+json'
+        ];
+        const httpContentTypeSelected: string | undefined = this.configuration.selectHeaderContentType(consumes);
+        if (httpContentTypeSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Content-Type', httpContentTypeSelected);
+        }
+
+        let responseType_: 'text' | 'json' | 'blob' = 'json';
+        if (localVarHttpHeaderAcceptSelected) {
+            if (localVarHttpHeaderAcceptSelected.startsWith('text')) {
+                responseType_ = 'text';
+            } else if (this.configuration.isJsonMime(localVarHttpHeaderAcceptSelected)) {
+                responseType_ = 'json';
+            } else {
+                responseType_ = 'blob';
+            }
+        }
+
+        let localVarPath = `/api/Database/${this.configuration.encodeParam({name: "id", value: id, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: "uuid"})}/upgrade`;
+        const { basePath, withCredentials } = this.configuration;
+        return this.httpClient.request<DatabaseInstanceDto>('post', `${basePath}${localVarPath}`,
+            {
+                context: localVarHttpContext,
+                body: upgradeDatabaseDto,
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,

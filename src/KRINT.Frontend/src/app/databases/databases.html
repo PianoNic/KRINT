@@ -88,6 +88,10 @@
                         <ng-icon name="lucidePencil" />
                         Edit
                       </button>
+                      <button hlmDropdownMenuItem (click)="upgradeInstance(db)">
+                        <ng-icon name="lucideArrowUpCircle" />
+                        Upgrade version
+                      </button>
                       <hlm-dropdown-menu-separator />
                       <button hlmDropdownMenuItem (click)="deleteInstance(db)">
                         <ng-icon name="lucideTrash2" />
