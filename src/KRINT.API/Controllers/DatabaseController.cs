@@ -375,6 +375,24 @@ namespace KRINT.API.Controllers
             catch (InvalidOperationException ex) { return Conflict(new { error = ex.Message }); }
         }
 
+        [HttpPatch("{id:guid}/browse/{database}/tables/{table}/rows/bulk")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> BulkUpdateTableRows(Guid id, string database, string table, [FromBody] BulkUpdateRowsDto body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new BulkUpdateTableRowsCommand(id, database, table, body), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return Conflict(new { error = ex.Message }); }
+        }
+
         [HttpPost("{id:guid}/users/{name}/reset-password")]
         [ProducesResponseType(typeof(InnerUserPasswordDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

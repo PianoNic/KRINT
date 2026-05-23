@@ -89,6 +89,30 @@ namespace KRINT.Infrastructure.Services
             InnerDatabaseNameValidator.Require(table);
             UpdateRowRequestValidator.Require(request);
 
+            await using var conn = await OpenAsync(target, database, cancellationToken);
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            await ApplyUpdateAsync(conn, tx, table, request, cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+
+        /// <summary>Wraps every row update in a single transaction so the user's Save is
+        /// all-or-nothing: any per-row failure rolls back the whole batch.</summary>
+        public async Task BulkUpdateRowsAsync(InnerDatabaseTarget target, string database, string table, BulkUpdateRowsRequest request, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            InnerDatabaseNameValidator.Require(table);
+            if (request.Updates.Count == 0) return;
+            foreach (var u in request.Updates) UpdateRowRequestValidator.Require(u);
+
+            await using var conn = await OpenAsync(target, database, cancellationToken);
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            foreach (var update in request.Updates)
+                await ApplyUpdateAsync(conn, tx, table, update, cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+
+        private static async Task ApplyUpdateAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string table, UpdateRowRequest request, CancellationToken cancellationToken)
+        {
             var changedIndexes = new List<int>();
             for (var i = 0; i < request.Columns.Count; i++)
             {
@@ -96,9 +120,6 @@ namespace KRINT.Infrastructure.Services
                     changedIndexes.Add(i);
             }
             if (changedIndexes.Count == 0) return;
-
-            await using var conn = await OpenAsync(target, database, cancellationToken);
-            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
 
             var setClauses = new List<string>();
             var whereClauses = new List<string>();
@@ -132,7 +153,7 @@ namespace KRINT.Infrastructure.Services
                               $"WHERE ctid = (SELECT ctid FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2)";
 
             // Two-step strategy: peek matches first to enforce "exactly one row".
-            await using (var countCmd = new NpgsqlCommand( $"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
+            await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
             {
                 foreach (NpgsqlParameter param in cmd.Parameters)
                 {
@@ -147,7 +168,6 @@ namespace KRINT.Infrastructure.Services
 
             var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
             if (affected != 1) throw new InvalidOperationException($"Expected to update 1 row, got {affected}.");
-            await tx.CommitAsync(cancellationToken);
         }
 
         public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)

@@ -9,11 +9,8 @@
  */
 
 
-export interface ColumnInfoDto { 
-    name: string;
-    type: string;
-    nullable: boolean;
-    isPrimaryKey: boolean;
-    isGenerated: boolean;
+export interface BulkUpdateRowEntryDto { 
+    originalValues: Array<string>;
+    newValues: Array<string>;
 }
 

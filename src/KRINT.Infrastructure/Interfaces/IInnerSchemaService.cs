@@ -18,6 +18,8 @@ namespace KRINT.Infrastructure.Interfaces
     /// </summary>
     public record UpdateRowRequest(IReadOnlyList<string> Columns, IReadOnlyList<string?> OriginalValues, IReadOnlyList<string?> NewValues);
 
+    public record BulkUpdateRowsRequest(IReadOnlyList<UpdateRowRequest> Updates);
+
     public record InsertRowRequest(IReadOnlyList<string> Columns, IReadOnlyList<string?> Values);
 
     public record DeleteRowRequest(IReadOnlyList<string> Columns, IReadOnlyList<string?> OriginalValues);
@@ -31,6 +33,15 @@ namespace KRINT.Infrastructure.Interfaces
         Task<TableRows> FetchRowsAsync(InnerDatabaseTarget target, string database, string table, int limit, int offset, CancellationToken cancellationToken = default);
 
         Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default);
+
+        /// <summary>Default implementation just loops UpdateRowAsync without a transaction;
+        /// SQL-family services override to wrap everything in a single transaction so the user's
+        /// Save is all-or-nothing.</summary>
+        async Task BulkUpdateRowsAsync(InnerDatabaseTarget target, string database, string table, BulkUpdateRowsRequest request, CancellationToken cancellationToken = default)
+        {
+            foreach (var update in request.Updates)
+                await UpdateRowAsync(target, database, table, update, cancellationToken);
+        }
 
         Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default);
 

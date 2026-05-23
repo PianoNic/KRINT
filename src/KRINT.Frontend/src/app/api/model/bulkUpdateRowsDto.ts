@@ -7,13 +7,11 @@
  * https://openapi-generator.tech
  * Do not edit the class manually.
  */
+import { BulkUpdateRowEntryDto } from './bulkUpdateRowEntryDto';
 
 
-export interface ColumnInfoDto { 
-    name: string;
-    type: string;
-    nullable: boolean;
-    isPrimaryKey: boolean;
-    isGenerated: boolean;
+export interface BulkUpdateRowsDto { 
+    columns: Array<string>;
+    updates: Array<BulkUpdateRowEntryDto>;
 }
 

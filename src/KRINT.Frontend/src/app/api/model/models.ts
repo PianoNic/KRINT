@@ -6,6 +6,8 @@ export * from './appDto';
 export * from './backupEntryDto';
 export * from './backupEntryDtoSizeBytes';
 export * from './backupScheduleDto';
+export * from './bulkUpdateRowEntryDto';
+export * from './bulkUpdateRowsDto';
 export * from './columnInfoDto';
 export * from './createBackupScheduleDto';
 export * from './createDatabaseDto';
