@@ -45,7 +45,7 @@ namespace KRINT.Application.Command.Database
             var instanceId = Guid.NewGuid();
             var instanceIdShort = instanceId.ToString("N")[..8];
             var containerName = $"krint-{spec.ShortName}-{instanceIdShort}";
-            var volumeName = $"{containerName}-data";
+            var bindSpec = _options.Storage.ResolveBindForContainer(containerName, spec.DataPath);
 
             var password = secretGenerator.Generate();
 
@@ -79,7 +79,7 @@ namespace KRINT.Application.Command.Database
                     {
                         [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = hostPort.ToString() } },
                     },
-                    Binds = new List<string> { $"{volumeName}:{spec.DataPath}" },
+                    Binds = new List<string> { bindSpec },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
                 },
                 Labels = new Dictionary<string, string>
@@ -153,10 +153,15 @@ namespace KRINT.Application.Command.Database
             {
                 if (!provisionedOk)
                 {
-                    // Tear down the container + volume + vault entry so a retry isn't blocked
-                    // by a half-provisioned state holding the host port.
+                    // Tear down the container + vault entry + (if HostFolder mode) the data dir
+                    // so a retry isn't blocked by a half-provisioned state holding the host port.
                     try { await docker.RemoveContainerAsync(createResult.ID, force: true, CancellationToken.None); } catch { }
                     try { await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(containerName), CancellationToken.None); } catch { }
+                    var hostFolder = _options.Storage.TryResolveHostFolderForContainer(containerName);
+                    if (hostFolder is not null)
+                    {
+                        try { if (Directory.Exists(hostFolder)) Directory.Delete(hostFolder, recursive: true); } catch { }
+                    }
                 }
             }
         }

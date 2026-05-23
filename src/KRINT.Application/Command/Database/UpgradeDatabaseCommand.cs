@@ -1,8 +1,10 @@
 using Docker.DotNet.Models;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using KRINT.Application.Dtos.DatabaseInstance;
 using KRINT.Application.Mappings.DatabaseInstance;
+using KRINT.Application.Options;
 using KRINT.Domain;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
@@ -26,7 +28,8 @@ namespace KRINT.Application.Command.Database
         IActivityLogger activity,
         IBackupServiceResolver backupResolver,
         IBackupStorage backupStorage,
-        IInnerDatabaseServiceResolver innerDbs)
+        IInnerDatabaseServiceResolver innerDbs,
+        IOptions<KrintOptions> options)
         : ICommandHandler<UpgradeDatabaseCommand, DatabaseInstanceDto>
     {
         public async ValueTask<DatabaseInstanceDto> Handle(UpgradeDatabaseCommand command, CancellationToken cancellationToken)
@@ -78,6 +81,7 @@ namespace KRINT.Application.Command.Database
             var newInstanceShort = Guid.NewGuid().ToString("N")[..8];
             var newContainerName = $"krint-{spec.ShortName}-{newInstanceShort}";
             var newVolumeName = $"{newContainerName}-data";
+            var newBindSpec = options.Value.Storage.ResolveBindForContainer(newContainerName, spec.DataPath);
 
             var env = CreateDatabaseCommandHandler.BuildEnv(instance.Engine, password, instance.DatabaseName, spec.DefaultDatabase);
             var createParams = new CreateContainerParameters
@@ -96,7 +100,7 @@ namespace KRINT.Application.Command.Database
                     {
                         [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = instance.Port.ToString() } },
                     },
-                    Binds = new List<string> { $"{newVolumeName}:{spec.DataPath}" },
+                    Binds = new List<string> { newBindSpec },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
                 },
                 Labels = new Dictionary<string, string>
@@ -137,9 +141,10 @@ namespace KRINT.Application.Command.Database
 
                 await activity.LogAsync("instance.upgrade", oldContainerName, instance.Id, instance.Engine, $"{oldVersion}->{command.TargetVersion}", cancellationToken);
 
-                // 7. Tear down OLD (container + volume + vault entry). Best-effort.
+                // 7. Tear down OLD (container + storage + vault entry). Best-effort.
                 try { await docker.RemoveContainerAsync(oldContainerId, force: true, CancellationToken.None); } catch { }
                 try { await docker.RemoveVolumeAsync(oldVolumeName, force: false, CancellationToken.None); } catch { }
+                TryDeleteHostFolder(options.Value.Storage.TryResolveHostFolderForContainer(oldContainerName));
                 try { await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(oldContainerName), CancellationToken.None); } catch { }
 
                 newOk = true;
@@ -153,10 +158,18 @@ namespace KRINT.Application.Command.Database
                     // NEW vault entry if we already wrote it, and restart OLD on its port.
                     try { await docker.RemoveContainerAsync(newCreateResult.ID, force: true, CancellationToken.None); } catch { }
                     try { await docker.RemoveVolumeAsync(newVolumeName, force: false, CancellationToken.None); } catch { }
+                    TryDeleteHostFolder(options.Value.Storage.TryResolveHostFolderForContainer(newContainerName));
                     try { await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(newContainerName), CancellationToken.None); } catch { }
                     try { await docker.StartContainerAsync(oldContainerId, CancellationToken.None); } catch { }
                 }
             }
+        }
+
+        private static void TryDeleteHostFolder(string? path)
+        {
+            if (path is null) return;
+            try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
+            catch { /* not accessible from this process; user cleans up manually */ }
         }
 
         /// <summary>Real-query readiness probe. A bare TCP probe lies for Postgres (it binds
