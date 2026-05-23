@@ -24,7 +24,6 @@ import {
 } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { HubConnection } from '@microsoft/signalr';
 import { Terminal } from '@xterm/xterm';
@@ -45,7 +44,6 @@ type ActiveTab = 'logs' | 'exec';
     NgIcon,
     HlmBadgeImports,
     HlmButtonImports,
-    HlmTabsImports,
     HlmTooltipImports,
   ],
   providers: [
@@ -73,6 +71,7 @@ type ActiveTab = 'logs' | 'exec';
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'flex flex-1 min-h-0 flex-col' },
   templateUrl: './console.html',
 })
 export class Console implements OnDestroy {
@@ -141,6 +140,9 @@ export class Console implements OnDestroy {
     this.teardownExec();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    // Close the SignalR connection when leaving /console — nothing else uses the hub, so
+    // there's no point keeping the WebSocket alive while the user is on another page.
+    void this.hub.stop();
   }
 
   protected selectInstance(id: string | null): void {
@@ -310,7 +312,9 @@ export class Console implements OnDestroy {
       this.execInputDisposable = term.onData((data) => {
         if (!this.execSessionId) return;
         const base64 = bytesToBase64(new TextEncoder().encode(data));
-        conn.invoke('WriteExec', this.execSessionId, base64).catch(() => { });
+        conn.invoke('WriteExec', this.execSessionId, base64).catch((err) => {
+          term.writeln(`\r\n\x1b[31m[write failed: ${err?.message ?? err}]\x1b[0m`);
+        });
       });
       this.execResizeDisposable = term.onResize(({ cols, rows }) => {
         if (!this.execSessionId) return;

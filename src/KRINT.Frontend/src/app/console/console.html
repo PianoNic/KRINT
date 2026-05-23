@@ -1,6 +1,6 @@
 <app-content-header />
 
-<section class="grid flex-1 min-h-0 grid-cols-[260px_1fr] gap-0 border-t">
+<section class="grid flex-1 min-h-0 grid-cols-[260px_1fr] grid-rows-[minmax(0,1fr)] gap-0 border-t">
   <!-- ===== Left rail: instance picker (mirrors Browser) ===== -->
   <aside class="border-r flex flex-col overflow-hidden min-h-0">
     <header class="flex items-center justify-between px-3 py-2 border-b">
@@ -39,41 +39,44 @@
   </aside>
 
   <!-- ===== Right pane: Logs / Exec tabs ===== -->
-  <div class="flex min-h-0 flex-col overflow-hidden">
+  <div class="flex min-h-0 min-w-0 flex-col overflow-hidden">
     @if (!instanceId()) {
       <p class="text-muted-foreground p-8 text-center text-sm">Pick an instance to view its container.</p>
     } @else {
-      <hlm-tabs [tab]="activeTab()" class="flex min-h-0 flex-1 flex-col">
-        <div class="flex items-center justify-between border-b px-3 py-2">
-          <hlm-tabs-list aria-label="Console mode">
-            <button hlmTabsTrigger="logs" (click)="setTab('logs')">Logs</button>
-            <button hlmTabsTrigger="exec" (click)="setTab('exec')">Exec</button>
-          </hlm-tabs-list>
-          <div class="flex items-center gap-2">
-            @if (activeTab() === 'logs') {
-              <span class="text-muted-foreground text-[11px] uppercase tracking-wide">{{ logsStatus() }}</span>
-              <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" [hlmTooltip]="logsPaused() ? 'Resume' : 'Pause'" (click)="togglePause()">
-                <ng-icon [name]="logsPaused() ? 'lucidePlay' : 'lucidePause'" size="14" />
-              </button>
-              <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" hlmTooltip="Clear" (click)="clearLogs()">
-                <ng-icon name="lucideEraser" size="14" />
-              </button>
-            } @else {
-              <span class="text-muted-foreground text-[11px] uppercase tracking-wide">{{ execStatus() }}</span>
-              <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" hlmTooltip="Restart shell" (click)="refresh()">
-                <ng-icon name="lucideRefreshCw" size="14" />
-              </button>
-            }
-          </div>
+      <!-- Header bar lives outside hlm-tabs so the tab content can claim 100% of the
+           remaining vertical space without the header eating into the xterm canvas. -->
+      <div class="flex items-center justify-between border-b px-3 py-2">
+        <div class="flex items-center gap-1">
+          <button hlmBtn type="button" size="sm" [variant]="activeTab() === 'logs' ? 'secondary' : 'ghost'" (click)="setTab('logs')">Logs</button>
+          <button hlmBtn type="button" size="sm" [variant]="activeTab() === 'exec' ? 'secondary' : 'ghost'" (click)="setTab('exec')">Exec</button>
         </div>
+        <div class="flex items-center gap-2">
+          @if (activeTab() === 'logs') {
+            <span class="text-muted-foreground text-[11px] uppercase tracking-wide">{{ logsStatus() }}</span>
+            <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" [hlmTooltip]="logsPaused() ? 'Resume' : 'Pause'" (click)="togglePause()">
+              <ng-icon [name]="logsPaused() ? 'lucidePlay' : 'lucidePause'" size="14" />
+            </button>
+            <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" hlmTooltip="Clear" (click)="clearLogs()">
+              <ng-icon name="lucideEraser" size="14" />
+            </button>
+          } @else {
+            <span class="text-muted-foreground text-[11px] uppercase tracking-wide">{{ execStatus() }}</span>
+            <button hlmBtn variant="ghost" size="icon" type="button" class="h-7 w-7" hlmTooltip="Restart shell" (click)="refresh()">
+              <ng-icon name="lucideRefreshCw" size="14" />
+            </button>
+          }
+        </div>
+      </div>
 
-        <div hlmTabsContent="logs" class="flex-1 min-h-0">
-          <div #logsContainer class="h-full w-full bg-[#0a0a0a]"></div>
-        </div>
-        <div hlmTabsContent="exec" class="flex-1 min-h-0">
-          <div #execContainer class="h-full w-full bg-[#0a0a0a]"></div>
-        </div>
-      </hlm-tabs>
+      <!-- The xterm host fills whatever's left below the header. Switching tabs remounts
+           the relevant terminal; the effect in console.ts tears down the old one first. -->
+      <div class="relative flex-1 min-h-0 bg-[#0a0a0a]">
+        @if (activeTab() === 'logs') {
+          <div #logsContainer class="absolute inset-0"></div>
+        } @else {
+          <div #execContainer class="absolute inset-0"></div>
+        }
+      </div>
     }
   </div>
 </section>

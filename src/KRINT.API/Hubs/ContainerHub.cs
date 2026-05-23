@@ -12,7 +12,7 @@ using KRINT.Infrastructure.Interfaces;
 namespace KRINT.API.Hubs
 {
     [Authorize]
-    public class ContainerHub(IMediator mediator, IContainerExecRegistry registry) : Hub
+    public class ContainerHub(IMediator mediator, IContainerExecRegistry registry, IHubContext<ContainerHub> hubContext) : Hub
     {
         // Tracks live exec sessions per connection so OnDisconnectedAsync can tear them down.
         // Without this a closed browser tab would leave a docker exec session running.
@@ -32,17 +32,20 @@ namespace KRINT.API.Hubs
 
             var session = await registry.StartAsync(containerId, cols == 0 ? 120 : cols, rows == 0 ? 30 : rows, Context.ConnectionAborted);
 
+            // The Hub instance is disposed when this method returns, so Clients.Caller becomes
+            // a dead proxy by the time bash echoes its first byte. Route via IHubContext +
+            // explicit connectionId so callbacks remain valid for the lifetime of the session.
             var connectionId = Context.ConnectionId;
-            var caller = Clients.Caller;
+            var client = hubContext.Clients.Client(connectionId);
 
             session.Output += async data =>
             {
-                try { await caller.SendAsync("ExecOutput", session.Id, Convert.ToBase64String(data.Span)); }
+                try { await client.SendAsync("ExecOutput", session.Id, Convert.ToBase64String(data.Span)); }
                 catch { /* connection gone */ }
             };
             session.Exited += async code =>
             {
-                try { await caller.SendAsync("ExecExited", session.Id, code); } catch { }
+                try { await client.SendAsync("ExecExited", session.Id, code); } catch { }
                 if (_sessionsByConnection.TryGetValue(connectionId, out var set))
                 {
                     lock (set) set.Remove(session.Id);

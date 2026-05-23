@@ -1,29 +1,59 @@
 using System.Collections.Concurrent;
+using System.IO.Pipes;
+using System.Net.Sockets;
+using System.Text;
 using Docker.DotNet;
 using Docker.DotNet.Models;
+using Microsoft.Extensions.Configuration;
 using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Infrastructure.Services
 {
-    public sealed class ContainerExecRegistry(IDockerClient docker) : IContainerExecRegistry
+    public sealed class ContainerExecRegistry(IDockerClient docker, IConfiguration configuration) : IContainerExecRegistry
     {
         private readonly ConcurrentDictionary<string, ContainerExecSession> _sessions = new();
+        private readonly string? _endpointOverride = configuration["Docker:Endpoint"];
+
+        private static async Task<IList<string>> PickShellCmdAsync(IDockerClient docker, string containerId, CancellationToken ct)
+        {
+            try
+            {
+                var exec = await docker.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
+                {
+                    AttachStdout = true,
+                    Cmd = new[] { "sh", "-c", "command -v bash" },
+                }, ct);
+                using var stream = await docker.Exec.StartAndAttachContainerExecAsync(exec.ID, tty: false, ct);
+                using var ms = new MemoryStream();
+                await stream.CopyOutputToAsync(null, ms, null, ct);
+                var path = Encoding.UTF8.GetString(ms.ToArray()).Trim();
+                if (!string.IsNullOrEmpty(path)) return new[] { path };
+            }
+            catch { /* fall through to sh */ }
+            return new[] { "/bin/sh" };
+        }
 
         public async Task<IContainerExecSession> StartAsync(string containerId, uint cols, uint rows, CancellationToken cancellationToken = default)
         {
-            // Try bash first, fall back to sh. We don't probe upfront — instead the exec is
-            // created against a tiny shell script that picks whichever is on PATH.
+            var cmd = await PickShellCmdAsync(docker, containerId, cancellationToken);
+
+            // Docker.DotNet 3.125.15's MakeRequestForHijackedStreamAsync omits the Upgrade/
+            // Connection: Upgrade headers, so the daemon never switches the connection to raw
+            // bidi mode and silently drops anything we write to stdin. We use Docker.DotNet for
+            // exec CREATE (a normal POST), then open our own connection for /exec/{id}/start so
+            // we can speak the upgrade dance ourselves.
             var exec = await docker.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
             {
                 AttachStdin = true,
                 AttachStdout = true,
                 AttachStderr = true,
                 Tty = true,
-                Cmd = new[] { "/bin/sh", "-c", "if command -v bash >/dev/null 2>&1; then exec bash -l; else exec sh -l; fi" },
+                Cmd = cmd,
                 Env = new[] { "TERM=xterm-256color" },
             }, cancellationToken);
 
-            var stream = await docker.Exec.StartAndAttachContainerExecAsync(exec.ID, tty: true, cancellationToken);
+            var transport = await OpenTransportAsync(cancellationToken);
+            await SendExecStartUpgradeAsync(transport, exec.ID, cancellationToken);
 
             try
             {
@@ -31,11 +61,11 @@ namespace KRINT.Infrastructure.Services
             }
             catch
             {
-                // Resize fails on some daemons before any output has been produced. Safe to ignore;
-                // the client will retry as soon as the xterm fit-addon kicks in.
+                // Resize fails on some daemons before any output is produced; the client retries
+                // via the fit-addon once xterm.fit() has had a layout pass.
             }
 
-            var session = new ContainerExecSession(exec.ID, stream, docker);
+            var session = new ContainerExecSession(exec.ID, transport, docker);
             _sessions[session.Id] = session;
             session.Start();
             session.Exited += async code =>
@@ -55,9 +85,95 @@ namespace KRINT.Infrastructure.Services
                 await session.DisposeAsync();
             }
         }
+
+        private async Task<Stream> OpenTransportAsync(CancellationToken ct)
+        {
+            // Resolve docker daemon transport: explicit override (npipe://, unix://, tcp://),
+            // else platform default. KRINT runs on Windows for dev and inside a Linux container
+            // for prod (with /var/run/docker.sock mounted in), so we support both.
+            var endpoint = _endpointOverride;
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                endpoint = OperatingSystem.IsWindows() ? "npipe://./pipe/docker_engine" : "unix:///var/run/docker.sock";
+            }
+
+            if (endpoint.StartsWith("npipe://", StringComparison.OrdinalIgnoreCase))
+            {
+                var path = endpoint["npipe://".Length..];
+                // "./pipe/docker_engine" → server ".", pipe "docker_engine"
+                var (server, pipe) = ParseNpipe(path);
+                var stream = new NamedPipeClientStream(server, pipe, PipeDirection.InOut, PipeOptions.Asynchronous);
+                await stream.ConnectAsync(5000, ct);
+                return stream;
+            }
+
+            if (endpoint.StartsWith("unix://", StringComparison.OrdinalIgnoreCase))
+            {
+                var path = endpoint["unix://".Length..];
+                var sock = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+                await sock.ConnectAsync(new UnixDomainSocketEndPoint(path), ct);
+                return new NetworkStream(sock, ownsSocket: true);
+            }
+
+            throw new NotSupportedException($"Docker endpoint scheme not supported for interactive exec: {endpoint}");
+        }
+
+        private static (string Server, string Pipe) ParseNpipe(string path)
+        {
+            // Accept "./pipe/docker_engine", "//./pipe/docker_engine", "pipe/docker_engine"
+            var trimmed = path.TrimStart('/', '.');
+            var idx = trimmed.IndexOf("pipe/", StringComparison.Ordinal);
+            var pipeName = idx >= 0 ? trimmed[(idx + "pipe/".Length)..] : trimmed;
+            return (".", pipeName);
+        }
+
+        private static async Task SendExecStartUpgradeAsync(Stream transport, string execId, CancellationToken ct)
+        {
+            var body = Encoding.UTF8.GetBytes("{\"Detach\":false,\"Tty\":true}");
+            var header = new StringBuilder();
+            header.Append($"POST /v1.41/exec/{execId}/start HTTP/1.1\r\n");
+            header.Append("Host: docker\r\n");
+            header.Append("Content-Type: application/json\r\n");
+            header.Append($"Content-Length: {body.Length}\r\n");
+            header.Append("Upgrade: tcp\r\n");
+            header.Append("Connection: Upgrade\r\n");
+            header.Append("\r\n");
+            var headerBytes = Encoding.UTF8.GetBytes(header.ToString());
+            await transport.WriteAsync(headerBytes, ct);
+            await transport.WriteAsync(body, ct);
+            await transport.FlushAsync(ct);
+
+            // Consume response headers up to the blank line. After that, bytes are raw bidi.
+            var status = await ReadLineAsync(transport, ct);
+            if (!status.StartsWith("HTTP/1.1 101", StringComparison.Ordinal) && !status.StartsWith("HTTP/1.1 200", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Docker exec start did not upgrade: {status}");
+            }
+            while (true)
+            {
+                var line = await ReadLineAsync(transport, ct);
+                if (string.IsNullOrEmpty(line)) break;
+            }
+        }
+
+        private static async Task<string> ReadLineAsync(Stream s, CancellationToken ct)
+        {
+            var sb = new StringBuilder();
+            var prev = 0;
+            var single = new byte[1];
+            while (true)
+            {
+                var n = await s.ReadAsync(single, ct);
+                if (n == 0) return sb.ToString();
+                var b = single[0];
+                if (prev == '\r' && b == '\n') { sb.Length -= 1; return sb.ToString(); }
+                sb.Append((char)b);
+                prev = b;
+            }
+        }
     }
 
-    internal sealed class ContainerExecSession(string id, MultiplexedStream stream, IDockerClient docker) : IContainerExecSession
+    internal sealed class ContainerExecSession(string id, Stream transport, IDockerClient docker) : IContainerExecSession
     {
         public string Id { get; } = id;
         public event Func<ReadOnlyMemory<byte>, Task>? Output;
@@ -79,10 +195,10 @@ namespace KRINT.Infrastructure.Services
             {
                 while (!_cts.IsCancellationRequested)
                 {
-                    var read = await stream.ReadOutputAsync(buffer, 0, buffer.Length, _cts.Token);
-                    if (read.EOF) break;
-                    if (read.Count == 0) continue;
-                    var slice = new ReadOnlyMemory<byte>(buffer, 0, read.Count).ToArray();
+                    var n = await transport.ReadAsync(buffer.AsMemory(), _cts.Token);
+                    if (n == 0) break;
+                    var slice = new byte[n];
+                    Buffer.BlockCopy(buffer, 0, slice, 0, n);
                     if (Output is { } cb)
                     {
                         try { await cb(slice); } catch { /* subscriber gone */ }
@@ -111,7 +227,8 @@ namespace KRINT.Infrastructure.Services
         public async Task WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
         {
             if (_disposed != 0) return;
-            await stream.WriteAsync(data.ToArray(), 0, data.Length, cancellationToken);
+            await transport.WriteAsync(data, cancellationToken);
+            await transport.FlushAsync(cancellationToken);
         }
 
         public Task ResizeAsync(uint cols, uint rows, CancellationToken cancellationToken = default)
@@ -123,7 +240,7 @@ namespace KRINT.Infrastructure.Services
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             try { _cts.Cancel(); } catch { }
-            try { stream.Dispose(); } catch { }
+            try { transport.Dispose(); } catch { }
             if (_pump is not null)
             {
                 try { await _pump; } catch { }
