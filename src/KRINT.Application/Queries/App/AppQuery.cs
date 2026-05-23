@@ -9,8 +9,10 @@ namespace KRINT.Application.Queries.App
 
     public class AppQueryHandler(IConfiguration configuration) : IQueryHandler<AppQuery, AppDto>
     {
-        // <Version> in src/Directory.Build.props flows to AssemblyInformationalVersion at build time.
-        // SourceLink may append "+<commit>"; strip it so the SPA shows a clean semver.
+        // /application.properties at the repo root is the single source of truth for the app
+        // version; src/Directory.Build.props reads it via XmlPeek and feeds it into
+        // AssemblyInformationalVersion at build time. SourceLink may append "+<commit>"; strip
+        // it so the SPA shows a clean semver.
         private static readonly string AppVersion =
             typeof(AppQueryHandler).Assembly
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion

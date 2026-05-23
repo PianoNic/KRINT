@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# Bind-mounted runtime directories created by docker compose
+/backups/
+
 # User-specific files
 *.rsuser
 *.suo
