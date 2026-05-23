@@ -206,8 +206,7 @@
                         } @else {
                           <div class="flex items-center gap-1">
                             <input
-                              hlmInput
-                              class="h-7 flex-1 font-mono text-xs"
+                              class="h-7 flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 px-0 font-mono text-xs disabled:opacity-50"
                               [value]="draftValue(colIdx)"
                               [disabled]="isDraftNull(colIdx) || saving()"
                               [placeholder]="isDraftNull(colIdx) ? 'NULL' : c"
@@ -256,8 +255,7 @@
                           } @else {
                             <div class="flex items-center gap-1">
                               <input
-                                hlmInput
-                                class="h-7 flex-1 font-mono text-xs"
+                                class="h-7 flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 px-0 font-mono text-xs disabled:opacity-50"
                                 [value]="draftValue(colIdx)"
                                 [disabled]="isDraftNull(colIdx) || saving()"
                                 [placeholder]="isDraftNull(colIdx) ? 'NULL' : ''"
