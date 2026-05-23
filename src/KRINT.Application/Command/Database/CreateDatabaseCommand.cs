@@ -90,7 +90,7 @@ namespace KRINT.Application.Command.Database
             var createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
 
             // From here on, any exception means we own a half-provisioned container that the
-            // caller never sees. Track success and clean up in a finally — otherwise stale
+            // caller never sees. Track success and clean up in a finally, otherwise stale
             // containers hold ports and break the next provision attempt.
             var provisionedOk = false;
             try

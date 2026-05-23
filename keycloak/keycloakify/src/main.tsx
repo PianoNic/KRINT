@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import "./login/index.css";
 import { KcPage } from "./kc.gen";
 
-// Follow the browser's prefers-color-scheme — no in-app toggle.
+// Follow the browser's prefers-color-scheme. No in-app toggle.
 const applySystemTheme = () => {
     const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle("dark", isDark);

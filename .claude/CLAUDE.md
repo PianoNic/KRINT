@@ -1,10 +1,10 @@
-# KRINT — Claude workflow rules
+# KRINT Claude workflow rules
 
 Never push to `main`. Every change goes:
 
-1. **Issue** — open one (or pick existing) with at least one label from `gh label list`.
-2. **Branch** — `feature/<issue#>_PascalCase` for new / refactor / docs, `fix/<issue#>_PascalCase` for bugs.
-3. **PR** — short imperative title; body is one-line summary + `Closes #<issue>`; at least one label.
+1. **Issue**: open one (or pick existing) with at least one label from `gh label list`.
+2. **Branch**: `feature/<issue#>_PascalCase` for new / refactor / docs, `fix/<issue#>_PascalCase` for bugs.
+3. **PR**: short imperative title; body is one-line summary + `Closes #<issue>`; at least one label.
 4. **Squash-merge + delete branch**, then `git fetch --prune && git reset --hard origin/main`.
 
 ## Branch naming
@@ -14,7 +14,7 @@ Never push to `main`. Every change goes:
 
 ## PR body
 
-One line in commit-subject style, then `Closes #<issue>`. The commits already say what changed — the PR doesn't need to repeat them.
+One line in commit-subject style, then `Closes #<issue>`. The commits already say what changed, so the PR doesn't need to repeat them.
 
 ```
 Implemented external OIDC provider docs

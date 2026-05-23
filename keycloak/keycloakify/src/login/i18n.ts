@@ -7,7 +7,7 @@ const { I18nProvider, useI18n } = i18nBuilder
     .withCustomTranslations({
         en: {
             welcomeMessage:
-                "KRINT — One click. One key. Your database is ready.",
+                "KRINT. One click. One key. Your database is ready.",
             loginAccountTitle: "Login to your account",
             registerTitle: "Register a new account",
             email: "Email",

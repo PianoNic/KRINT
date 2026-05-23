@@ -1,4 +1,4 @@
-# KRINT — Self-Host
+# KRINT Self-Host
 
 Run KRINT against the pre-built image. This guide assumes:
 
@@ -23,7 +23,7 @@ docker compose up -d            # pulls krint + postgres + keycloak, starts ever
 open http://localhost:5000      # KRINT UI
 ```
 
-Everything is wired in the shipped `compose.yml` — you don't need to add or override services. A single `.env` configures the stack.
+Everything is wired in the shipped `compose.yml`, so you don't need to add or override services. A single `.env` configures the stack.
 
 ---
 
@@ -37,7 +37,7 @@ Three containers managed by `compose.yml`:
 | `db`       | `postgres:18.3`                           | KRINT's app DB + Keycloak's DB          | `5432`       |
 | `keycloak` | `quay.io/keycloak/keycloak:26.6`          | OIDC provider (auth)                    | `8080`       |
 
-KRINT itself spins up **separate, isolated containers** for every database instance you provision — those are sibling containers on the Docker host, not children of `krint`. That's why the `krint` service mounts `/var/run/docker.sock`.
+KRINT itself spins up **separate, isolated containers** for every database instance you provision. Those are sibling containers on the Docker host, not children of `krint`, which is why the `krint` service mounts `/var/run/docker.sock`.
 
 ---
 
@@ -53,10 +53,10 @@ Copy `.env.example` to `.env` and fill the values. Variables use the same names 
 | `KC_BOOTSTRAP_ADMIN_PASSWORD`  | Initial Keycloak admin password. Change after first login.                                                |
 | `KC_HOSTNAME`                  | **Full** public URL Keycloak should advertise (e.g. `http://localhost:8080`, or `https://sso.example.com`). Tokens carry this in `iss`. |
 | `KC_HTTP_ENABLED`              | `true` for local HTTP. Keep `true` even behind a TLS-terminating proxy.                                   |
-| `KC_PROXY_HEADERS`             | `xforwarded` — trusts `X-Forwarded-*` from a reverse proxy.                                               |
-| `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` | `true` — lets the API container fetch Keycloak metadata via the compose-network URL while browsers still see the public URL. Required for OIDC to work end-to-end. |
+| `KC_PROXY_HEADERS`             | `xforwarded`. Trusts `X-Forwarded-*` from a reverse proxy.                                                |
+| `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` | `true`. Lets the API container fetch Keycloak metadata via the compose-network URL while browsers still see the public URL. Required for OIDC to work end-to-end. |
 
-> DB credentials (`POSTGRES_PASSWORD`, `KC_DB_USERNAME`, `KC_DB_PASSWORD`) are **not** in `.env` — they're hardcoded in `compose.yml` because they only matter inside the compose network. Edit `compose.yml` directly if you want to change them.
+> DB credentials (`POSTGRES_PASSWORD`, `KC_DB_USERNAME`, `KC_DB_PASSWORD`) are **not** in `.env`. They're hardcoded in `compose.yml` because they only matter inside the compose network. Edit `compose.yml` directly if you want to change them.
 
 ### KRINT API
 
@@ -71,7 +71,7 @@ Copy `.env.example` to `.env` and fill the values. Variables use the same names 
 | `Oidc__RequireHttpsMetadata`   | `false` for plain-HTTP dev. Set to `true` (or remove) once Keycloak is behind HTTPS.                      |
 | `Cors__AllowedOrigins__0`      | Browser origin allowed to call the API. Match the SPA origin (no trailing slash). Add more as `__1`, `__2`. |
 
-> **Don't lose `Vault__MasterKey`.** All provisioned-instance passwords are encrypted under this key. Lose it and you can't decrypt the vault — there is no recovery flow and **no key-rotation flow yet**, so don't rotate it once you have data.
+> **Don't lose `Vault__MasterKey`.** All provisioned-instance passwords are encrypted under this key. Lose it and you can't decrypt the vault. There is no recovery flow and **no key-rotation flow yet**, so don't rotate it once you have data.
 
 ### Set inside `compose.yml`, not `.env`
 
@@ -80,7 +80,7 @@ These live in the `krint` service's `environment:` block because they reference 
 | Variable                            | Value                                                                                    |
 | ----------------------------------- | ---------------------------------------------------------------------------------------- |
 | `ConnectionStrings__KrintDatabase`  | `Host=db;Port=5432;Database=krint;Username=postgres;Password=<the-shared-pw>`            |
-| `Oidc__InternalAuthority`           | `http://keycloak:8080/realms/krint` — the in-cluster Keycloak URL the API fetches discovery + JWKS from. Don't change unless you rename the keycloak service. |
+| `Oidc__InternalAuthority`           | `http://keycloak:8080/realms/krint`. The in-cluster Keycloak URL the API fetches discovery + JWKS from. Don't change unless you rename the keycloak service. |
 
 ### Generating the vault key
 
@@ -127,7 +127,7 @@ Cors__AllowedOrigins__0=http://localhost:5000
 ## First-run checklist
 
 1. **Pull + start:** `docker compose up -d`. The shipped compose waits for Postgres `pg_isready` before starting `krint`, so first boot is race-free.
-2. **Wait for Keycloak.** First boot imports the `krint` realm and seeds the OIDC client — give it 30–60s. Tail with `docker compose logs -f keycloak` and wait for `Listening on: http://0.0.0.0:8080`.
+2. **Wait for Keycloak.** First boot imports the `krint` realm and seeds the OIDC client, so give it 30 to 60 seconds. Tail with `docker compose logs -f keycloak` and wait for `Listening on: http://0.0.0.0:8080`.
 3. **Create your first user.** Open `http://localhost:8080`, log in as the bootstrap admin from `.env`, switch to the **krint** realm, **Users → Add user**, set a password under **Credentials**, then complete the profile (first/last name) on first login.
 4. **Log in to KRINT.** Open `http://localhost:5000`. You'll be redirected to Keycloak, authenticate, and land back on the dashboard.
 5. **Provision an instance.** Click **Create**, pick an engine, click Launch. KRINT pulls the engine image, starts a sibling container, generates credentials, and hands you a connection string.
@@ -143,7 +143,7 @@ docker compose up -d krint
 
 KRINT runs EF migrations on startup, so schema changes apply automatically. The vault, secrets, and instance metadata in the app DB are preserved across upgrades; provisioned-instance containers and their volumes are untouched (they're independent of the `krint` container's lifecycle).
 
-To pin a version, replace `:latest` with a tag — see https://github.com/PianoNic/KRINT/pkgs/container/krint for the published tags (`0.1.0`, `0.1`, `0`, `latest`).
+To pin a version, replace `:latest` with a tag. See https://github.com/PianoNic/KRINT/pkgs/container/krint for the published tags (`0.1.0`, `0.1`, `0`, `latest`).
 
 ---
 
@@ -166,7 +166,7 @@ The bundled Keycloak is convenient for a zero-config first run, but if you alrea
 
 ### Requirements for the provider
 
-KRINT's SPA uses Authorization Code Flow with **PKCE** — so register KRINT as a **public client** (no client secret). The IdP must support:
+KRINT's SPA uses Authorization Code Flow with **PKCE**: so register KRINT as a **public client** (no client secret). The IdP must support:
 
 - OIDC discovery at `<authority>/.well-known/openid-configuration`
 - `S256` PKCE (any modern IdP does)
@@ -181,7 +181,7 @@ On the IdP side, configure the client with:
 | Redirect URI(s)       | `http://localhost:5000/*` (or your public KRINT URL, e.g. `https://krint.example.com/*`) |
 | Post-logout URI       | Same                                                                        |
 | Web origins / CORS    | The KRINT origin without the trailing slash                                 |
-| Scopes                | `openid profile email` — `roles` is optional, KRINT tolerates its absence   |
+| Scopes                | `openid profile email`. `roles` is optional, KRINT tolerates its absence    |
 | Group/user restriction| Make sure the user logging in is allowed to access the client               |
 
 ### Compose changes
@@ -194,7 +194,7 @@ Edit the shipped `compose.yml`:
 
 Edit `.env`:
 
-1. **Delete every `KC_*` variable** — they only configure the bundled Keycloak.
+1. **Delete every `KC_*` variable**: they only configure the bundled Keycloak.
 2. Point KRINT at your external IdP:
 
 ```env
@@ -212,14 +212,14 @@ Oidc__RequireHttpsMetadata=true     # set to false only if your IdP is HTTP
 Cors__AllowedOrigins__0=http://localhost:5000
 ```
 
-`Oidc__Authority` must end **exactly** where the IdP's discovery document advertises `issuer`. Trailing slash matters — if discovery returns `"issuer": "https://auth.example.com/application/o/krint"` (no slash) then your `Oidc__Authority` must not have one either, otherwise token validation fails with `iss invalid`.
+`Oidc__Authority` must end **exactly** where the IdP's discovery document advertises `issuer`. Trailing slash matters. If discovery returns `"issuer": "https://auth.example.com/application/o/krint"` (no slash) then your `Oidc__Authority` must not have one either, otherwise token validation fails with `iss invalid`.
 
 ### Provider quirks
 
-- **Pocket ID** — Toggle the client to **Public Client** (so it uses PKCE) and add your user/group to **Erlaubte Benutzergruppen** (or set to Unrestricted). Redirect URI supports `*` wildcards.
-- **Authentik** — Create a Provider (OAuth2/OpenID), then an Application bound to it. Use the *Provider*'s issuer URL (`/application/o/<slug>/`) as `Oidc__Authority`, not the Application URL.
-- **Auth0** — `Oidc__Authority` is `https://<tenant>.auth0.com/` (trailing slash required). Set the Application type to **Single Page Application**. No `roles` scope by default — KRINT works without it.
-- **Plain Keycloak (external)** — Configure exactly like the bundled one but skip `Oidc__InternalAuthority`. `Oidc__Authority` is `https://<keycloak>/realms/<realm>`.
+- **Pocket ID**: Toggle the client to **Public Client** (so it uses PKCE) and add your user/group to **Erlaubte Benutzergruppen** (or set to Unrestricted). Redirect URI supports `*` wildcards.
+- **Authentik**: Create a Provider (OAuth2/OpenID), then an Application bound to it. Use the *Provider*'s issuer URL (`/application/o/<slug>/`) as `Oidc__Authority`, not the Application URL.
+- **Auth0**: `Oidc__Authority` is `https://<tenant>.auth0.com/` (trailing slash required). Set the Application type to **Single Page Application**. No `roles` scope by default, but KRINT works without it.
+- **Plain Keycloak (external)**: Configure exactly like the bundled one but skip `Oidc__InternalAuthority`. `Oidc__Authority` is `https://<keycloak>/realms/<realm>`.
 
 ---
 
@@ -228,7 +228,7 @@ Cors__AllowedOrigins__0=http://localhost:5000
 If you're putting KRINT behind a reverse proxy (Caddy, Traefik, nginx), you need:
 
 1. **Public origin** matches `Oidc__RedirectUri` and `Cors__AllowedOrigins__0`. Update both if your domain changes.
-2. **Keycloak's `KC_HOSTNAME`** must be the full public Keycloak URL — tokens carry this as `iss`, and the API's `Oidc__Authority` must match it exactly.
+2. **Keycloak's `KC_HOSTNAME`** must be the full public Keycloak URL. Tokens carry this as `iss`, and the API's `Oidc__Authority` must match it exactly.
 3. **Trust `X-Forwarded-*`** headers in the proxy. The compose already sets `KC_PROXY_HEADERS=xforwarded` on Keycloak; KRINT's API trusts forwarded headers via ASP.NET defaults.
 4. **WebSockets** aren't used today, so no special websocket config is needed.
 
@@ -254,7 +254,7 @@ Oidc__RequireHttpsMetadata=true
 Cors__AllowedOrigins__0=https://krint.example.com
 ```
 
-`Oidc__InternalAuthority` in `compose.yml` stays as `http://keycloak:8080/realms/krint` — the API always reaches Keycloak via the compose network regardless of what the public URL looks like.
+`Oidc__InternalAuthority` in `compose.yml` stays as `http://keycloak:8080/realms/krint`. The API always reaches Keycloak via the compose network regardless of what the public URL looks like.
 
 ---
 
@@ -265,11 +265,11 @@ Cors__AllowedOrigins__0=https://krint.example.com
 | `krint` exits with `Vault:MasterKey must decode to 32 bytes`                     | `Vault__MasterKey` is empty or not a base64-encoded 32-byte value. Regenerate with `openssl rand -base64 32`.                |
 | API returns `401 invalid_token: issuer is invalid`                               | `Oidc__Authority` doesn't match the `issuer` claim in tokens. With the bundled Keycloak it must equal `KC_HOSTNAME` + `/realms/krint`; with an external IdP it must match the `issuer` field of `<authority>/.well-known/openid-configuration` **byte-for-byte** (scheme, port, trailing slash). |
 | Login succeeds at the IdP but lands on "You're not allowed to access this service" | The IdP allows the user to authenticate but the client policy denies them. Pocket ID: add the user's group to **Erlaubte Benutzergruppen** or toggle Unrestricted. Authentik: check the Application's policy bindings. |
-| API returns `401 invalid_token: signature key was not found`                     | `Oidc__InternalAuthority` is wrong or Keycloak's `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` is unset — API can't reach the JWKS endpoint. |
+| API returns `401 invalid_token: signature key was not found`                     | `Oidc__InternalAuthority` is wrong or Keycloak's `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` is unset, so the API can't reach the JWKS endpoint. |
 | CORS error in the browser console on `/realms/krint/protocol/openid-connect/token` | The Keycloak client's web origins don't include the SPA origin. Edit `keycloak/krint-realm.json` (or use the admin UI), add your origin to `webOrigins`, drop `krint_keycloak-data` volume, restart. |
 | CORS error in the browser console on `/api/*`                                    | `Cors__AllowedOrigins__0` doesn't match the SPA origin (no trailing slash).                                                  |
 | Create fails with `Cannot connect to the Docker daemon`                          | The Docker socket isn't mounted into `krint`. Verify the `/var/run/docker.sock` bind exists in the running container.        |
-| Dashboard 500 with `SocketException (13): Permission denied`                     | You're running the container as non-root on a host where the docker socket isn't readable by that UID/GID. The shipped image runs as root for this reason — if you've overridden `user:` in compose, add `group_add: ["<host-docker-gid>"]` or drop the override. |
+| Dashboard 500 with `SocketException (13): Permission denied`                     | You're running the container as non-root on a host where the docker socket isn't readable by that UID/GID. The shipped image runs as root for this reason. If you've overridden `user:` in compose, add `group_add: ["<host-docker-gid>"]` or drop the override. |
 | `No free host port in range` when provisioning                                   | `krint.yaml`'s `port_ranges` exhausted. Either delete a previous instance or expand the range and `docker compose restart krint`. |
 | Keycloak admin works but the krint realm 404s                                    | Realm import was skipped because the data volume already existed. `docker compose down && docker volume rm krint_keycloak-data && docker compose up -d`. |
 | DB auth fails on a re-run with a changed password                                | `POSTGRES_PASSWORD` is only honoured on **first init**. Either reset the password in-DB or wipe `postgres-data`.             |
@@ -278,6 +278,6 @@ Cors__AllowedOrigins__0=https://krint.example.com
 
 ## Going further
 
-- **Backups** — schedule cron-based dumps from the Backups page (writes into `./backups/`).
-- **Engines and plugins** — see the engine matrix in the SPA's Create wizard or the README's Supported Engines table.
-- **Hacking on it** — see [`docs/dev-setup.md`](./dev-setup.md) for the local-development setup with bun + `dotnet run`.
+- **Backups**: schedule cron-based dumps from the Backups page (writes into `./backups/`).
+- **Engines and plugins**: see the engine matrix in the SPA's Create wizard or the README's Supported Engines table.
+- **Hacking on it**: see [`docs/dev-setup.md`](./dev-setup.md) for the local-development setup with bun + `dotnet run`.
