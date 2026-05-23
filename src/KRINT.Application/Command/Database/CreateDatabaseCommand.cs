@@ -19,6 +19,11 @@ namespace KRINT.Application.Command.Database
     public class CreateDatabaseCommandHandler(IDockerService docker, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
         private const string Host = "localhost";
+        // krint runs in its own container; localhost there is krint's loopback, not the Docker
+        // host. host.docker.internal resolves to the host via the host-gateway alias set in
+        // compose.yml's extra_hosts, so readiness + init probes can actually reach sibling
+        // containers' published ports. The user-facing instance.Host stays "localhost".
+        internal const string ProbeHost = "host.docker.internal";
 
         private readonly KrintOptions _options = options.Value;
 
@@ -97,7 +102,7 @@ namespace KRINT.Application.Command.Database
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
                 // Wait for the engine inside the container to accept connections.
-                var readinessTarget = new InnerDatabaseTarget(command.Engine, Host, hostPort, spec.DefaultUsername, password, databaseName);
+                var readinessTarget = new InnerDatabaseTarget(command.Engine, ProbeHost, hostPort, spec.DefaultUsername, password, databaseName);
                 await WaitForReadyAsync(readinessTarget, cancellationToken);
 
                 // pgvector engine entry: enable the extension once the container accepts connections.

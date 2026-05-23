@@ -114,7 +114,9 @@ namespace KRINT.Application.Command.Database
                 await docker.StartContainerAsync(newCreateResult.ID, cancellationToken);
 
                 // Wait for the engine inside the new container to accept connections.
-                var readinessTarget = new InnerDatabaseTarget(instance.Engine, instance.Host, instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
+                // Probe via host.docker.internal so krint can reach the host-published port.
+                // See CreateDatabaseCommandHandler.ProbeHost for the rationale.
+                var readinessTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ProbeHost, instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
                 await WaitForReadyAsync(readinessTarget, cancellationToken);
 
                 // 5. Restore the pre-upgrade dump into NEW.
