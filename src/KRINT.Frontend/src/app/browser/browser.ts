@@ -352,13 +352,15 @@ export class Browser {
     return this.draft()?.values[colIndex] === NULL_TOKEN;
   }
 
-  /** True for columns the DB owns. Today: `id` (case-insensitive), which is a SERIAL key
-   *  on the seeded schema. The UI renders these as disabled inputs and the insert payload
-   *  drops them so Postgres generates the value. */
+  /** True for columns the DB owns: primary keys and generated/identity columns. The backend
+   *  populates `columnInfos` for SQL-family engines (Postgres + MySQL families); for engines
+   *  without metadata we fall back to a case-insensitive `id` match so the historical UX is
+   *  preserved. The UI renders these as disabled inputs and the insert payload drops them. */
   protected isProtectedColumn(colIndex: number): boolean {
     const r = this.rows();
-    const name = r?.columns[colIndex];
-    return name?.toLowerCase() === 'id';
+    const info = r?.columnInfos?.[colIndex];
+    if (info) return info.isPrimaryKey || info.isGenerated;
+    return r?.columns[colIndex]?.toLowerCase() === 'id';
   }
 
   protected draftValue(colIndex: number): string {
