@@ -160,6 +160,69 @@ Back up `postgres-data`, `keycloak-data`, and `./backups/` before any major upgr
 
 ---
 
+## Using your own OIDC provider (skip the bundled Keycloak)
+
+The bundled Keycloak is convenient for a zero-config first run, but if you already operate an IdP (Pocket ID, Authentik, Auth0, Zitadel, Dex, plain Keycloak elsewhere, etc.) you can point KRINT at it and drop the `keycloak` service entirely.
+
+### Requirements for the provider
+
+KRINT's SPA uses Authorization Code Flow with **PKCE** — so register KRINT as a **public client** (no client secret). The IdP must support:
+
+- OIDC discovery at `<authority>/.well-known/openid-configuration`
+- `S256` PKCE (any modern IdP does)
+- Standard `openid`, `profile`, `email` scopes
+- Wildcard or exact-match redirect URIs
+
+On the IdP side, configure the client with:
+
+| Setting               | Value                                                                       |
+| --------------------- | --------------------------------------------------------------------------- |
+| Client type           | **Public** (PKCE, no secret)                                                |
+| Redirect URI(s)       | `http://localhost:5000/*` (or your public KRINT URL, e.g. `https://krint.example.com/*`) |
+| Post-logout URI       | Same                                                                        |
+| Web origins / CORS    | The KRINT origin without the trailing slash                                 |
+| Scopes                | `openid profile email` — `roles` is optional, KRINT tolerates its absence   |
+| Group/user restriction| Make sure the user logging in is allowed to access the client               |
+
+### Compose changes
+
+Edit the shipped `compose.yml`:
+
+1. **Delete the `keycloak` service** and its `volumes:` `keycloak-data:` entry.
+2. From the `krint` service, **remove** `Oidc__InternalAuthority` and the `depends_on: keycloak` line.
+3. Drop the keycloak `depends_on` entirely if KRINT only depends on `db`.
+
+Edit `.env`:
+
+1. **Delete every `KC_*` variable** — they only configure the bundled Keycloak.
+2. Point KRINT at your external IdP:
+
+```env
+# Public discovery URL of YOUR realm/tenant
+Oidc__Authority=https://auth.example.com/application/o/krint/
+Oidc__ClientId=<the client id from your IdP>
+
+# Where the IdP sends users after login (must match what the IdP has registered)
+Oidc__RedirectUri=http://localhost:5000/
+Oidc__PostLogoutRedirectUri=http://localhost:5000/
+
+Oidc__Scope=openid profile email
+Oidc__RequireHttpsMetadata=true     # set to false only if your IdP is HTTP
+
+Cors__AllowedOrigins__0=http://localhost:5000
+```
+
+`Oidc__Authority` must end **exactly** where the IdP's discovery document advertises `issuer`. Trailing slash matters — if discovery returns `"issuer": "https://auth.example.com/application/o/krint"` (no slash) then your `Oidc__Authority` must not have one either, otherwise token validation fails with `iss invalid`.
+
+### Provider quirks
+
+- **Pocket ID** — Toggle the client to **Public Client** (so it uses PKCE) and add your user/group to **Erlaubte Benutzergruppen** (or set to Unrestricted). Redirect URI supports `*` wildcards.
+- **Authentik** — Create a Provider (OAuth2/OpenID), then an Application bound to it. Use the *Provider*'s issuer URL (`/application/o/<slug>/`) as `Oidc__Authority`, not the Application URL.
+- **Auth0** — `Oidc__Authority` is `https://<tenant>.auth0.com/` (trailing slash required). Set the Application type to **Single Page Application**. No `roles` scope by default — KRINT works without it.
+- **Plain Keycloak (external)** — Configure exactly like the bundled one but skip `Oidc__InternalAuthority`. `Oidc__Authority` is `https://<keycloak>/realms/<realm>`.
+
+---
+
 ## Reverse proxy (optional)
 
 If you're putting KRINT behind a reverse proxy (Caddy, Traefik, nginx), you need:
@@ -200,7 +263,8 @@ Cors__AllowedOrigins__0=https://krint.example.com
 | Symptom                                                                          | Likely cause / fix                                                                                                           |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `krint` exits with `Vault:MasterKey must decode to 32 bytes`                     | `Vault__MasterKey` is empty or not a base64-encoded 32-byte value. Regenerate with `openssl rand -base64 32`.                |
-| API returns `401 invalid_token: issuer is invalid`                               | `Oidc__Authority` doesn't equal `KC_HOSTNAME` + `/realms/krint`. They must be the same public URL byte-for-byte (incl. scheme + port). |
+| API returns `401 invalid_token: issuer is invalid`                               | `Oidc__Authority` doesn't match the `issuer` claim in tokens. With the bundled Keycloak it must equal `KC_HOSTNAME` + `/realms/krint`; with an external IdP it must match the `issuer` field of `<authority>/.well-known/openid-configuration` **byte-for-byte** (scheme, port, trailing slash). |
+| Login succeeds at the IdP but lands on "You're not allowed to access this service" | The IdP allows the user to authenticate but the client policy denies them. Pocket ID: add the user's group to **Erlaubte Benutzergruppen** or toggle Unrestricted. Authentik: check the Application's policy bindings. |
 | API returns `401 invalid_token: signature key was not found`                     | `Oidc__InternalAuthority` is wrong or Keycloak's `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` is unset — API can't reach the JWKS endpoint. |
 | CORS error in the browser console on `/realms/krint/protocol/openid-connect/token` | The Keycloak client's web origins don't include the SPA origin. Edit `keycloak/krint-realm.json` (or use the admin UI), add your origin to `webOrigins`, drop `krint_keycloak-data` volume, restart. |
 | CORS error in the browser console on `/api/*`                                    | `Cors__AllowedOrigins__0` doesn't match the SPA origin (no trailing slash).                                                  |
