@@ -10,6 +10,7 @@ namespace KRINT.Application.Mappings.Backup
             Id = b.Id,
             InstanceId = b.InstanceId,
             Engine = b.Engine,
+            EngineVersion = b.EngineVersion,
             FileName = b.FileName,
             SizeBytes = b.SizeBytes,
             CreatedAt = b.CreatedAt,
