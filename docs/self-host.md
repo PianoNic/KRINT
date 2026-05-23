@@ -185,25 +185,10 @@ On the IdP side, configure the client with:
 
 ### Compose for image users (no clone, no bundled Keycloak)
 
-Drop this `compose.yml` next to a matching `.env` and run `docker compose up -d`:
+Drop this `compose.yml` next to a matching `.env` (see below) and run `docker compose up -d`. Everything secret is pulled from `.env` via `${VAR}` substitution; everything stateful lives in `./db/` and `./backups/` so it's right there on the host.
 
 ```yaml
 services:
-  db:
-    image: postgres:18.3
-    container_name: krint-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_PASSWORD: change-me
-      POSTGRES_DB: krint
-    volumes:
-      - postgres-data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d krint"]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-
   krint:
     image: ghcr.io/pianonic/krint:latest
     container_name: krint
@@ -213,23 +198,61 @@ services:
     # host.docker.internal, which host-gateway aliases to the host on Docker Engine 20.10+.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    env_file: .env
-    environment:
-      ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=change-me"
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "5000:8080"
+    environment:
+      ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      Vault__MasterKey: ${KRINT_VAULT_KEY}
+      Oidc__Authority: ${KRINT_OIDC_AUTHORITY}
+      Oidc__ClientId: ${KRINT_OIDC_CLIENT_ID}
+      Oidc__RedirectUri: ${KRINT_OIDC_REDIRECT_URI}
+      Oidc__PostLogoutRedirectUri: ${KRINT_OIDC_REDIRECT_URI}
+      Oidc__Scope: "openid profile email roles"
+      Oidc__RequireHttpsMetadata: "true"
+      Cors__AllowedOrigins__0: ${KRINT_CORS_ORIGIN}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock   # Windows: //var/run/docker.sock:/var/run/docker.sock
-      - ./backups:/app/backups                       # Bind for easy access from the host
+      # Docker socket - KRINT provisions DB containers as siblings on this host.
+      # On Windows / Docker Desktop prefix the host side with a slash: //var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./backups:/app/backups
+      # Optional: only mount your own krint.yaml if you want to override port ranges etc.
+      # The image ships a sensible default.
+      # - ./krint.yaml:/app/krint.yaml:ro
 
-volumes:
-  postgres-data:
+  db:
+    image: postgres:18.4
+    container_name: krint-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: krint
+    volumes:
+      - ./db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d krint"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 ```
 
-The image ships a default `krint.yaml` (port ranges, etc.); only bind-mount your own if you want to override it.
+Matching `.env` (replace the placeholders, keep the keys):
+
+```env
+POSTGRES_PASSWORD=change-me
+
+KRINT_VAULT_KEY=<openssl rand -base64 32>
+
+# Your existing OIDC provider (Pocket ID, Authentik, Auth0, ...).
+KRINT_OIDC_AUTHORITY=https://auth.example.com/realms/krint
+KRINT_OIDC_CLIENT_ID=krint
+KRINT_OIDC_REDIRECT_URI=http://localhost:5000/
+KRINT_CORS_ORIGIN=http://localhost:5000
+```
+
+The image already runs as root, so no `user: root` override is needed in compose. The bind-mounted `./db` and `./backups` directories are created on first start.
 
 ### Editing the cloned compose (path 1)
 
