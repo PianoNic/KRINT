@@ -45,6 +45,12 @@ services:
       dockerfile: src/KRINT.API/Dockerfile
     container_name: krint
     restart: unless-stopped
+    # KRINT probes sibling DB containers via their host-published ports during provision /
+    # upgrade readiness. Inside this container localhost is the krint loopback, not the host,
+    # so the probe needs a name that resolves to the Docker host. host-gateway is supported on
+    # Docker Desktop and on Docker Engine 20.10+ for plain Linux.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file: .env
     environment:
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=d4vpas8w0rd13!!!"
