@@ -39,6 +39,27 @@ namespace KRINT.API.Controllers
             catch (InstanceNotFoundException) { return NotFound(); }
         }
 
+        [HttpPost("instance/{instanceId:guid}/import")]
+        [RequestSizeLimit(512L * 1024 * 1024)]  // 512 MB cap, raise later if we see real demand.
+        [ProducesResponseType(typeof(BackupEntryDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Import(Guid instanceId, IFormFile file, CancellationToken cancellationToken)
+        {
+            if (file is null || file.Length == 0)
+                return BadRequest(new { error = "No file uploaded." });
+            try
+            {
+                await using var stream = file.OpenReadStream();
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms, cancellationToken);
+                var result = await mediator.Send(new ImportBackupCommand(instanceId, file.FileName, ms.ToArray()), cancellationToken);
+                return CreatedAtAction(nameof(Download), new { id = result.Id }, result);
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
         [HttpGet("{id:guid}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

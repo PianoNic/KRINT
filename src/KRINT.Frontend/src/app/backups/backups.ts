@@ -14,6 +14,7 @@ import {
   lucidePlus,
   lucideRefreshCw,
   lucideTrash2,
+  lucideUpload,
 } from '@ng-icons/lucide';
 import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -59,6 +60,7 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
       lucidePlus,
       lucideRefreshCw,
       lucideTrash2,
+      lucideUpload,
       simplePostgresql,
       simpleMysql,
       simpleMongodb,
@@ -153,6 +155,13 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
                 <ng-icon name="lucidePlus" size="14" />
                 {{ creating() ? 'Snapshotting...' : 'Create backup' }}
               </button>
+              <button hlmBtn variant="outline" type="button" size="sm" [disabled]="importing()" (click)="fileInput.click()">
+                <ng-icon name="lucideUpload" size="14" />
+                {{ importing() ? 'Uploading...' : 'Import backup' }}
+              </button>
+              <!-- Hidden file picker triggered by the Import button. accept="*" because dump
+                   files come in many shapes (.sql, .dump, .tar, .gz, .archive, ...). -->
+              <input #fileInput type="file" class="hidden" (change)="importPicked(fileInput.files); fileInput.value = ''" />
               <button hlmBtn variant="outline" size="sm" type="button" (click)="openScheduleDialog()">
                 <ng-icon name="lucidePlus" size="14" />
                 New schedule
@@ -370,6 +379,7 @@ export class Backups {
   protected readonly loading = signal(false);
   protected readonly loadingSchedules = signal(false);
   protected readonly creating = signal(false);
+  protected readonly importing = signal(false);
   protected readonly restoring = signal<string | null>(null);
   protected readonly deleting = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -488,6 +498,28 @@ export class Backups {
       error: (err) => {
         this.error.set(messageOf(err) ?? 'Backup failed');
         this.creating.set(false);
+      },
+    });
+  }
+
+  /** Multipart upload of a user-picked file to the import endpoint. Sends via HttpClient
+   *  rather than the generated client because the generator doesn't model IFormFile cleanly. */
+  protected importPicked(files: FileList | null): void {
+    const file = files?.[0];
+    const id = this.selectedInstanceId();
+    if (!file || !id) return;
+    this.importing.set(true);
+    this.error.set(null);
+    const form = new FormData();
+    form.append('file', file, file.name);
+    this.http.post<BackupEntryDto>(`${environment.apiBaseUrl}/api/Backups/instance/${id}/import`, form).subscribe({
+      next: (entry) => {
+        this.entries.update((curr) => [entry, ...curr]);
+        this.importing.set(false);
+      },
+      error: (err) => {
+        this.error.set(messageOf(err) ?? 'Import failed');
+        this.importing.set(false);
       },
     });
   }
