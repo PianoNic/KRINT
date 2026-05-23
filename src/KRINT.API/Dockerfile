@@ -30,6 +30,15 @@ WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080 ASPNETCORE_ENVIRONMENT=Production
 
+# Run as root so /var/run/docker.sock is accessible out of the box on every host
+# (Docker Desktop on Windows/Mac exposes the socket as root:root 0660; Linux exposes
+# it as root:docker 0660 with a host-specific GID). KRINT needs full Docker API access
+# to provision sibling containers - dropping privilege inside the container while
+# holding the socket gains nothing, since socket access is root-equivalent on the host
+# either way. Override with `user: "<uid>:<gid>"` in compose if you have a different
+# threat model and a known GID to map.
+USER root
+
 COPY --from=backend-build /app/publish .
 COPY --from=frontend-build /artifacts/frontend/browser ./wwwroot
 
