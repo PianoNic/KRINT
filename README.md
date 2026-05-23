@@ -7,7 +7,7 @@
 </p>
 <p align="center">
   <a href="https://github.com/PianoNic/KRINT"><img src="https://badgetrack.pianonic.ch/badge?tag=krint&label=visits&color=0d1117&style=flat" alt="visits" /></a>
-  <a href="#getting-started"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
+  <a href="docs/self-host.md"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/.NET-10-0d1117.svg" alt=".NET 10" /></a>
   <a href="#tech-stack"><img src="https://img.shields.io/badge/Angular-21-0d1117.svg" alt="Angular 21" /></a>
 </p>
@@ -29,6 +29,11 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 - **Users & access**: create logins, reset passwords, grant per-database access.
 - **OIDC auth**: bring your own provider or use the bundled Keycloak.
 - **Capability-aware UI**: engines without "users" or "rows" simply don't show those controls.
+
+## Documentation
+
+- 📖 **[Self-hosting guide](docs/self-host.md)**: run KRINT against the pre-built image with `docker compose`, configure auth (bundled Keycloak or bring your own OIDC provider), troubleshooting.
+- 🛠️ **[Developer setup](docs/dev-setup.md)**: local dev with `dotnet run` + Bun, EF migrations, the E2E test suite.
 
 ## Screenshots
 
@@ -95,7 +100,7 @@ docker build -t krint-api -f src/KRINT.API/Dockerfile src/KRINT.API
 docker run --rm -p 8080:8080 -p 8081:8081 krint-api
 ```
 
-The full stack (Keycloak + API + frontend) lives in [`docs/dev-setup.md`](docs/dev-setup.md).
+The full stack (Keycloak + API + frontend) lives in the [developer setup guide](docs/dev-setup.md).
 
 ## Testing
 
