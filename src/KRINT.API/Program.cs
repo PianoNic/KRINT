@@ -1,5 +1,6 @@
 using KRINT.API;
 using KRINT.API.Extensions;
+using KRINT.API.Hubs;
 using KRINT.API.OpenApi;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
@@ -18,6 +19,13 @@ builder.Services.AddKrintConfig(builder.Environment);
 builder.Services.AddSpaStaticFiles(options => { options.RootPath = "wwwroot"; });
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR(options =>
+{
+    // Container output can burst over the default 32 KB cap when a server logs verbose startup
+    // or a user runs ls in a huge directory. Bumping this lets each Output/Logs frame land
+    // without the connection getting axed.
+    options.MaximumReceiveMessageSize = 1024 * 1024;
+});
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, HttpCurrentUserService>();
@@ -69,6 +77,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters.NameClaimType = "name";
         options.TokenValidationParameters.RoleClaimType = "roles";
         options.TokenValidationParameters.ValidateAudience = false;
+
+        // Browsers can't set Authorization headers on the WebSocket handshake. The standard
+        // SignalR pattern is for the JS client to put the access token on the query string,
+        // which we hoist back onto the request here.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
+        };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -110,6 +134,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
 
 // The Dockerfile copies the Angular dist/browser contents directly into wwwroot, so
 // index.html sits at /app/wwwroot/index.html in the image. AllowAnonymous is required
