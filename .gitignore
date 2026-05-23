@@ -6,6 +6,10 @@
 # Bind-mounted runtime directories created by docker compose
 /backups/
 
+# Claude Code runtime state (everything under .claude/ except CLAUDE.md)
+.claude/*
+!.claude/CLAUDE.md
+
 # User-specific files
 *.rsuser
 *.suo
