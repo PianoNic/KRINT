@@ -115,6 +115,13 @@ export class Browser {
   protected readonly deletingRowIndex = signal<number | null>(null);
   protected readonly editError = signal<string | null>(null);
 
+  // Spreadsheet-style in-place edits. Key is `${rowIdx}:${colIdx}`. Absence means
+  // "use the server value at that cell". NULL_TOKEN means "user wants this cell set to NULL".
+  // The map is cleared whenever the row set itself reloads (page change, table switch, refresh)
+  // because the row indexes would no longer line up with what the user saw.
+  protected readonly pendingEdits = signal<ReadonlyMap<string, EditValue>>(new Map());
+  protected readonly hasChanges = computed(() => this.pendingEdits().size > 0);
+
   protected readonly selectedInstance = computed(() =>
     this.instances().find((i) => i.id === this.instanceId()) ?? null,
   );
@@ -199,6 +206,7 @@ export class Browser {
       const off = this.offset();
       if (!id || !db || !tbl) { this.rows.set(null); return; }
       this.cancelDraft();
+      this.pendingEdits.set(new Map());
       this.loadRows(id, db, tbl, lim, off);
     });
   }
@@ -356,6 +364,124 @@ export class Browser {
   protected draftValue(colIndex: number): string {
     const v = this.draft()?.values[colIndex];
     return v === undefined || v === NULL_TOKEN ? '' : v;
+  }
+
+  // ----- in-place cell editing -----
+  private cellKey(rowIdx: number, colIdx: number): string { return `${rowIdx}:${colIdx}`; }
+
+  private serverCell(rowIdx: number, colIdx: number): string | null {
+    const v = this.rows()?.rows[rowIdx]?.[colIdx];
+    return v == null ? null : v;
+  }
+
+  /** Current pending or server value for a cell. Returns NULL_TOKEN for NULL. */
+  protected cellValue(rowIdx: number, colIdx: number): EditValue {
+    const pending = this.pendingEdits().get(this.cellKey(rowIdx, colIdx));
+    if (pending !== undefined) return pending;
+    const server = this.serverCell(rowIdx, colIdx);
+    return server === null ? NULL_TOKEN : server;
+  }
+
+  /** String to bind into the input's value. NULL renders as empty (placeholder shows "null"). */
+  protected cellInputValue(rowIdx: number, colIdx: number): string {
+    const v = this.cellValue(rowIdx, colIdx);
+    return v === NULL_TOKEN ? '' : v;
+  }
+
+  /** Placeholder text in light gray for empty/null cells so the user can tell them apart. */
+  protected cellPlaceholder(rowIdx: number, colIdx: number): string {
+    const v = this.cellValue(rowIdx, colIdx);
+    if (v === NULL_TOKEN) return 'null';
+    if (v === '') return 'empty';
+    return '';
+  }
+
+  protected isCellDirty(rowIdx: number, colIdx: number): boolean {
+    return this.pendingEdits().has(this.cellKey(rowIdx, colIdx));
+  }
+
+  protected isCellNull(rowIdx: number, colIdx: number): boolean {
+    return this.cellValue(rowIdx, colIdx) === NULL_TOKEN;
+  }
+
+  /** User typed into a cell. If the new value matches the server value, drop the pending edit
+   *  (so the cell stops being dirty). Otherwise record the pending value. */
+  protected onCellInput(rowIdx: number, colIdx: number, value: string): void {
+    const key = this.cellKey(rowIdx, colIdx);
+    const server = this.serverCell(rowIdx, colIdx);
+    this.pendingEdits.update((m) => {
+      const next = new Map(m);
+      // value === '' is NOT the same as server === null - empty string is a real value.
+      if (server !== null && value === server) next.delete(key);
+      else next.set(key, value);
+      return next;
+    });
+  }
+
+  /** Backspace on an already-empty cell rewrites it to NULL. Typing any other key while NULL
+   *  cancels the NULL and starts a fresh string (handled by the input's normal input event). */
+  protected onCellKeydown(rowIdx: number, colIdx: number, ev: KeyboardEvent): void {
+    if (ev.key !== 'Backspace') return;
+    const v = this.cellValue(rowIdx, colIdx);
+    if (v === '' || v === NULL_TOKEN) {
+      ev.preventDefault();
+      const key = this.cellKey(rowIdx, colIdx);
+      this.pendingEdits.update((m) => new Map(m).set(key, NULL_TOKEN));
+    }
+  }
+
+  protected discardChanges(): void {
+    this.pendingEdits.set(new Map());
+    this.editError.set(null);
+  }
+
+  /** PATCH every row that has pending edits. Each row is sent with its full new value vector
+   *  (pending cells overlaid on top of server cells) so the backend's existing diff path can
+   *  pick out the changed columns. Failures stop further rows; partial saves stay applied. */
+  protected saveChanges(): void {
+    const r = this.rows();
+    const id = this.instanceId(); const db = this.database(); const tbl = this.table();
+    if (!r || !id || !db || !tbl) return;
+    const edits = this.pendingEdits();
+    if (edits.size === 0) return;
+
+    // Group keys by rowIdx.
+    const rowsToSave = new Set<number>();
+    for (const key of edits.keys()) rowsToSave.add(Number(key.split(':')[0]));
+
+    this.saving.set(true);
+    this.editError.set(null);
+
+    const sequence = Array.from(rowsToSave).sort((a, b) => a - b);
+    const saveNext = (i: number): void => {
+      if (i >= sequence.length) {
+        this.saving.set(false);
+        this.pendingEdits.set(new Map());
+        return;
+      }
+      const rowIdx = sequence[i];
+      const original = r.rows[rowIdx];
+      const newValues = original.map((cell, colIdx) => {
+        const v = this.cellValue(rowIdx, colIdx);
+        return v === NULL_TOKEN ? null : v;
+      });
+      this.api.apiDatabaseIdBrowseDatabaseTablesTableRowsPatch(id, db, tbl, {
+        columns: r.columns,
+        originalValues: original,
+        newValues,
+      } as any).subscribe({
+        next: () => {
+          this.rows.update((curr) =>
+            curr === null
+              ? curr
+              : { ...curr, rows: curr.rows.map((row, j) => (j === rowIdx ? (newValues as unknown as string[]) : row)) },
+          );
+          saveNext(i + 1);
+        },
+        error: (err) => { this.editError.set(messageOf(err)); this.saving.set(false); },
+      });
+    };
+    saveNext(0);
   }
 
   protected saveDraft(): void {

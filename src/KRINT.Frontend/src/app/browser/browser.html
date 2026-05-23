@@ -160,6 +160,30 @@
           </span>
         </div>
         <div class="flex items-center gap-1">
+          @if (hasChanges()) {
+            <button
+              hlmBtn
+              variant="default"
+              size="sm"
+              type="button"
+              [disabled]="saving()"
+              (click)="saveChanges()"
+            >
+              <ng-icon name="lucideCheck" size="14" />
+              {{ saving() ? 'Saving...' : 'Save changes' }}
+            </button>
+            <button
+              hlmBtn
+              variant="outline"
+              size="sm"
+              type="button"
+              [disabled]="saving()"
+              (click)="discardChanges()"
+            >
+              <ng-icon name="lucideX" size="14" />
+              Discard
+            </button>
+          }
           @if (canInsertRow()) {
             <button
               hlmBtn
@@ -242,93 +266,59 @@
                   </tr>
                 }
                 @for (row of r.rows; track $index; let rowIdx = $index) {
-                  <tr
-                    hlmTableRow
-                    [class.cursor-pointer]="canEditRow() && draft() === null"
-                    (dblclick)="canEditRow() && draft() === null && beginEdit(rowIdx)"
-                  >
-                    @if (editingIndex() === rowIdx) {
-                      @for (cell of row; track $index; let colIdx = $index) {
-                        <td hlmTableCell class="font-mono text-xs">
-                          @if (isProtectedColumn(colIdx)) {
-                            <span class="text-muted-foreground">{{ cell }}</span>
-                          } @else {
-                            <div class="flex items-center gap-1">
-                              <input
-                                class="h-7 flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 px-0 font-mono text-xs disabled:opacity-50"
-                                [value]="draftValue(colIdx)"
-                                [disabled]="isDraftNull(colIdx) || saving()"
-                                [placeholder]="isDraftNull(colIdx) ? 'NULL' : ''"
-                                (input)="updateDraft(colIdx, $any($event.target).value)"
-                              />
-                              <button
-                                hlmBtn
-                                variant="ghost"
-                                size="icon"
-                                type="button"
-                                class="h-7 w-7 shrink-0"
-                                [attr.aria-label]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
-                                [hlmTooltip]="isDraftNull(colIdx) ? 'Unset NULL' : 'Set NULL'"
-                                [disabled]="saving()"
-                                (click)="toggleDraftNull(colIdx)"
-                              >
-                                <span class="text-[10px]">∅</span>
-                              </button>
-                            </div>
-                          }
-                        </td>
-                      }
-                      <td hlmTableCell class="text-right">
-                        <div class="flex items-center justify-end gap-1">
-                          <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Save" hlmTooltip="Save" (click)="saveDraft()" [disabled]="saving()">
-                            <ng-icon name="lucideCheck" size="16" />
-                          </button>
-                          <button hlmBtn variant="ghost" size="icon" type="button" aria-label="Cancel" hlmTooltip="Cancel" (click)="cancelDraft()" [disabled]="saving()">
-                            <ng-icon name="lucideX" size="16" />
-                          </button>
-                        </div>
-                      </td>
-                    } @else {
-                      @for (cell of row; track $index) {
-                        <td hlmTableCell class="font-mono text-xs">{{ truncate(cell) }}</td>
-                      }
-                      <td hlmTableCell class="text-right">
-                        <div class="flex items-center justify-end">
-                          @if (canEditRow() || canDeleteRow()) {
-                            <button
-                              hlmBtn
-                              variant="ghost"
-                              size="icon"
-                              type="button"
-                              class="h-7 w-7"
-                              [attr.aria-label]="'Row actions'"
-                              [hlmTooltip]="'Row actions'"
-                              [disabled]="draft() !== null || deletingRowIndex() !== null"
-                              [hlmDropdownMenuTrigger]="rowMenu"
-                              align="end"
-                            >
-                              <ng-icon name="lucideEllipsisVertical" size="14" />
-                            </button>
-                            <ng-template #rowMenu>
-                              <div hlmDropdownMenu>
-                                @if (canEditRow()) {
-                                  <button hlmDropdownMenuItem type="button" (click)="beginEdit(rowIdx)">
-                                    <ng-icon name="lucidePencil" size="14" />
-                                    Edit {{ rowTerm() }}
-                                  </button>
-                                }
-                                @if (canDeleteRow()) {
-                                  <button hlmDropdownMenuItem type="button" (click)="deleteRow(rowIdx)">
-                                    <ng-icon name="lucideTrash2" size="14" />
-                                    Delete {{ rowTerm() }}
-                                  </button>
-                                }
-                              </div>
-                            </ng-template>
-                          }
-                        </div>
+                  <tr hlmTableRow>
+                    @for (cell of row; track $index; let colIdx = $index) {
+                      <td
+                        hlmTableCell
+                        class="font-mono text-xs"
+                        [class.bg-amber-500/10]="isCellDirty(rowIdx, colIdx)"
+                      >
+                        @if (isProtectedColumn(colIdx)) {
+                          <span class="text-muted-foreground">{{ cell }}</span>
+                        } @else if (!canEditRow()) {
+                          {{ truncate(cell) }}
+                        } @else {
+                          <input
+                            class="h-7 w-full bg-transparent border-0 outline-none focus:outline-none focus:ring-0 px-0 font-mono text-xs placeholder:italic placeholder:text-muted-foreground"
+                            [class.text-muted-foreground]="isCellNull(rowIdx, colIdx)"
+                            [class.italic]="isCellNull(rowIdx, colIdx)"
+                            [value]="cellInputValue(rowIdx, colIdx)"
+                            [placeholder]="cellPlaceholder(rowIdx, colIdx)"
+                            [disabled]="saving()"
+                            (input)="onCellInput(rowIdx, colIdx, $any($event.target).value)"
+                            (keydown)="onCellKeydown(rowIdx, colIdx, $event)"
+                          />
+                        }
                       </td>
                     }
+                    <td hlmTableCell class="text-right">
+                      <div class="flex items-center justify-end">
+                        @if (canDeleteRow()) {
+                          <button
+                            hlmBtn
+                            variant="ghost"
+                            size="icon"
+                            type="button"
+                            class="h-7 w-7"
+                            [attr.aria-label]="'Row actions'"
+                            [hlmTooltip]="'Row actions'"
+                            [disabled]="draft() !== null || deletingRowIndex() !== null"
+                            [hlmDropdownMenuTrigger]="rowMenu"
+                            align="end"
+                          >
+                            <ng-icon name="lucideEllipsisVertical" size="14" />
+                          </button>
+                          <ng-template #rowMenu>
+                            <div hlmDropdownMenu>
+                              <button hlmDropdownMenuItem type="button" (click)="deleteRow(rowIdx)">
+                                <ng-icon name="lucideTrash2" size="14" />
+                                Delete {{ rowTerm() }}
+                              </button>
+                            </div>
+                          </ng-template>
+                        }
+                      </div>
+                    </td>
                   </tr>
                 }
               </tbody>
