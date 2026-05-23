@@ -25,7 +25,8 @@ namespace KRINT.Application.Command.Database
         KrintDbContext db,
         IActivityLogger activity,
         IBackupServiceResolver backupResolver,
-        IBackupStorage backupStorage)
+        IBackupStorage backupStorage,
+        IInnerDatabaseServiceResolver innerDbs)
         : ICommandHandler<UpgradeDatabaseCommand, DatabaseInstanceDto>
     {
         public async ValueTask<DatabaseInstanceDto> Handle(UpgradeDatabaseCommand command, CancellationToken cancellationToken)
@@ -156,20 +157,26 @@ namespace KRINT.Application.Command.Database
             }
         }
 
-        /// <summary>Local readiness probe. Mirrors CreateDatabaseCommandHandler.WaitForReadyAsync
-        /// but stays decoupled from it because that one is instance-private.</summary>
+        /// <summary>Real-query readiness probe. A bare TCP probe lies for Postgres (it binds
+        /// 5432 during init but refuses queries until bootstrap is done), which then crashes the
+        /// pg_restore step. Running an actual ListAsync against the inner-db service only returns
+        /// once the engine accepts queries. Mirrors CreateDatabaseCommandHandler.WaitForReadyAsync.</summary>
         private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
         {
-            const int ceilingSeconds = 60;
+            var inner = innerDbs.Resolve(target.Engine);
+            var ceilingSeconds = target.Engine switch
+            {
+                "cassandra" or "elasticsearch" or "neo4j" => 180,
+                _ => 60,
+            };
             var deadline = DateTime.UtcNow.AddSeconds(ceilingSeconds);
             Exception? last = null;
-            var delayMs = 250;
+            var delayMs = 500;
             while (DateTime.UtcNow < deadline)
             {
                 try
                 {
-                    using var probe = new System.Net.Sockets.TcpClient();
-                    await probe.ConnectAsync(target.Host, target.Port, cancellationToken);
+                    await inner.ListAsync(target, cancellationToken);
                     return;
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
