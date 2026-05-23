@@ -10,24 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
-      # Use MAIN_PUSH_TOKEN (a PAT owned by the maintainer, with contents:write and listed
-      # under branch protection bypass-actors) so the resulting commit is authored by the
-      # maintainer and skips the PR requirement on main. Fall back to GITHUB_TOKEN if the
-      # secret is missing; the push will fail on a protected main in that case, which is the
-      # signal to provision the secret.
       - name: Checkout main
         uses: actions/checkout@v4
         with:
           ref: main
-          token: ${{ secrets.MAIN_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.MAIN_PUSH_TOKEN }}
 
       - name: Configure git as the maintainer
         run: |
           git config user.name "PianoNic"
           git config user.email "79938743+PianoNic@users.noreply.github.com"
 
-      - name: Compare versions and commit if different
+      - name: Compare versions and open + merge sync PR if different
+        env:
+          GH_TOKEN: ${{ secrets.MAIN_PUSH_TOKEN }}
         run: |
           TAG_VERSION="${{ github.event.release.tag_name }}"
           TAG_VERSION="${TAG_VERSION#v}"
@@ -37,15 +35,26 @@ jobs:
           echo "File version:        $FILE_VERSION"
 
           if [ "$TAG_VERSION" = "$FILE_VERSION" ]; then
-            echo "Already in sync, nothing to commit."
+            echo "Already in sync, nothing to do."
             exit 0
           fi
 
           sed -i "s|<version>$FILE_VERSION</version>|<version>$TAG_VERSION</version>|" application.properties
 
+          BRANCH="release-sync/$TAG_VERSION"
+          git checkout -b "$BRANCH"
           git add application.properties
           git commit -m "Bumped application.properties to $TAG_VERSION for release"
-          git push origin HEAD:main
+          git push origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Bumped application.properties to $TAG_VERSION for release" \
+            --body "Bumped application.properties to $TAG_VERSION for release" \
+            --label CI/CD)
+          gh pr review "$PR_URL" --approve
+          gh pr merge "$PR_URL" --squash --delete-branch
 
   build-and-push-multiarch:
     name: Build and Push Multi-Arch Docker Images
@@ -55,8 +64,6 @@ jobs:
       contents: read
       packages: write
     steps:
-      # Build from main (post-sync) so the image bakes the corrected version even if the
-      # release tag's commit had the old number.
       - name: Checkout main
         uses: actions/checkout@v4
         with:
