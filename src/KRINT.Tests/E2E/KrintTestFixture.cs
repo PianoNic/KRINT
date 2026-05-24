@@ -47,8 +47,9 @@ public static class KrintTestFixture
     public sealed record Session(IBrowserContext Context, IPage Page);
 
     /// <summary>
-    /// Opens a fresh browser context and signs in via Keycloak using the realm-seeded
-    /// e2e_runner account. Returns once the Angular sidenav has rendered.
+    /// Opens a fresh browser context. The IdP (mock-oauth2-server) runs non-interactively,
+    /// so /authorize auto-redirects back to the SPA with a code - no login form to fill.
+    /// Returns once the Angular sidenav has rendered.
     /// </summary>
     public static async Task<Session> NewAuthenticatedSessionAsync(KrintStack stack)
     {
@@ -56,10 +57,6 @@ public static class KrintTestFixture
         var ctx = await browser.NewContextAsync();
         var page = await ctx.NewPageAsync();
         await page.GotoAsync(stack.AppUrl + "/");
-
-        await page.GetByRole(AriaRole.Textbox, new() { Name = "Username or email" }).FillAsync(stack.TestUsername);
-        await page.GetByRole(AriaRole.Textbox, new() { Name = "Password", Exact = true }).FillAsync(stack.TestPassword);
-        await page.GetByRole(AriaRole.Button, new() { Name = "Sign In" }).ClickAsync();
 
         await page.WaitForURLAsync(u => u.StartsWith(stack.AppUrl), new() { Timeout = 15000 });
         await Assertions.Expect(page.Locator("a[href='/instances']")).ToBeVisibleAsync(new() { Timeout = 15000 });

@@ -1,0 +1,26 @@
+{
+  "interactiveLogin": false,
+  "tokenCallbacks": [
+    {
+      "issuerId": "default",
+      "tokenExpiry": 3600,
+      "requestMappings": [
+        {
+          "requestParam": "scope",
+          "match": "*",
+          "claims": {
+            "sub": "test-user-123",
+            "name": "Test User",
+            "given_name": "Test",
+            "family_name": "User",
+            "preferred_username": "testuser",
+            "email": "test@example.com",
+            "email_verified": true,
+            "picture": "https://i.pravatar.cc/150?u=test-user-123",
+            "roles": ["admin"]
+          }
+        }
+      ]
+    }
+  ]
+}

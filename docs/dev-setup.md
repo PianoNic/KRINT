@@ -118,7 +118,7 @@ dotnet run --project src/KRINT.Tests
 TUnit 1.x test runner. Coverage:
 
 - **Unit**: `PingQueryTests`, `SecretGeneratorServiceTests`, `SecretsVaultServiceTests`. All use `Microsoft.EntityFrameworkCore.InMemory`: no Postgres required.
-- **E2E**: Browser-driven tests via Microsoft.Playwright. The suite boots its **own** ephemeral stack via Testcontainers each session (Postgres + Keycloak + the bundled KRINT image built from this repo's Dockerfile). You don't need to run the dev stack manually.
+- **E2E**: Browser-driven tests via Microsoft.Playwright. The suite boots its **own** ephemeral stack each session by driving `e2e/compose.e2e.yml` through Ductus.FluentDocker (Postgres + `mock-oauth2-server` + the bundled KRINT image built from this repo's Dockerfile). You don't need to run the dev stack manually. Spin it up by hand for debugging with `docker compose -f e2e/compose.e2e.yml up -d --build`.
 
 ### Running the E2E suite
 
@@ -136,13 +136,13 @@ dotnet run --project src/KRINT.Tests
 ```
 
 What happens on first run:
-1. **Image build** (~2 min): multi-stage Dockerfile (frontend via `bun build` + .NET API publish) into a single distroless Azure Linux image.
-2. **Stack boot** (~30 s): Postgres 18, Keycloak 26 with the realm imported (seeded with `e2e_runner` / `Test1234!`), KRINT app reachable on a random host port.
-3. **Browser tests**: each test creates a fresh browser context, logs in as `e2e_runner`, exercises one slice of the app, and cleans up.
+1. **Image build** (~2 min): compose builds `src/KRINT.API/Dockerfile` (frontend via `bun build` + .NET API publish) into a single distroless Azure Linux image.
+2. **Stack boot** (~30 s): Postgres 18 on `localhost:15434`, `mock-oauth2-server` on `localhost:18080` (non-interactive, auto-issues signed JWTs from `e2e/mock-oauth2-config.json`), KRINT app on `localhost:18081`.
+3. **Browser tests**: each test opens a fresh browser context. The SPA redirects to the mock IdP, which auto-redirects straight back with a token. No login form, no credentials.
 
 Test files (`src/KRINT.Tests/E2E/`):
-- `KrintStack.cs`: Testcontainers orchestrator + image builder
-- `KrintTestFixture.cs`: per-test browser context + Keycloak login helper
+- `KrintStack.cs`: drives `e2e/compose.e2e.yml` via Ductus.FluentDocker, exposes URLs
+- `KrintTestFixture.cs`: per-test browser context
 - `KrintSessionHooks.cs`: TUnit `[Before/After(TestSession)]` for stack lifecycle
 - `WizardHelper.cs`: drives the `/create` wizard
 - `NavigationTests`, `WizardTests`, `InstanceDialogTests`, `BackupTests`, `ActivityLogTests`, `InstanceLifecycleTests`
