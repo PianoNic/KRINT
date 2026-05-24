@@ -123,23 +123,7 @@
   "clientAuthenticationFlow": "clients",
   "dockerAuthenticationFlow": "docker auth",
   "firstBrokerLoginFlow": "first broker login",
-  "users": [
-    {
-      "username": "e2e_runner",
-      "enabled": true,
-      "emailVerified": true,
-      "firstName": "E2E",
-      "lastName": "Runner",
-      "email": "e2e_runner@example.com",
-      "credentials": [
-        {
-          "type": "password",
-          "value": "Test1234!",
-          "temporary": false
-        }
-      ]
-    }
-  ],
+  "users": [],
   "attributes": {
     "cibaBackchannelTokenDeliveryMode": "poll",
     "cibaAuthRequestedUserHint": "login_hint",
