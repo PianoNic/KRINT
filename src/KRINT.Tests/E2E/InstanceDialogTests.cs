@@ -16,7 +16,7 @@ public class InstanceDialogTests
             var row = page.Locator("tbody tr").Filter(new() { HasText = name });
             await row.Locator("button[aria-label='View details']").ClickAsync();
             await Assertions.Expect(page.Locator("[role=dialog] code").Last).ToBeVisibleAsync(new() { Timeout = 10000 });
-            await Assertions.Expect(page.Locator("[role=dialog]").GetByText("Connection string")).ToBeVisibleAsync();
+            await Assertions.Expect(page.Locator("[role=dialog]").GetByText("Connection string", new() { Exact = true })).ToBeVisibleAsync();
             await page.Keyboard.PressAsync("Escape");
         }, "view_");
     }
@@ -50,13 +50,13 @@ public class InstanceDialogTests
         }, "eus_");
     }
 
-    private static async Task OpenEdit(IPage page, KrintStack stack, string containerName)
+    private static async Task OpenEdit(IPage page, KrintStack stack, string displayName)
     {
         await page.GotoAsync(stack.AppUrl + "/instances");
-        var row = page.Locator("tbody tr").Filter(new() { HasText = containerName });
+        var row = page.Locator("tbody tr").Filter(new() { HasText = displayName });
         await row.Locator("button[aria-label='More actions']").ClickAsync();
-        await page.Locator("button:has-text('Edit')").ClickAsync();
-        await Assertions.Expect(page.Locator($"[role=dialog] h3:has-text('Edit {containerName}')"))
+        await page.GetByRole(AriaRole.Menuitem, new() { Name = "Edit", Exact = true }).ClickAsync();
+        await Assertions.Expect(page.Locator($"[role=dialog] h3:has-text('Edit {displayName}')"))
             .ToBeVisibleAsync(new() { Timeout = 10000 });
     }
 
@@ -67,11 +67,11 @@ public class InstanceDialogTests
         var instance = await WizardHelper.ProvisionPostgresAsync(session.Page, stack, prefix + DateTime.UtcNow.ToString("HHmmssfff"));
         try
         {
-            await body(stack, session.Page, instance.ContainerName);
+            await body(stack, session.Page, instance.DisplayName);
         }
         finally
         {
-            await WizardHelper.CleanupAsync(session.Page, stack, instance.ContainerName);
+            await WizardHelper.CleanupAsync(session.Page, stack, instance.DisplayName);
             await session.Context.CloseAsync();
         }
     }

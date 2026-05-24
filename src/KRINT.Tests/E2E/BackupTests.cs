@@ -17,14 +17,15 @@ public class BackupTests
         try
         {
             await page.GotoAsync(stack.AppUrl + "/backups");
-            var section = page.Locator(".rounded-md.border.p-4").Filter(new() { HasText = instance.ContainerName });
-            await section.Locator("button:has-text('Backup now')").ClickAsync();
-            await Assertions.Expect(section.Locator($"tbody tr:has-text('{instance.ContainerName}')").First)
+            // Scope to the instance via the left sidebar (instance picker).
+            await page.Locator("aside button").Filter(new() { HasText = instance.DisplayName }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Create backup", Exact = true }).ClickAsync();
+            await Assertions.Expect(page.Locator("tbody tr").First)
                 .ToBeVisibleAsync(new() { Timeout = 60000 });
         }
         finally
         {
-            await WizardHelper.CleanupAsync(page, stack, instance.ContainerName);
+            await WizardHelper.CleanupAsync(page, stack, instance.DisplayName);
             await session.Context.CloseAsync();
         }
     }

@@ -20,12 +20,12 @@ public class WizardTests
             await Assertions.Expect(page.Locator("code", new() { HasText = "postgres://" })).ToBeVisibleAsync();
             await page.Locator("button:has-text('Go to Instances')").ClickAsync();
             await Assertions.Expect(
-                page.Locator("tbody tr").Filter(new() { HasText = instance.ContainerName })
+                page.Locator("tbody tr").Filter(new() { HasText = instance.DisplayName })
             ).ToBeVisibleAsync();
         }
         finally
         {
-            await WizardHelper.CleanupAsync(page, stack, instance.ContainerName);
+            await WizardHelper.CleanupAsync(page, stack, instance.DisplayName);
             await session.Context.CloseAsync();
         }
     }
@@ -41,12 +41,12 @@ public class WizardTests
         try
         {
             await page.Locator("button:has-text('Go to Instances')").ClickAsync();
-            var row = page.Locator("tbody tr").Filter(new() { HasText = instance.ContainerName });
+            var row = page.Locator("tbody tr").Filter(new() { HasText = instance.DisplayName });
             await Assertions.Expect(row).ToContainTextAsync(dbName);
         }
         finally
         {
-            await WizardHelper.CleanupAsync(page, stack, instance.ContainerName);
+            await WizardHelper.CleanupAsync(page, stack, instance.DisplayName);
             await session.Context.CloseAsync();
         }
     }

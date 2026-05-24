@@ -17,11 +17,11 @@ public class InstanceLifecycleTests
         var instance = await WizardHelper.ProvisionPostgresAsync(page, stack, "del_" + DateTime.UtcNow.ToString("HHmmssfff"));
         try
         {
-            page.Dialog += (_, d) => { _ = d.AcceptAsync(); };
             await page.GotoAsync(stack.AppUrl + "/instances");
-            var row = page.Locator("tbody tr").Filter(new() { HasText = instance.ContainerName });
+            var row = page.Locator("tbody tr").Filter(new() { HasText = instance.DisplayName });
             await row.Locator("button[aria-label='More actions']").ClickAsync();
-            await page.Locator("button:has-text('Delete')").ClickAsync();
+            await page.GetByRole(AriaRole.Menuitem, new() { Name = "Delete", Exact = true }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Delete instance", Exact = true }).ClickAsync();
             await Assertions.Expect(row).ToBeHiddenAsync(new() { Timeout = 30000 });
 
             var psi = new ProcessStartInfo("docker", $"ps -a --filter name={instance.ContainerName} --format {{{{.Names}}}}")

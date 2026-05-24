@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:18.3
+    environment:
+      POSTGRES_DB: krint-test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-test
+    ports:
+      - "15434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d krint-test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  mock-oauth2:
+    # The mock-oauth2-server image is built FROM a JRE-only base - no shell, no wget/curl -
+    # so a CMD-SHELL healthcheck can't run. We let the container start unchecked and probe
+    # readiness from the host in KrintStack.
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    environment:
+      JSON_CONFIG_PATH: /app/config.json
+    volumes:
+      - ./mock-oauth2-config.json:/app/config.json:ro
+    ports:
+      - "18080:8080"
+
+  krint:
+    build:
+      context: ..
+      dockerfile: src/KRINT.API/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-oauth2:
+        condition: service_started
+    ports:
+      - "18081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__KrintDatabase: Host=postgres;Port=5432;Database=krint-test;Username=postgres;Password=postgres-test
+      Oidc__Authority: http://localhost:18080/default
+      Oidc__InternalAuthority: http://mock-oauth2:8080/default
+      Oidc__RequireHttpsMetadata: "false"
+      Oidc__ClientId: krint
+      Oidc__RedirectUri: http://localhost:18081/
+      Oidc__PostLogoutRedirectUri: http://localhost:18081/
+      Oidc__Scope: openid profile email roles
+      Cors__AllowedOrigins__0: http://localhost:18081
+      # E2E-only AES-256 key (32 raw bytes, base64-encoded), never reused outside this file.
+      Vault__MasterKey: 2P+vvGUw5v3weZdFU04YOicpVNs9eIyRKo6NliiDR4c=
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../krint.yaml:/app/krint.yaml:ro

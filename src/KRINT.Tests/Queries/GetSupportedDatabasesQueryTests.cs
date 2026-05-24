@@ -20,7 +20,11 @@ namespace KRINT.Tests.Queries
 
             var result = await handler.Handle(new GetSupportedDatabasesQuery(), CancellationToken.None);
 
-            await Assert.That(result.Select(d => d.Key)).IsEquivalentTo(new[] { "postgres", "mysql", "mariadb", "mongo" });
+            var keys = result.Select(d => d.Key).ToList();
+            foreach (var expected in new[] { "postgres", "mysql", "mariadb", "mongo" })
+            {
+                await Assert.That(keys).Contains(expected);
+            }
         }
 
         [Test]

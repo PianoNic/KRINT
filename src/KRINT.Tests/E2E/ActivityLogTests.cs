@@ -17,6 +17,7 @@ public class ActivityLogTests
         try
         {
             await page.GotoAsync(stack.AppUrl + "/activity");
+            // Activity rows reference instances by their docker container name, not the display name.
             var row = page.Locator("tbody tr")
                 .Filter(new() { HasText = instance.ContainerName })
                 .Filter(new() { HasText = "instance.create" });
@@ -24,7 +25,7 @@ public class ActivityLogTests
         }
         finally
         {
-            await WizardHelper.CleanupAsync(page, stack, instance.ContainerName);
+            await WizardHelper.CleanupAsync(page, stack, instance.DisplayName);
             await session.Context.CloseAsync();
         }
     }
