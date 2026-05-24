@@ -17,7 +17,7 @@ public class NavigationTests
             foreach (var route in new[] { "/instances", "/browser", "/backups", "/activity", "/settings", "/create" })
             {
                 await session.Page.GotoAsync(stack.AppUrl + route);
-                await Assertions.Expect(session.Page.Locator("main")).ToBeVisibleAsync(new() { Timeout = 5000 });
+                await Assertions.Expect(session.Page.Locator("main").First).ToBeVisibleAsync(new() { Timeout = 5000 });
             }
         }
         finally

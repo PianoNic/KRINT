@@ -14,6 +14,9 @@ services:
       retries: 30
 
   mock-oauth2:
+    # The mock-oauth2-server image is built FROM a JRE-only base - no shell, no wget/curl -
+    # so a CMD-SHELL healthcheck can't run. We let the container start unchecked and probe
+    # readiness from the host in KrintStack.
     image: ghcr.io/navikt/mock-oauth2-server:2.1.10
     environment:
       JSON_CONFIG_PATH: /app/config.json
@@ -21,11 +24,6 @@ services:
       - ./mock-oauth2-config.json:/app/config.json:ro
     ports:
       - "18080:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/default/.well-known/openid-configuration > /dev/null || exit 1"]
-      interval: 2s
-      timeout: 2s
-      retries: 30
 
   krint:
     build:
@@ -35,7 +33,7 @@ services:
       postgres:
         condition: service_healthy
       mock-oauth2:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "18081:8080"
     environment:
@@ -49,9 +47,10 @@ services:
       Oidc__PostLogoutRedirectUri: http://localhost:18081/
       Oidc__Scope: openid profile email roles
       Cors__AllowedOrigins__0: http://localhost:18081
-      # E2E-only key, never reused outside this compose file.
-      Vault__MasterKey: dGVzdC1tYXN0ZXIta2V5LWZvci1lMmUtcnVuLW9ubHkhIQ==
+      # E2E-only AES-256 key (32 raw bytes, base64-encoded), never reused outside this file.
+      Vault__MasterKey: 2P+vvGUw5v3weZdFU04YOicpVNs9eIyRKo6NliiDR4c=
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ../krint.yaml:/app/krint.yaml:ro

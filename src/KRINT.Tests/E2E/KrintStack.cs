@@ -66,6 +66,7 @@ public sealed class KrintStack : IAsyncDisposable
             .FromFile(composeFile)
             .RemoveOrphans()
             .ForceRecreate()
+            .ForceBuild()
             .Build()
             .Start();
 

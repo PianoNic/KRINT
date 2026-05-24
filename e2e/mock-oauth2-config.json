@@ -6,8 +6,8 @@
       "tokenExpiry": 3600,
       "requestMappings": [
         {
-          "requestParam": "scope",
-          "match": "*",
+          "requestParam": "client_id",
+          "match": "krint",
           "claims": {
             "sub": "test-user-123",
             "name": "Test User",
@@ -16,7 +16,7 @@
             "preferred_username": "testuser",
             "email": "test@example.com",
             "email_verified": true,
-            "picture": "https://i.pravatar.cc/150?u=test-user-123",
+            "picture": "https://i.pravatar.cc/150?img=57",
             "roles": ["admin"]
           }
         }
