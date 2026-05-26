@@ -20,7 +20,7 @@ namespace KRINT.Application.Command.Provision
             // 1. Create the instance (provisions the container, opens host port, stores root password).
             // Plugins propagate down so CreateDatabaseCommand can swap the image, set env vars,
             // and/or run post-readiness install steps.
-            var instance = await mediator.Send(new CreateDatabaseCommand(req.Engine, req.Version, req.DisplayName, req.DefaultDatabaseName, req.Plugins, req.IsPublic), cancellationToken);
+            var instance = await mediator.Send(new CreateDatabaseCommand(req.Engine, req.Version, req.DisplayName, req.DefaultDatabaseName, req.Plugins, req.IsPublic, req.Password), cancellationToken);
 
             var createdDatabases = new List<string>();
             var createdUsers = new List<InnerUserPasswordDto>();
@@ -44,7 +44,7 @@ namespace KRINT.Application.Command.Provision
             // 3. Create users + grant access to each requested database.
             foreach (var user in req.Users)
             {
-                var credential = await mediator.Send(new CreateInnerUserCommand(instance.Id, user.Name), cancellationToken);
+                var credential = await mediator.Send(new CreateInnerUserCommand(instance.Id, user.Name, user.Password), cancellationToken);
                 createdUsers.Add(credential);
 
                 foreach (var db in user.GrantDatabases.Distinct(StringComparer.OrdinalIgnoreCase))

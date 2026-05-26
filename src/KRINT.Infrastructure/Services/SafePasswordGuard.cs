@@ -6,7 +6,7 @@ namespace KRINT.Infrastructure.Services
     /// that the password contains nothing that could break out of the string literal.
     /// Today the generator only emits [A-Za-z0-9], so this is a belt-and-suspenders check.
     /// </summary>
-    internal static class SafePasswordGuard
+    public static class SafePasswordGuard
     {
         public static void Require(string password)
         {

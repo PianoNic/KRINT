@@ -37,7 +37,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             // engine never comes ready, surface that as a failure - the user wants to know.
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
-            var probeHost = instance.IsManaged && instance.Host == "localhost" ? CreateDatabaseCommandHandler.ProbeHost : instance.Host;
+            var probeHost = instance.IsManaged && instance.Host == "localhost" ? CreateDatabaseCommandHandler.ResolveProbeHost(instance.IsPublic) : instance.Host;
             var target = new InnerDatabaseTarget(instance.Engine, probeHost, instance.Port, instance.Username, password, instance.DatabaseName);
             await WaitForReadyAsync(target, cancellationToken);
 

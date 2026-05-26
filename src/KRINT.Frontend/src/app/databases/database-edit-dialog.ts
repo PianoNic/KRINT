@@ -12,6 +12,7 @@ import { lucideKeyRound, lucideTrash2 } from '@ng-icons/lucide';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
+import { SetPasswordService } from '../shared/components/set-password-dialog/set-password-dialog';
 
 type DialogContext = { id: string; engine: string; containerName: string; displayName: string };
 
@@ -59,6 +60,34 @@ type DialogContext = { id: string; engine: string; containerName: string; displa
         {{ renaming() ? 'Saving...' : 'Save name' }}
       </button>
     </form>
+
+    <!-- Root password rotation. Gated on managed + stopped so the credential change
+         can't race against live application traffic. The button explains itself when
+         disabled. -->
+    <div class="flex flex-col gap-2 rounded-md border p-3">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-sm font-medium">Root password</span>
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          type="button"
+          [disabled]="!canEditRootPassword()"
+          (click)="editRootPassword()"
+        >
+          <ng-icon name="lucideKeyRound" size="16" />
+          Rotate
+        </button>
+      </div>
+      @if (rootPasswordHint(); as hint) {
+        <span class="text-muted-foreground text-xs">{{ hint }}</span>
+      } @else {
+        <span class="text-muted-foreground text-xs">
+          The container is stopped and ready. KRINT will briefly start it, ALTER the credential,
+          update the vault, and stop it again.
+        </span>
+      }
+    </div>
 
     <hlm-tabs tab="databases" class="w-full">
       <hlm-tabs-list aria-label="Edit instance">
@@ -111,20 +140,37 @@ type DialogContext = { id: string; engine: string; containerName: string; displa
       </div>
 
       <div hlmTabsContent="users" class="flex flex-col gap-3 pt-4">
-        <form class="flex gap-2" (submit)="addUser($event)">
-          <label class="sr-only" hlmLabel for="user-name">New user name</label>
-          <input
-            hlmInput
-            id="user-name"
-            class="flex-1"
-            placeholder="alice"
-            [value]="newUserName()"
-            (input)="newUserName.set($any($event.target).value)"
-            [disabled]="store.mutatingUsers()"
-          />
-          <button hlmBtn type="submit" [disabled]="!newUserName() || store.mutatingUsers()">
-            Create
-          </button>
+        <form class="flex flex-col gap-2" (submit)="addUser($event)">
+          <div class="flex gap-2">
+            <label class="sr-only" hlmLabel for="user-name">New user name</label>
+            <input
+              hlmInput
+              id="user-name"
+              class="flex-1"
+              placeholder="alice"
+              [value]="newUserName()"
+              (input)="newUserName.set($any($event.target).value)"
+              [disabled]="store.mutatingUsers()"
+            />
+            <label class="sr-only" hlmLabel for="user-password">Password (optional)</label>
+            <input
+              hlmInput
+              id="user-password"
+              class="flex-1"
+              type="password"
+              autocomplete="new-password"
+              placeholder="auto-generated password"
+              [value]="newUserPassword()"
+              (input)="newUserPassword.set($any($event.target).value)"
+              [disabled]="store.mutatingUsers()"
+            />
+            <button hlmBtn type="submit" [disabled]="!newUserName() || store.mutatingUsers()">
+              Create
+            </button>
+          </div>
+          <span class="text-muted-foreground text-xs">
+            Leave the password blank to auto-generate. Allowed characters: A-Z, a-z, 0-9, and - _ . ~
+          </span>
         </form>
 
         @if (store.lastCredential(); as cred) {
@@ -223,6 +269,8 @@ export class DatabaseEditDialog {
   private readonly confirmService = inject(ConfirmService);
   protected readonly newDbName = signal('');
   protected readonly newUserName = signal('');
+  protected readonly newUserPassword = signal('');
+  private readonly setPasswordService = inject(SetPasswordService);
   protected readonly displayName = signal('');
   protected readonly renaming = signal(false);
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
@@ -231,6 +279,21 @@ export class DatabaseEditDialog {
   protected readonly canRename = computed(() => {
     const v = this.displayName().trim();
     return !this.renaming() && v.length > 0 && v.length <= 64 && v !== this.ctx.displayName;
+  });
+
+  // Root password edit is gated on managed + stopped. We look the instance up live so the
+  // section reacts when the user starts/stops the DB from the parent list while this dialog
+  // is open.
+  protected readonly instance = computed(() => this.store.instances().find((d) => d.id === this.ctx.id));
+  protected readonly canEditRootPassword = computed(() => {
+    const i = this.instance();
+    return !!i && i.isManaged && i.state === 'exited';
+  });
+  protected readonly rootPasswordHint = computed(() => {
+    const i = this.instance();
+    if (!i || !i.isManaged) return 'Root password rotation is only available for managed instances.';
+    if (i.state !== 'exited') return `Stop the database first to edit the root password (current state: ${i.state ?? 'unknown'}).`;
+    return null;
   });
 
   constructor() {
@@ -276,8 +339,10 @@ export class DatabaseEditDialog {
     event.preventDefault();
     const name = this.newUserName().trim();
     if (!name) return;
-    this.store.createUser({ id: this.ctx.id, name });
+    const password = this.newUserPassword().trim() || null;
+    this.store.createUser({ id: this.ctx.id, name, password });
     this.newUserName.set('');
+    this.newUserPassword.set('');
   }
 
   protected async deleteUser(name: string): Promise<void> {
@@ -297,14 +362,26 @@ export class DatabaseEditDialog {
   }
 
   protected async resetUser(name: string): Promise<void> {
-    const ok = await this.confirmService.open({
-      title: `Reset password for "${name}"?`,
-      message: 'A fresh password is generated. The current password stops working immediately and the new one is shown only once.',
-      confirmLabel: 'Reset password',
+    const result = await this.setPasswordService.open({
+      title: `Set password for "${name}"`,
+      description: 'Leave blank to generate a fresh password. The current one stops working immediately; the new value is shown only once.',
+      confirmLabel: 'Set password',
       destructive: true,
     });
-    if (!ok) return;
-    this.store.resetUserPassword({ id: this.ctx.id, name });
+    if (result === null) return; // cancelled
+    this.store.resetUserPassword({ id: this.ctx.id, name, password: result || null });
+  }
+
+  protected async editRootPassword(): Promise<void> {
+    if (!this.canEditRootPassword()) return;
+    const result = await this.setPasswordService.open({
+      title: 'Rotate root password',
+      description: 'The database will briefly start to apply the change, then return to the stopped state. Leave blank to auto-generate.',
+      confirmLabel: 'Rotate root password',
+      destructive: true,
+    });
+    if (result === null) return;
+    this.store.setRootPassword({ id: this.ctx.id, password: result || null });
   }
 
   protected close(): void {

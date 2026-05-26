@@ -17,5 +17,9 @@ namespace KRINT.Application.Dtos.Provision
         /// <summary>When true, the container's host port is published on 0.0.0.0 (LAN-visible).
         /// Default (false) binds to 127.0.0.1 so the DB is only reachable from the same host.</summary>
         public bool IsPublic { get; init; }
+        /// <summary>Custom root password. Null or empty triggers auto-generation. Must match
+        /// the SafePasswordGuard alphabet ([A-Za-z0-9-_.~]) - those are the chars KRINT can
+        /// safely inline into engine DDL across every supported backend.</summary>
+        public string? Password { get; init; }
     }
 }

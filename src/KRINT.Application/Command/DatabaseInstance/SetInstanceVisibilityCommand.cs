@@ -94,7 +94,8 @@ namespace KRINT.Application.Command.DatabaseInstance
             // Block until the engine accepts a query - same pattern as provision/upgrade. If
             // the engine never comes up, the row stays on the old IsPublic and the user will
             // see the failure surfaced from this command.
-            var probeTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ProbeHost, instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
+            // After the swap the binding is whatever the caller asked for; probe via the right host.
+            var probeTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ResolveProbeHost(command.IsPublic), instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
             await WaitForReadyAsync(probeTarget, cancellationToken);
 
             instance.ContainerId = createResult.ID;

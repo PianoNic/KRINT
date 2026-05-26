@@ -19,5 +19,6 @@ export interface ProvisionRequestDto {
     users?: Array<ProvisionUserSpec>;
     plugins?: Array<string>;
     isPublic?: boolean;
+    password?: string | null;
 }
 

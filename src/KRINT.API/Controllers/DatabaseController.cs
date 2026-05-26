@@ -483,11 +483,13 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(typeof(InnerUserPasswordDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> ResetUserPassword(Guid id, string name, CancellationToken cancellationToken)
+        public async Task<IActionResult> ResetUserPassword(Guid id, string name, [FromBody] SetPasswordDto? body, CancellationToken cancellationToken)
         {
             try
             {
-                var result = await mediator.Send(new ResetInnerUserPasswordCommand(id, name), cancellationToken);
+                // body is optional - if absent we still auto-generate. Custom password runs
+                // through SafePasswordGuard inside the handler.
+                var result = await mediator.Send(new ResetInnerUserPasswordCommand(id, name, body?.Password), cancellationToken);
                 return Ok(result);
             }
             catch (InstanceNotFoundException)
@@ -498,6 +500,22 @@ namespace KRINT.API.Controllers
             {
                 return BadRequest(new { error = ex.Message });
             }
+        }
+
+        [HttpPost("{id:guid}/root-password")]
+        [ProducesResponseType(typeof(InnerUserPasswordDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> SetRootPassword(Guid id, [FromBody] SetPasswordDto? body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await mediator.Send(new SetInstanceRootPasswordCommand(id, body?.Password), cancellationToken);
+                return Ok(result);
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
         }
     }
 }
