@@ -22,6 +22,7 @@ export * from './discoveredContainerDto';
 export * from './engineCapabilitiesDto';
 export * from './engineCountDto';
 export * from './enginePluginDto';
+export * from './exportInstanceYamlResult';
 export * from './grantInnerUserDto';
 export * from './innerUserPasswordDto';
 export * from './insertRowDto';

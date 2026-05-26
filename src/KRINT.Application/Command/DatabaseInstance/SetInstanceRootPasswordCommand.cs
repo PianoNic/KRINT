@@ -33,13 +33,15 @@ namespace KRINT.Application.Command.DatabaseInstance
         IInnerDatabaseServiceResolver innerDbs,
         IInnerUserServiceResolver innerUsers,
         ISecretGeneratorService secretGenerator,
-        IActivityLogger activity)
+        IActivityLogger activity,
+        ConfigManagedGuard guard)
         : ICommandHandler<SetInstanceRootPasswordCommand, InnerUserPasswordDto>
     {
         public async ValueTask<InnerUserPasswordDto> Handle(SetInstanceRootPasswordCommand command, CancellationToken cancellationToken)
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
+            guard.EnsureMutable(instance);
 
             if (!instance.IsManaged || instance.ContainerId is null)
                 throw new InvalidOperationException("Root password can only be changed on KRINT-managed databases.");

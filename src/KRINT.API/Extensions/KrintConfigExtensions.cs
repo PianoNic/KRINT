@@ -27,6 +27,10 @@ public static class KrintConfigExtensions
 
         var options = root.Krint ?? new KrintOptions();
         services.AddSingleton<IOptions<KrintOptions>>(Options.Create(options));
+
+        // Remember where krint.yaml lives so InstancesFile (when relative) resolves against it.
+        var configDir = Path.GetDirectoryName(Path.GetFullPath(path)) ?? env.ContentRootPath;
+        services.AddSingleton<IInstancesConfigLoader>(_ => new InstancesConfigLoader(configDir, options.InstancesFile));
         return services;
     }
 

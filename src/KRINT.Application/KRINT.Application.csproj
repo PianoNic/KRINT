@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Mediator.Abstractions" Version="3.0.2" />
     <PackageReference Include="Cronos" Version="0.10.0" />
+    <PackageReference Include="YamlDotNet" Version="16.0.0" />
   </ItemGroup>
 
   <ItemGroup>

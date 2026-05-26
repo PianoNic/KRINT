@@ -25,5 +25,6 @@ export interface ProvisionedDatabaseDto {
     isManaged: boolean;
     isPublic: boolean;
     state?: string | null;
+    isConfigManaged: boolean;
 }
 

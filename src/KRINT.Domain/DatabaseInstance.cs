@@ -25,5 +25,9 @@ namespace KRINT.Domain
         /// false when bound to 127.0.0.1 (localhost only). Mutable via the visibility endpoint -
         /// switching tears down and recreates the container in place, preserving the data volume.</summary>
         public bool IsPublic { get; set; } = true;
+        /// <summary>True when the instance is owned by instances.yaml. Mutation endpoints reject
+        /// changes so the declared config remains the source of truth. Cleared automatically on
+        /// startup when the entry is removed from the file - then the user can clean it up via the UI.</summary>
+        public bool IsConfigManaged { get; set; }
     }
 }

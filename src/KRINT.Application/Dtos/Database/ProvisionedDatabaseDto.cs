@@ -17,5 +17,6 @@ namespace KRINT.Application.Dtos.Database
         public required bool IsManaged { get; init; }
         public required bool IsPublic { get; init; }
         public string? State { get; init; }
+        public required bool IsConfigManaged { get; init; }
     }
 }

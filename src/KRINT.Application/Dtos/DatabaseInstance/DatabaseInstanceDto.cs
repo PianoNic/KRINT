@@ -25,5 +25,7 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         /// <summary>Container state from Docker: "running", "exited", "paused", etc. Null when
         /// no container is associated (purely remote external) or Docker couldn't be queried.</summary>
         public string? State { get; init; }
+        /// <summary>True if owned by instances.yaml. The UI hides/disables mutation controls.</summary>
+        public required bool IsConfigManaged { get; init; }
     }
 }

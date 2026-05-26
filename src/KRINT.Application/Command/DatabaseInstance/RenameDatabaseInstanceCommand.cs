@@ -8,13 +8,14 @@ namespace KRINT.Application.Command.DatabaseInstance
 {
     public record RenameDatabaseInstanceCommand(Guid InstanceId, string DisplayName) : ICommand;
 
-    public class RenameDatabaseInstanceCommandHandler(KrintDbContext db, IActivityLogger activity)
+    public class RenameDatabaseInstanceCommandHandler(KrintDbContext db, IActivityLogger activity, ConfigManagedGuard guard)
         : ICommandHandler<RenameDatabaseInstanceCommand>
     {
         public async ValueTask<Unit> Handle(RenameDatabaseInstanceCommand command, CancellationToken cancellationToken)
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
+            guard.EnsureMutable(instance);
 
             var name = command.DisplayName?.Trim();
             if (string.IsNullOrEmpty(name))

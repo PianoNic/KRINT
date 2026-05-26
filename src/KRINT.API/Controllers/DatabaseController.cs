@@ -37,6 +37,15 @@ namespace KRINT.API.Controllers
             return Ok(result);
         }
 
+        [HttpGet("{id:guid}/export")]
+        [ProducesResponseType(typeof(ExportInstanceYamlResult), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ExportYaml(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await mediator.Send(new ExportInstanceYamlQuery(id), cancellationToken);
+            return result is null ? NotFound() : Ok(result);
+        }
+
         [HttpGet("{id:guid}")]
         [ProducesResponseType(typeof(ProvisionedDatabaseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
