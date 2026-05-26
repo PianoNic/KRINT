@@ -10,6 +10,10 @@
         <ng-icon name="lucidePlus" size="16" />
         Create
       </a>
+      <button hlmBtn variant="outline" size="sm" type="button" (click)="registerExternal()">
+        <ng-icon name="lucideLink" size="16" />
+        Register external
+      </button>
       <button hlmBtn variant="outline" size="sm" type="button" (click)="reload()" [disabled]="store.loading()">
         {{ store.loading() ? 'Loading…' : 'Refresh' }}
       </button>
@@ -45,13 +49,20 @@
                 <span class="inline-flex items-center gap-3 leading-none">
                   <ng-icon [name]="engineIcon(db.engine)" size="18" class="shrink-0" />
                   <span class="flex flex-col">
-                    <span class="text-sm font-medium">{{ db.displayName }}</span>
+                    <span class="text-sm font-medium inline-flex items-center gap-2">
+                      {{ db.displayName }}
+                      @if (!db.isManaged) {
+                        <span hlmBadge variant="outline" class="text-[10px] uppercase tracking-wide">External</span>
+                      }
+                    </span>
                     <span class="text-muted-foreground text-[10px] uppercase">{{ db.engine }}</span>
                   </span>
                 </span>
               </td>
               <td hlmTableCell>{{ db.version }}</td>
-              <td hlmTableCell class="font-mono text-xs">{{ db.containerName }}</td>
+              <td hlmTableCell class="font-mono text-xs">
+                {{ db.containerName ?? '—' }}
+              </td>
               <td hlmTableCell>{{ db.host }}</td>
               <td hlmTableCell class="text-right font-mono">{{ db.port }}</td>
               <td hlmTableCell>{{ db.databaseName }}</td>
@@ -88,7 +99,7 @@
                         <ng-icon name="lucidePencil" />
                         Edit
                       </button>
-                      <button hlmDropdownMenuItem (click)="upgradeInstance(db)">
+                      <button hlmDropdownMenuItem (click)="upgradeInstance(db)" [disabled]="!db.isManaged">
                         <ng-icon name="lucideArrowUpCircle" />
                         Upgrade version
                       </button>

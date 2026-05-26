@@ -7,6 +7,7 @@ import { CreateDatabaseDto } from '../../api/model/createDatabaseDto';
 import { DatabaseInstanceDto } from '../../api/model/databaseInstanceDto';
 import { InnerUserPasswordDto } from '../../api/model/innerUserPasswordDto';
 import { ProvisionedDatabaseDto } from '../../api/model/provisionedDatabaseDto';
+import { RegisterExternalDatabaseDto } from '../../api/model/registerExternalDatabaseDto';
 import { SupportedDatabaseDto } from '../../api/model/supportedDatabaseDto';
 
 type DatabasesState = {
@@ -234,6 +235,32 @@ export const DatabasesStore = signalStore(
               error: (err: unknown) => {
                 patchState(store, { mutatingInner: false, error: messageOf(err) });
                 return EMPTY;
+              },
+            }),
+          ),
+        ),
+      ),
+    ),
+    registerExternal: rxMethod<{ dto: RegisterExternalDatabaseDto; onResult?: (res: ProvisionedDatabaseDto | { error: string }) => void }>(
+      pipe(
+        tap(() => patchState(store, { creating: true, error: null })),
+        switchMap(({ dto, onResult }) =>
+          api.apiDatabaseRegisterPost(dto).pipe(
+            switchMap((res) =>
+              api.apiDatabaseGet().pipe(
+                tap({
+                  next: (instances) => {
+                    patchState(store, { instances, creating: false });
+                    onResult?.(res);
+                  },
+                }),
+              ),
+            ),
+            tap({
+              error: (err: unknown) => {
+                const msg = messageOf(err);
+                patchState(store, { creating: false, error: msg });
+                onResult?.({ error: msg });
               },
             }),
           ),

@@ -29,7 +29,7 @@ namespace KRINT.Application.Queries.Dashboard
             // contribute 0. A null snapshot (transient daemon error) also collapses to 0 instead
             // of failing the whole dashboard.
             var runningIds = instances
-                .Select(i => stateByName.TryGetValue(i.ContainerName, out var s) && string.Equals(s.State, "running", StringComparison.OrdinalIgnoreCase) ? s.ID : null)
+                .Select(i => i.ContainerName is not null && stateByName.TryGetValue(i.ContainerName, out var s) && string.Equals(s.State, "running", StringComparison.OrdinalIgnoreCase) ? s.ID : null)
                 .Where(id => id is not null)
                 .Select(id => id!)
                 .ToArray();

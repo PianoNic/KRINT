@@ -8,7 +8,11 @@ namespace KRINT.Infrastructure.DBConfigurations
     {
         public void Configure(EntityTypeBuilder<DatabaseInstance> builder)
         {
-            builder.HasIndex(d => d.ContainerName).IsUnique();
+            // Externally-registered instances have no container - filter the unique index so
+            // those nullable rows don't collide with each other.
+            builder.HasIndex(d => d.ContainerName)
+                .IsUnique()
+                .HasFilter("\"ContainerName\" IS NOT NULL");
         }
     }
 }

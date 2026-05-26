@@ -17,6 +17,7 @@ namespace KRINT.Application.Mappings.DatabaseInstance
             Username = d.Username,
             DatabaseName = d.DatabaseName,
             CreatedAt = d.CreatedAt,
+            IsManaged = d.IsManaged,
         };
     }
 }

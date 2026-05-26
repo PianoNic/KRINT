@@ -42,7 +42,19 @@ namespace KRINT.Infrastructure.Services
 
             var columnInfos = await FetchColumnInfosAsync(conn, table, cancellationToken);
 
-            await using var cmd = new NpgsqlCommand($"SELECT * FROM \"{table}\" LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
+            // Build an explicit SELECT list rather than SELECT *: extension types that Npgsql
+            // has no CLR mapping for (pgvector's `vector`, hstore without the plugin, etc.)
+            // throw InvalidCastException on GetValue. Casting those columns to text in SQL
+            // sidesteps the reader entirely - Postgres always knows how to render its own
+            // types as text, and the UI is a string grid anyway.
+            var selectList = columnInfos.Count == 0
+                ? "*"
+                : string.Join(", ", columnInfos.Select(c =>
+                    IsClientUnmappedType(c.Type)
+                        ? $"\"{c.Name}\"::text AS \"{c.Name}\""
+                        : $"\"{c.Name}\""));
+
+            await using var cmd = new NpgsqlCommand($"SELECT {selectList} FROM \"{table}\" LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             return await ReadRowsAsync(reader, total, columnInfos, cancellationToken);
         }
@@ -241,6 +253,17 @@ namespace KRINT.Infrastructure.Services
             await using var cmd = new NpgsqlCommand($"DROP TABLE IF EXISTS \"{table}\"", conn);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        // Postgres extension types Npgsql can't decode without a third-party plugin. We cast
+        // these to text in the SELECT so the reader gets a plain string back. udt_name comes
+        // from information_schema.columns and is lowercase.
+        private static bool IsClientUnmappedType(string udtName) => udtName switch
+        {
+            "vector" => true,
+            "halfvec" => true,
+            "sparsevec" => true,
+            _ => false,
+        };
 
         private static async Task<TableRows> ReadRowsAsync(NpgsqlDataReader reader, long? total, IReadOnlyList<ColumnInfo>? columnInfos, CancellationToken cancellationToken)
         {

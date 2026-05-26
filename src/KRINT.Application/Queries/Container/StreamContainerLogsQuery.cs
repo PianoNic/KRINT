@@ -21,6 +21,9 @@ namespace KRINT.Application.Queries.Container
                 .FirstOrDefaultAsync(d => d.Id == query.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(query.InstanceId);
 
+            var containerId = instance.ContainerId
+                ?? throw new InvalidOperationException("Container logs are not available for externally-registered databases.");
+
             var parameters = new ContainerLogsParameters
             {
                 ShowStdout = true,
@@ -31,7 +34,7 @@ namespace KRINT.Application.Queries.Container
             };
 
             using var stream = await docker.Containers.GetContainerLogsAsync(
-                instance.ContainerId, tty: false, parameters, cancellationToken);
+                containerId, tty: false, parameters, cancellationToken);
 
             var buffer = new byte[16 * 1024];
             while (!cancellationToken.IsCancellationRequested)

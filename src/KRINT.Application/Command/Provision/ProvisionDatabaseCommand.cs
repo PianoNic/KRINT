@@ -56,7 +56,8 @@ namespace KRINT.Application.Command.Provision
             // Always include the default DB in the returned list.
             createdDatabases.Insert(0, instance.DatabaseName);
 
-            await activity.LogAsync("provision.complete", instance.ContainerName, instance.Id, instance.Engine, $"databases={createdDatabases.Count}, users={createdUsers.Count}", cancellationToken);
+            // Provisioning always produces a managed container, so ContainerName is non-null here.
+            await activity.LogAsync("provision.complete", instance.ContainerName!, instance.Id, instance.Engine, $"databases={createdDatabases.Count}, users={createdUsers.Count}", cancellationToken);
 
             return new ProvisionResultDto
             {

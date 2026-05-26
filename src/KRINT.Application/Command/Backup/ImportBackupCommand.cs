@@ -18,6 +18,9 @@ namespace KRINT.Application.Command.Backup
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
 
+            if (instance.ContainerName is null)
+                throw new InvalidOperationException("Backup import requires a Docker container - this database isn't reachable that way.");
+
             // Strip any path the browser sent (some browsers include the directory), then prefix
             // with a UTC stamp so duplicate uploads of the same file don't overwrite each other
             // and the import is visibly distinct from auto-created backups in the list.

@@ -31,14 +31,33 @@ type DialogContext = { id: string };
     @if (store.loadingDetails()) {
       <p class="text-muted-foreground text-sm">Loading…</p>
     } @else if (store.details(); as d) {
+      @if (!d.isManaged) {
+        <div class="border-amber-500/30 bg-amber-500/5 rounded-md border p-3 text-sm">
+          <p class="font-medium">This database is not managed by KRINT.</p>
+          <p class="text-muted-foreground mt-1">
+            @if (d.containerName) {
+              It was adopted from an existing Docker container. KRINT can back up, exec, and
+              tail logs, but <strong>upgrade is disabled</strong> — the image is pinned by your
+              orchestrator (docker compose, etc.) and upgrade there. Delete is a "forget" — the
+              container itself will not be removed.
+            } @else {
+              It was registered as a remote external connection. Upgrade, backup, and container
+              controls are disabled — KRINT only handles browsing, querying, and user management
+              against the remote engine.
+            }
+          </p>
+        </div>
+      }
       <dl class="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 text-sm">
         <dt class="text-muted-foreground">Engine</dt>
         <dd class="font-mono">{{ d.engine }} {{ d.version }}</dd>
         <span></span>
 
-        <dt class="text-muted-foreground">Container</dt>
-        <dd class="font-mono break-all">{{ d.containerName }}</dd>
-        <app-copy-button [value]="d.containerName" />
+        @if (d.containerName) {
+          <dt class="text-muted-foreground">Container</dt>
+          <dd class="font-mono break-all">{{ d.containerName }}</dd>
+          <app-copy-button [value]="d.containerName" />
+        }
 
         <dt class="text-muted-foreground">Host</dt>
         <dd class="font-mono">{{ d.host }}</dd>

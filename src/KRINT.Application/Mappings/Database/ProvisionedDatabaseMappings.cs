@@ -17,6 +17,7 @@ namespace KRINT.Application.Mappings.Database
             Password = password,
             ConnectionString = connectionString,
             CreatedAt = instance.CreatedAt,
+            IsManaged = instance.IsManaged,
         };
     }
 }

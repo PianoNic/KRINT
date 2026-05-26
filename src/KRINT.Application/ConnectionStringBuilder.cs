@@ -1,3 +1,5 @@
+using KRINT.Domain;
+
 namespace KRINT.Application
 {
     public static class ConnectionStringBuilder
@@ -30,5 +32,11 @@ namespace KRINT.Application
         }
 
         public static string VaultKeyFor(string containerName) => $"db.{containerName}.password";
+
+        /// <summary>Picks the right vault key for either a KRINT-managed instance (keyed by
+        /// container name) or an externally-registered one (keyed by instance id).</summary>
+        public static string VaultKeyFor(DatabaseInstance instance) => instance.IsManaged && instance.ContainerName is not null
+            ? VaultKeyFor(instance.ContainerName)
+            : $"db.external-{instance.Id:N}.password";
     }
 }

@@ -37,6 +37,14 @@ namespace KRINT.Application.Command.Database
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
 
+            // Upgrade is dump-restore-swap: it destroys the old container and provisions a fresh
+            // one with a new name + image. For externals (typically pinned in the user's
+            // compose.yml or other orchestrator) that would diverge from their declared state -
+            // the next `docker compose up` would recreate the old container next to KRINT's new
+            // one and break the connection. Only KRINT-provisioned instances may upgrade.
+            if (!instance.IsManaged || instance.ContainerName is null || instance.ContainerId is null)
+                throw new InvalidOperationException("Upgrade is only available for KRINT-managed databases. External containers are owned by the orchestrator that created them (e.g. docker compose) - upgrade them there.");
+
             if (string.Equals(instance.Version, command.TargetVersion, StringComparison.Ordinal))
                 throw new ArgumentException($"Instance is already on version {instance.Version}.");
 
