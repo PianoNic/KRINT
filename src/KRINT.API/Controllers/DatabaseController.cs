@@ -417,6 +417,22 @@ namespace KRINT.API.Controllers
             catch (InvalidOperationException ex) { return Conflict(new { error = ex.Message }); }
         }
 
+        [HttpPost("{id:guid}/visibility")]
+        [ProducesResponseType(typeof(DatabaseInstanceDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> SetVisibility(Guid id, [FromBody] SetVisibilityDto body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await mediator.Send(new SetInstanceVisibilityCommand(id, body.IsPublic), cancellationToken);
+                return Ok(result);
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
         [HttpPost("{id:guid}/upgrade")]
         [ProducesResponseType(typeof(DatabaseInstanceDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

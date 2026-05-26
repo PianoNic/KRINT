@@ -106,7 +106,8 @@ namespace KRINT.Application.Command.Database
                 {
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = instance.Port.ToString() } },
+                        // Preserve the old container's visibility setting across the swap.
+                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = instance.Port.ToString(), HostIP = instance.IsPublic ? "" : "127.0.0.1" } },
                     },
                     Binds = new List<string> { newBindSpec },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },

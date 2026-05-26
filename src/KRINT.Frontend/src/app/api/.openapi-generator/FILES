@@ -53,6 +53,7 @@ model/renameDatabaseInstanceDto.ts
 model/runQueryColumnDto.ts
 model/runQueryRequestDto.ts
 model/runQueryResultDto.ts
+model/setVisibilityDto.ts
 model/settingsDto.ts
 model/supportedDatabaseDto.ts
 model/tableRowsDto.ts

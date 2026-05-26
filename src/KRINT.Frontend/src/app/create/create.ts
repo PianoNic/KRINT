@@ -91,6 +91,7 @@ export class Create {
   protected readonly databases = signal<string[]>([]);
   protected readonly users = signal<WizardUser[]>([]);
   protected readonly selectedPlugins = signal<ReadonlySet<string>>(new Set());
+  protected readonly isPublic = signal(false);
 
   // ----- async state -----
   protected readonly supported = signal<ReadonlyArray<SupportedDatabaseDto>>([]);
@@ -332,6 +333,7 @@ export class Create {
         grantDatabases: u.grantDatabases,
       })),
       plugins: Array.from(this.selectedPlugins()),
+      isPublic: this.isPublic(),
     };
 
     this.api.apiDatabaseProvisionPost(payload).subscribe({

@@ -14,5 +14,8 @@ namespace KRINT.Application.Dtos.Provision
         public IReadOnlyList<ProvisionUserSpec> Users { get; init; } = Array.Empty<ProvisionUserSpec>();
         /// <summary>Plugin keys to enable (must be in SupportedDatabaseDto.Plugins).</summary>
         public IReadOnlyList<string> Plugins { get; init; } = Array.Empty<string>();
+        /// <summary>When true, the container's host port is published on 0.0.0.0 (LAN-visible).
+        /// Default (false) binds to 127.0.0.1 so the DB is only reachable from the same host.</summary>
+        public bool IsPublic { get; init; }
     }
 }

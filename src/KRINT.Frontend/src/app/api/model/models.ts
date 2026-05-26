@@ -37,6 +37,7 @@ export * from './renameDatabaseInstanceDto';
 export * from './runQueryColumnDto';
 export * from './runQueryRequestDto';
 export * from './runQueryResultDto';
+export * from './setVisibilityDto';
 export * from './settingsDto';
 export * from './supportedDatabaseDto';
 export * from './tableRowsDto';

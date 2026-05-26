@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowUpCircle, lucideBrain, lucideDatabase, lucideEllipsisVertical, lucideEye, lucideLink, lucidePencil, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
+import { lucideArrowUpCircle, lucideBrain, lucideDatabase, lucideEllipsisVertical, lucideEye, lucideGlobe, lucideLink, lucideLock, lucidePencil, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -40,7 +40,9 @@ import { DatabaseUpgradeDialog } from './database-upgrade-dialog';
       lucideDatabase,
       lucideEllipsisVertical,
       lucideEye,
+      lucideGlobe,
       lucideLink,
+      lucideLock,
       lucidePencil,
       lucidePlus,
       lucideTrash2,
@@ -98,6 +100,22 @@ export class Databases {
       context: { id: db.id, engine: db.engine, containerName: db.containerName, currentVersion: db.version },
       contentClass: 'sm:max-w-[480px]',
     });
+  }
+
+  protected async toggleVisibility(db: DatabaseInstanceDto): Promise<void> {
+    if (!db.isManaged || !db.containerName) return;
+    const next = !db.isPublic;
+    const ok = await this.confirmService.open({
+      title: next
+        ? `Expose ${db.displayName} on the LAN?`
+        : `Restrict ${db.displayName} to localhost?`,
+      message:
+        'The container will be stopped and recreated in place. The data volume is preserved, but active connections will drop for a few seconds.',
+      confirmLabel: next ? 'Expose publicly' : 'Lock to localhost',
+      destructive: next, // exposing on the LAN is the "louder" action - mark it destructive for the red confirm.
+    });
+    if (!ok) return;
+    this.store.setVisibility({ id: db.id, dto: { isPublic: next } });
   }
 
   protected async deleteInstance(db: DatabaseInstanceDto): Promise<void> {

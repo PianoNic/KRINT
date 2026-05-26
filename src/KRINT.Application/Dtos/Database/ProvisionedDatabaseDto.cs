@@ -15,5 +15,6 @@ namespace KRINT.Application.Dtos.Database
         public required string ConnectionString { get; init; }
         public required DateTime CreatedAt { get; init; }
         public required bool IsManaged { get; init; }
+        public required bool IsPublic { get; init; }
     }
 }

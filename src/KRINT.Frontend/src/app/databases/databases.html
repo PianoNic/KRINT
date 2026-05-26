@@ -54,6 +54,13 @@
                       @if (!db.isManaged) {
                         <span hlmBadge variant="outline" class="text-[10px] uppercase tracking-wide">External</span>
                       }
+                      @if (db.isManaged && db.containerName) {
+                        @if (db.isPublic) {
+                          <ng-icon name="lucideGlobe" size="14" class="text-amber-500" [hlmTooltip]="'Published on 0.0.0.0 - visible on the LAN'" />
+                        } @else {
+                          <ng-icon name="lucideLock" size="14" class="text-muted-foreground" [hlmTooltip]="'Bound to 127.0.0.1 - localhost only'" />
+                        }
+                      }
                     </span>
                     <span class="text-muted-foreground text-[10px] uppercase">{{ db.engine }}</span>
                   </span>
@@ -61,7 +68,7 @@
               </td>
               <td hlmTableCell>{{ db.version }}</td>
               <td hlmTableCell class="font-mono text-xs">
-                {{ db.containerName ?? '—' }}
+                {{ db.containerName ?? '-' }}
               </td>
               <td hlmTableCell>{{ db.host }}</td>
               <td hlmTableCell class="text-right font-mono">{{ db.port }}</td>
@@ -102,6 +109,15 @@
                       <button hlmDropdownMenuItem (click)="upgradeInstance(db)" [disabled]="!db.isManaged">
                         <ng-icon name="lucideArrowUpCircle" />
                         Upgrade version
+                      </button>
+                      <button hlmDropdownMenuItem (click)="toggleVisibility(db)" [disabled]="!db.isManaged">
+                        @if (db.isPublic) {
+                          <ng-icon name="lucideLock" />
+                          Lock to localhost
+                        } @else {
+                          <ng-icon name="lucideGlobe" />
+                          Expose on LAN
+                        }
                       </button>
                       <hlm-dropdown-menu-separator />
                       <button hlmDropdownMenuItem (click)="deleteInstance(db)">

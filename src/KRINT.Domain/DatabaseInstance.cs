@@ -21,5 +21,9 @@ namespace KRINT.Domain
         /// <summary>True for KRINT-provisioned containers, false for externally-registered databases.
         /// Drives whether upgrade/backup/container-lifecycle operations are available.</summary>
         public bool IsManaged { get; init; } = true;
+        /// <summary>True when the container's host port is bound to 0.0.0.0 (visible on the LAN);
+        /// false when bound to 127.0.0.1 (localhost only). Mutable via the visibility endpoint -
+        /// switching tears down and recreates the container in place, preserving the data volume.</summary>
+        public bool IsPublic { get; set; } = true;
     }
 }

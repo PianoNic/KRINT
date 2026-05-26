@@ -18,6 +18,7 @@ namespace KRINT.Application.Mappings.Database
             ConnectionString = connectionString,
             CreatedAt = instance.CreatedAt,
             IsManaged = instance.IsManaged,
+            IsPublic = instance.IsPublic,
         };
     }
 }
