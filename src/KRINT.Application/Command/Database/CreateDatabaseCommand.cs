@@ -14,7 +14,7 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command.Database
 {
-    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null) : ICommand<ProvisionedDatabaseDto>;
+    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false) : ICommand<ProvisionedDatabaseDto>;
 
     public class CreateDatabaseCommandHandler(IDockerService docker, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
@@ -77,7 +77,9 @@ namespace KRINT.Application.Command.Database
                 {
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = hostPort.ToString() } },
+                        // Leaving HostIP unset is Docker's default and binds to 0.0.0.0
+                        // (visible on the LAN). "127.0.0.1" restricts to loopback.
+                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = hostPort.ToString(), HostIP = command.IsPublic ? "" : "127.0.0.1" } },
                     },
                     Binds = new List<string> { bindSpec },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
@@ -138,6 +140,7 @@ namespace KRINT.Application.Command.Database
                     Port = hostPort,
                     Username = spec.DefaultUsername,
                     DatabaseName = databaseName,
+                    IsPublic = command.IsPublic,
                 };
                 db.DatabaseInstances.Add(instance);
                 await db.SaveChangesAsync(cancellationToken);

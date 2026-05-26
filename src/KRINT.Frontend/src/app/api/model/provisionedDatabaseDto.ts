@@ -23,5 +23,6 @@ export interface ProvisionedDatabaseDto {
     connectionString: string;
     createdAt: string;
     isManaged: boolean;
+    isPublic: boolean;
 }
 

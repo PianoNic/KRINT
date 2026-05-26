@@ -18,5 +18,6 @@ export interface ProvisionRequestDto {
     databases?: Array<string>;
     users?: Array<ProvisionUserSpec>;
     plugins?: Array<string>;
+    isPublic?: boolean;
 }
 

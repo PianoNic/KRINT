@@ -23,5 +23,6 @@ export interface DatabaseInstanceDto {
     databaseName: string;
     createdAt: string;
     isManaged: boolean;
+    isPublic: boolean;
 }
 

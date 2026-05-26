@@ -168,6 +168,30 @@
                 }
               </div>
             }
+
+            <!-- Network exposure. Default off so the instance binds to 127.0.0.1; opt in
+                 publishes on 0.0.0.0 so other machines on the LAN can reach it. -->
+            <button
+              type="button"
+              class="hover:bg-muted/40 flex items-start gap-3 rounded-md border p-3 text-left transition-colors"
+              [class.border-primary]="isPublic()"
+              [class.bg-muted]="isPublic()"
+              (click)="isPublic.set(!isPublic())"
+            >
+              <hlm-checkbox
+                aria-label="Expose on the LAN"
+                [checked]="isPublic()"
+                class="mt-0.5"
+              />
+              <span class="flex flex-1 flex-col gap-1">
+                <span class="text-sm font-medium">Expose on the LAN</span>
+                <span class="text-muted-foreground text-xs">
+                  Publishes the host port on 0.0.0.0 so other machines on this network can reach
+                  the database. Off by default - port is bound to 127.0.0.1 (this host only).
+                  You can flip this later from the instance menu.
+                </span>
+              </span>
+            </button>
           </div>
         }
 

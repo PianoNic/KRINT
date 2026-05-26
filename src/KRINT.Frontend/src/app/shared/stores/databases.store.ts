@@ -8,6 +8,7 @@ import { DatabaseInstanceDto } from '../../api/model/databaseInstanceDto';
 import { InnerUserPasswordDto } from '../../api/model/innerUserPasswordDto';
 import { ProvisionedDatabaseDto } from '../../api/model/provisionedDatabaseDto';
 import { RegisterExternalDatabaseDto } from '../../api/model/registerExternalDatabaseDto';
+import { SetVisibilityDto } from '../../api/model/setVisibilityDto';
 import { SupportedDatabaseDto } from '../../api/model/supportedDatabaseDto';
 
 type DatabasesState = {
@@ -235,6 +236,35 @@ export const DatabasesStore = signalStore(
               error: (err: unknown) => {
                 patchState(store, { mutatingInner: false, error: messageOf(err) });
                 return EMPTY;
+              },
+            }),
+          ),
+        ),
+      ),
+    ),
+    // Flip an instance between localhost-only and public. The backend tears down and
+    // recreates the container in place, preserving the volume - takes a few seconds because
+    // we wait for readiness before returning.
+    setVisibility: rxMethod<{ id: string; dto: SetVisibilityDto; onResult?: (res: DatabaseInstanceDto | { error: string }) => void }>(
+      pipe(
+        tap(() => patchState(store, { error: null })),
+        switchMap(({ id, dto, onResult }) =>
+          api.apiDatabaseIdVisibilityPost(id, dto).pipe(
+            switchMap((res) =>
+              api.apiDatabaseGet().pipe(
+                tap({
+                  next: (instances) => {
+                    patchState(store, { instances });
+                    onResult?.(res);
+                  },
+                }),
+              ),
+            ),
+            tap({
+              error: (err: unknown) => {
+                const msg = messageOf(err);
+                patchState(store, { error: msg });
+                onResult?.({ error: msg });
               },
             }),
           ),
