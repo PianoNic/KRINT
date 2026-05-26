@@ -24,5 +24,6 @@ export interface DatabaseInstanceDto {
     createdAt: string;
     isManaged: boolean;
     isPublic: boolean;
+    state?: string | null;
 }
 

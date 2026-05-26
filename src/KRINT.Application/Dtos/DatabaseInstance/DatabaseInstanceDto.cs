@@ -22,5 +22,8 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         /// <summary>True if the container's published port is bound to 0.0.0.0 (LAN-visible);
         /// false if bound to 127.0.0.1 (localhost only). Mutable via POST .../visibility.</summary>
         public required bool IsPublic { get; init; }
+        /// <summary>Container state from Docker: "running", "exited", "paused", etc. Null when
+        /// no container is associated (purely remote external) or Docker couldn't be queried.</summary>
+        public string? State { get; init; }
     }
 }

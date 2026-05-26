@@ -61,6 +61,12 @@
                           <ng-icon name="lucideLock" size="14" class="text-muted-foreground" [hlmTooltip]="'Bound to 127.0.0.1 - localhost only'" />
                         }
                       }
+                      @if (db.containerName && db.state && db.state !== 'running') {
+                        <span hlmBadge variant="secondary" class="text-[10px] uppercase">{{ db.state }}</span>
+                      }
+                      @if (store.lifecycleBusy() === db.id) {
+                        <span hlmBadge variant="outline" class="text-[10px] normal-case">working...</span>
+                      }
                     </span>
                     <span class="text-muted-foreground text-[10px] uppercase">{{ db.engine }}</span>
                   </span>
@@ -119,6 +125,17 @@
                           Expose on LAN
                         }
                       </button>
+                      @if (db.state === 'running') {
+                        <button hlmDropdownMenuItem (click)="stopInstance(db)" [disabled]="!db.containerName || store.lifecycleBusy() === db.id">
+                          <ng-icon name="lucideSquare" />
+                          Stop
+                        </button>
+                      } @else {
+                        <button hlmDropdownMenuItem (click)="startInstance(db)" [disabled]="!db.containerName || store.lifecycleBusy() === db.id">
+                          <ng-icon name="lucidePlay" />
+                          Start
+                        </button>
+                      }
                       <hlm-dropdown-menu-separator />
                       <button hlmDropdownMenuItem (click)="deleteInstance(db)">
                         <ng-icon name="lucideTrash2" />

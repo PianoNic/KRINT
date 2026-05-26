@@ -417,6 +417,36 @@ namespace KRINT.API.Controllers
             catch (InvalidOperationException ex) { return Conflict(new { error = ex.Message }); }
         }
 
+        [HttpPost("{id:guid}/start")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> StartInstance(Guid id, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new StartInstanceCommand(id), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
+        [HttpPost("{id:guid}/stop")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> StopInstance(Guid id, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await mediator.Send(new StopInstanceCommand(id), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
         [HttpPost("{id:guid}/visibility")]
         [ProducesResponseType(typeof(DatabaseInstanceDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
