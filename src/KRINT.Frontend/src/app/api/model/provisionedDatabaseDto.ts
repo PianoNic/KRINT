@@ -14,7 +14,7 @@ export interface ProvisionedDatabaseDto {
     id: string;
     engine: string;
     version: string;
-    containerName: string;
+    containerName?: string | null;
     host: string;
     port: DashboardStatsDtoTotalInstances;
     username: string;
@@ -22,5 +22,6 @@ export interface ProvisionedDatabaseDto {
     password: string;
     connectionString: string;
     createdAt: string;
+    isManaged: boolean;
 }
 

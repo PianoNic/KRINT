@@ -27,7 +27,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             instance.DisplayName = name;
             await db.SaveChangesAsync(cancellationToken);
 
-            await activity.LogAsync("instance.rename", instance.ContainerName, instance.Id, instance.Engine, $"from={previous}, to={name}", cancellationToken);
+            await activity.LogAsync("instance.rename", instance.ContainerName ?? instance.DisplayName, instance.Id, instance.Engine, $"from={previous}, to={name}", cancellationToken);
             return Unit.Value;
         }
     }

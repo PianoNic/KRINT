@@ -62,6 +62,30 @@ namespace KRINT.API.Controllers
             return CreatedAtAction(nameof(Create), new { id = result.Id }, result);
         }
 
+        [HttpGet("discover")]
+        [ProducesResponseType(typeof(IReadOnlyList<DiscoveredContainerDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Discover(CancellationToken cancellationToken)
+        {
+            var result = await mediator.Send(new DiscoverContainersQuery(), cancellationToken);
+            return Ok(result);
+        }
+
+        [HttpPost("register")]
+        [ProducesResponseType(typeof(ProvisionedDatabaseDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RegisterExternal([FromBody] RegisterExternalDatabaseDto body, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await mediator.Send(new RegisterExternalDatabaseCommand(body), cancellationToken);
+                return CreatedAtAction(nameof(Create), new { id = result.Id }, result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         [HttpPost("provision")]
         [ProducesResponseType(typeof(ProvisionResultDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

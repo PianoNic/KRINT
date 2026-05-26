@@ -33,6 +33,7 @@ model/dashboardStatsDtoTotalCpuPercent.ts
 model/dashboardStatsDtoTotalInstances.ts
 model/databaseInstanceDto.ts
 model/deleteRowDto.ts
+model/discoveredContainerDto.ts
 model/engineCapabilitiesDto.ts
 model/engineCountDto.ts
 model/enginePluginDto.ts
@@ -47,6 +48,7 @@ model/provisionRequestDto.ts
 model/provisionResultDto.ts
 model/provisionUserSpec.ts
 model/provisionedDatabaseDto.ts
+model/registerExternalDatabaseDto.ts
 model/renameDatabaseInstanceDto.ts
 model/runQueryColumnDto.ts
 model/runQueryRequestDto.ts

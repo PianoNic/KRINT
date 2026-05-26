@@ -9,11 +9,15 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         public string? PreviousVersion { get; init; }
         /// <summary>User-picked human-readable name. Mutable via PATCH /api/Database/{id}.</summary>
         public required string DisplayName { get; init; }
-        public required string ContainerName { get; init; }
+        /// <summary>Null for externally-registered instances.</summary>
+        public string? ContainerName { get; init; }
         public required string Host { get; init; }
         public required int Port { get; init; }
         public required string Username { get; init; }
         public required string DatabaseName { get; init; }
         public required DateTime CreatedAt { get; init; }
+        /// <summary>False when this instance was registered as an external database. UI hides
+        /// container-only controls (upgrade, backup, lifecycle) and shows an "External" badge.</summary>
+        public required bool IsManaged { get; init; }
     }
 }

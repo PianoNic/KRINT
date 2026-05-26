@@ -19,7 +19,7 @@ namespace KRINT.Application.Queries.Database
 
             if (instance is null) return null;
 
-            var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
+            var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
             var connectionString = ConnectionStringBuilder.Build(instance.Engine, instance.Host, instance.Port, instance.Username, password, instance.DatabaseName);

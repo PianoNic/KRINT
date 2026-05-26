@@ -10,18 +10,17 @@
 import { DashboardStatsDtoTotalInstances } from './dashboardStatsDtoTotalInstances';
 
 
-export interface DatabaseInstanceDto { 
-    id: string;
+export interface DiscoveredContainerDto { 
+    containerId: string;
+    containerName: string;
     engine: string;
+    image: string;
     version: string;
-    previousVersion?: string | null;
-    displayName: string;
-    containerName?: string | null;
     host: string;
     port: DashboardStatsDtoTotalInstances;
     username: string;
+    password?: string | null;
     databaseName: string;
-    createdAt: string;
-    isManaged: boolean;
+    state: string;
 }
 
