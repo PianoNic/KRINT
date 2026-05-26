@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowUpCircle, lucideBrain, lucideDatabase, lucideEllipsisVertical, lucideEye, lucideGlobe, lucideLink, lucideLock, lucidePencil, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
+import { lucideArrowUpCircle, lucideBrain, lucideDatabase, lucideEllipsisVertical, lucideEye, lucideGlobe, lucideLink, lucideLock, lucidePencil, lucidePlay, lucidePlus, lucideSquare, lucideTrash2 } from '@ng-icons/lucide';
 import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -44,7 +44,9 @@ import { DatabaseUpgradeDialog } from './database-upgrade-dialog';
       lucideLink,
       lucideLock,
       lucidePencil,
+      lucidePlay,
       lucidePlus,
+      lucideSquare,
       lucideTrash2,
       simplePostgresql,
       simpleMysql,
@@ -100,6 +102,23 @@ export class Databases {
       context: { id: db.id, engine: db.engine, containerName: db.containerName, currentVersion: db.version },
       contentClass: 'sm:max-w-[480px]',
     });
+  }
+
+  protected startInstance(db: DatabaseInstanceDto): void {
+    if (!db.containerName) return;
+    this.store.startInstance(db.id);
+  }
+
+  protected async stopInstance(db: DatabaseInstanceDto): Promise<void> {
+    if (!db.containerName) return;
+    const ok = await this.confirmService.open({
+      title: `Stop ${db.displayName}?`,
+      message: 'The container will be stopped. Active connections will drop. Data is preserved.',
+      confirmLabel: 'Stop',
+      destructive: true,
+    });
+    if (!ok) return;
+    this.store.stopInstance(db.id);
   }
 
   protected async toggleVisibility(db: DatabaseInstanceDto): Promise<void> {

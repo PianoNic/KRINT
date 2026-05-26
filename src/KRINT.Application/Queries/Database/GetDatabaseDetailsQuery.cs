@@ -9,7 +9,7 @@ namespace KRINT.Application.Queries.Database
 {
     public record GetDatabaseDetailsQuery(Guid Id) : IQuery<ProvisionedDatabaseDto?>;
 
-    public class GetDatabaseDetailsQueryHandler(KrintDbContext db, ISecretsVaultService vault)
+    public class GetDatabaseDetailsQueryHandler(KrintDbContext db, ISecretsVaultService vault, IDockerService docker)
         : IQueryHandler<GetDatabaseDetailsQuery, ProvisionedDatabaseDto?>
     {
         public async ValueTask<ProvisionedDatabaseDto?> Handle(GetDatabaseDetailsQuery query, CancellationToken cancellationToken)
@@ -24,7 +24,22 @@ namespace KRINT.Application.Queries.Database
 
             var connectionString = ConnectionStringBuilder.Build(instance.Engine, instance.Host, instance.Port, instance.Username, password, instance.DatabaseName);
 
-            return instance.ToProvisionedDto(password, connectionString);
+            string? state = null;
+            if (instance.ContainerId is not null)
+            {
+                try
+                {
+                    var inspect = await docker.InspectContainerAsync(instance.ContainerId, cancellationToken);
+                    state = inspect.State?.Status;
+                }
+                catch
+                {
+                    // Container could be gone or daemon unreachable. Surface as null - the UI
+                    // shows "unknown" rather than failing the dialog.
+                }
+            }
+
+            return instance.ToProvisionedDto(password, connectionString) with { State = state };
         }
     }
 }

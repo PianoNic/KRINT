@@ -26,6 +26,8 @@ type DatabasesState = {
   mutatingUsers: boolean;
   deleting: string | null;
   creating: boolean;
+  /// The id currently being started/stopped, if any. Drives per-row spinners.
+  lifecycleBusy: string | null;
   error: string | null;
 };
 
@@ -44,6 +46,7 @@ const initialState: DatabasesState = {
   mutatingUsers: false,
   deleting: null,
   creating: false,
+  lifecycleBusy: null,
   error: null,
 };
 
@@ -237,6 +240,42 @@ export const DatabasesStore = signalStore(
                 patchState(store, { mutatingInner: false, error: messageOf(err) });
                 return EMPTY;
               },
+            }),
+          ),
+        ),
+      ),
+    ),
+    // Start/stop a container. Start blocks on readiness so the round-trip can take
+    // 5-60s (or longer for JVM engines); lifecycleBusy drives the per-row spinner.
+    startInstance: rxMethod<string>(
+      pipe(
+        tap((id) => patchState(store, { lifecycleBusy: id, error: null })),
+        switchMap((id) =>
+          api.apiDatabaseIdStartPost(id).pipe(
+            switchMap(() => api.apiDatabaseGet().pipe(
+              tap({
+                next: (instances) => patchState(store, { instances, lifecycleBusy: null }),
+              }),
+            )),
+            tap({
+              error: (err: unknown) => patchState(store, { lifecycleBusy: null, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    stopInstance: rxMethod<string>(
+      pipe(
+        tap((id) => patchState(store, { lifecycleBusy: id, error: null })),
+        switchMap((id) =>
+          api.apiDatabaseIdStopPost(id).pipe(
+            switchMap(() => api.apiDatabaseGet().pipe(
+              tap({
+                next: (instances) => patchState(store, { instances, lifecycleBusy: null }),
+              }),
+            )),
+            tap({
+              error: (err: unknown) => patchState(store, { lifecycleBusy: null, error: messageOf(err) }),
             }),
           ),
         ),
