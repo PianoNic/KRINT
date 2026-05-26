@@ -9,8 +9,7 @@
  */
 
 
-export interface CreateInnerUserDto { 
-    name: string;
+export interface SetPasswordDto { 
     password?: string | null;
 }
 

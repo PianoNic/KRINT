@@ -120,11 +120,11 @@ export const DatabasesStore = signalStore(
         ),
       ),
     ),
-    createUser: rxMethod<{ id: string; name: string }>(
+    createUser: rxMethod<{ id: string; name: string; password?: string | null }>(
       pipe(
         tap(() => patchState(store, { mutatingUsers: true, error: null, lastCredential: null })),
-        switchMap(({ id, name }) =>
-          api.apiDatabaseIdUsersPost(id, { name }).pipe(
+        switchMap(({ id, name, password }) =>
+          api.apiDatabaseIdUsersPost(id, { name, password: password || null }).pipe(
             switchMap((credential) =>
               api.apiDatabaseIdUsersGet(id).pipe(
                 tap((users) => patchState(store, { users, mutatingUsers: false, lastCredential: credential })),
@@ -155,11 +155,30 @@ export const DatabasesStore = signalStore(
         ),
       ),
     ),
-    resetUserPassword: rxMethod<{ id: string; name: string }>(
+    // Reset (or set) a user's password. Empty/null password means auto-generate; backend
+    // validates the alphabet via SafePasswordGuard.
+    resetUserPassword: rxMethod<{ id: string; name: string; password?: string | null }>(
       pipe(
         tap(() => patchState(store, { mutatingUsers: true, error: null, lastCredential: null })),
-        switchMap(({ id, name }) =>
-          api.apiDatabaseIdUsersNameResetPasswordPost(id, name).pipe(
+        switchMap(({ id, name, password }) =>
+          api.apiDatabaseIdUsersNameResetPasswordPost(id, name, { password: password || null }).pipe(
+            tap({
+              next: (credential) => patchState(store, { mutatingUsers: false, lastCredential: credential }),
+              error: (err: unknown) =>
+                patchState(store, { mutatingUsers: false, error: messageOf(err) }),
+            }),
+          ),
+        ),
+      ),
+    ),
+    // Rotate the instance root password. The backend requires the container to be stopped
+    // first; the UI gates this by checking db.state === 'exited'. Result credential is held
+    // in lastCredential so the dialog can show it once.
+    setRootPassword: rxMethod<{ id: string; password?: string | null }>(
+      pipe(
+        tap(() => patchState(store, { mutatingUsers: true, error: null, lastCredential: null })),
+        switchMap(({ id, password }) =>
+          api.apiDatabaseIdRootPasswordPost(id, { password: password || null }).pipe(
             tap({
               next: (credential) => patchState(store, { mutatingUsers: false, lastCredential: credential }),
               error: (err: unknown) =>

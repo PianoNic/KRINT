@@ -14,7 +14,7 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command.Database
 {
-    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false) : ICommand<ProvisionedDatabaseDto>;
+    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false, string? Password = null) : ICommand<ProvisionedDatabaseDto>;
 
     public class CreateDatabaseCommandHandler(IDockerService docker, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
@@ -24,6 +24,16 @@ namespace KRINT.Application.Command.Database
         // compose.yml's extra_hosts, so readiness + init probes can actually reach sibling
         // containers' published ports. The user-facing instance.Host stays "localhost".
         internal const string ProbeHost = "host.docker.internal";
+
+        /// <summary>
+        /// Picks the right probe host based on the container's port binding. If the container
+        /// is published on 0.0.0.0 (IsPublic=true) use host.docker.internal so KRINT-in-a-container
+        /// can still reach it via the host-gateway. If it's bound to 127.0.0.1 (IsPublic=false)
+        /// the only reachable address is 127.0.0.1 itself - host.docker.internal resolves to a
+        /// different IP than loopback and would be refused. This split fixes the readiness probe
+        /// for localhost-only instances.
+        /// </summary>
+        internal static string ResolveProbeHost(bool isPublic) => isPublic ? ProbeHost : "127.0.0.1";
 
         private readonly KrintOptions _options = options.Value;
 
@@ -47,7 +57,17 @@ namespace KRINT.Application.Command.Database
             var containerName = $"krint-{spec.ShortName}-{instanceIdShort}";
             var bindSpec = _options.Storage.ResolveBindForContainer(containerName, spec.DataPath);
 
-            var password = secretGenerator.Generate();
+            // Custom password (validated against the inline-DDL-safe alphabet) or auto-generate.
+            string password;
+            if (!string.IsNullOrEmpty(command.Password))
+            {
+                KRINT.Infrastructure.Services.SafePasswordGuard.Require(command.Password);
+                password = command.Password;
+            }
+            else
+            {
+                password = secretGenerator.Generate();
+            }
 
             var imageName = imageOverride ?? spec.Image;
             // pgvector/pgvector publishes tags as pg<major> (pg15..pg18), not as the upstream
@@ -104,7 +124,7 @@ namespace KRINT.Application.Command.Database
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
                 // Wait for the engine inside the container to accept connections.
-                var readinessTarget = new InnerDatabaseTarget(command.Engine, ProbeHost, hostPort, spec.DefaultUsername, password, databaseName);
+                var readinessTarget = new InnerDatabaseTarget(command.Engine, ResolveProbeHost(command.IsPublic), hostPort, spec.DefaultUsername, password, databaseName);
                 await WaitForReadyAsync(readinessTarget, cancellationToken);
 
                 // pgvector engine entry: enable the extension once the container accepts connections.

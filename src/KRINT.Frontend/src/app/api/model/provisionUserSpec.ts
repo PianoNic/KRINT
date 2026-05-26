@@ -12,5 +12,6 @@
 export interface ProvisionUserSpec { 
     name: string;
     grantDatabases: Array<string>;
+    password?: string | null;
 }
 

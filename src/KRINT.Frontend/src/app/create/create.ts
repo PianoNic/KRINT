@@ -92,6 +92,10 @@ export class Create {
   protected readonly users = signal<WizardUser[]>([]);
   protected readonly selectedPlugins = signal<ReadonlySet<string>>(new Set());
   protected readonly isPublic = signal(false);
+  // Root password: empty string = auto-generate at provision time.
+  protected readonly customRootPassword = signal('');
+  // Per-user custom passwords - empty string at index n means auto-generate.
+  protected readonly userPasswords = signal<string[]>([]);
 
   // ----- async state -----
   protected readonly supported = signal<ReadonlyArray<SupportedDatabaseDto>>([]);
@@ -158,6 +162,17 @@ export class Create {
 
   // Server rule (DatabaseNameValidator): start with letter/underscore, then [A-Za-z0-9_-], max 63 chars.
   private static readonly NAME_RE = /^[A-Za-z_][A-Za-z0-9_-]{0,62}$/;
+  // Matches SafePasswordGuard on the backend - the alphabet KRINT can safely inline into DDL.
+  private static readonly PASSWORD_RE = /^[A-Za-z0-9\-_.~]+$/;
+
+  protected passwordError(value: string): string | null {
+    const v = value.trim();
+    if (v === '') return null; // empty = auto-generate
+    if (!Create.PASSWORD_RE.test(v)) {
+      return 'Allowed characters: A-Z, a-z, 0-9, and - _ . ~';
+    }
+    return null;
+  }
 
   protected nameError(value: string, { required }: { required: boolean }): string | null {
     const trimmed = value.trim();
@@ -186,14 +201,18 @@ export class Create {
   protected readonly userNameErrors = computed(() =>
     this.users().map((u) => this.nameError(u.name, { required: true })),
   );
+  protected readonly rootPasswordError = computed(() => this.passwordError(this.customRootPassword()));
+  protected readonly userPasswordErrors = computed(() =>
+    this.userPasswords().map((p) => this.passwordError(p)),
+  );
 
   protected readonly canNext = computed(() => {
     switch (this.step()) {
       case 1: return !!this.engine();
-      case 2: return !!this.version() && !this.displayNameError() && (!this.supportsDatabaseNaming() || !this.defaultDbError());
+      case 2: return !!this.version() && !this.displayNameError() && (!this.supportsDatabaseNaming() || !this.defaultDbError()) && !this.rootPasswordError();
       case 3: return true;  // Plugins are always optional
       case 4: return !this.supportsDatabaseNaming() || this.databaseErrors().every((e) => e === null);
-      case 5: return this.userNameErrors().every((e) => e === null);
+      case 5: return this.userNameErrors().every((e) => e === null) && this.userPasswordErrors().every((e) => e === null);
       default: return true;
     }
   });
@@ -287,10 +306,16 @@ export class Create {
   // ----- users step -----
   protected addUser(): void {
     this.users.update((list) => [...list, { name: '', grantDatabases: [] }]);
+    // Keep the parallel passwords array in sync so [index] indexing stays consistent.
+    this.userPasswords.update((list) => [...list, '']);
   }
 
   protected updateUserName(index: number, value: string): void {
     this.users.update((list) => list.map((u, i) => (i === index ? { ...u, name: value } : u)));
+  }
+
+  protected updateUserPassword(index: number, value: string): void {
+    this.userPasswords.update((list) => list.map((p, i) => (i === index ? value : p)));
   }
 
   protected toggleUserGrant(index: number, db: string, checked: boolean): void {
@@ -310,6 +335,7 @@ export class Create {
 
   protected removeUser(index: number): void {
     this.users.update((list) => list.filter((_, i) => i !== index));
+    this.userPasswords.update((list) => list.filter((_, i) => i !== index));
   }
 
   protected userHasGrant(index: number, db: string): boolean {
@@ -328,12 +354,14 @@ export class Create {
       displayName: this.displayName().trim(),
       defaultDatabaseName: this.defaultDbName().trim() || null,
       databases: this.databases().map((d) => d.trim()).filter((d) => d !== ''),
-      users: this.users().map((u) => ({
+      users: this.users().map((u, i) => ({
         name: u.name.trim(),
         grantDatabases: u.grantDatabases,
+        password: (this.userPasswords()[i] ?? '').trim() || null,
       })),
       plugins: Array.from(this.selectedPlugins()),
       isPublic: this.isPublic(),
+      password: this.customRootPassword().trim() || null,
     };
 
     this.api.apiDatabaseProvisionPost(payload).subscribe({
