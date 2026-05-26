@@ -9,10 +9,11 @@ namespace KRINT.Application.Command.InnerUser
 {
     public record CreateInnerUserCommand(Guid InstanceId, string Name, string? Password = null) : ICommand<InnerUserPasswordDto>;
 
-    public class CreateInnerUserCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerUserServiceResolver resolver, ISecretGeneratorService secretGenerator) : ICommandHandler<CreateInnerUserCommand, InnerUserPasswordDto>
+    public class CreateInnerUserCommandHandler(KrintDbContext db, ISecretsVaultService vault, IInnerUserServiceResolver resolver, ISecretGeneratorService secretGenerator, ConfigManagedGuard guard) : ICommandHandler<CreateInnerUserCommand, InnerUserPasswordDto>
     {
         public async ValueTask<InnerUserPasswordDto> Handle(CreateInnerUserCommand command, CancellationToken cancellationToken)
         {
+            await guard.EnsureMutableAsync(db, command.InstanceId, cancellationToken);
             var target = await InnerDatabaseTargetLoader.LoadAsync(db, vault, command.InstanceId, cancellationToken);
 
             string password;

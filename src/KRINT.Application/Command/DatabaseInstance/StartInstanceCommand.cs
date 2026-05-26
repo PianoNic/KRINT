@@ -19,13 +19,15 @@ namespace KRINT.Application.Command.DatabaseInstance
         IDockerService docker,
         ISecretsVaultService vault,
         IInnerDatabaseServiceResolver innerDbs,
-        IActivityLogger activity)
+        IActivityLogger activity,
+        ConfigManagedGuard guard)
         : ICommandHandler<StartInstanceCommand>
     {
         public async ValueTask<Unit> Handle(StartInstanceCommand command, CancellationToken cancellationToken)
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
+            guard.EnsureMutable(instance);
 
             if (instance.ContainerId is null)
                 throw new InvalidOperationException("This instance has no Docker container - nothing to start.");

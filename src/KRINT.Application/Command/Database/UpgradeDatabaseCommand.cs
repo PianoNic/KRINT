@@ -29,13 +29,15 @@ namespace KRINT.Application.Command.Database
         IBackupServiceResolver backupResolver,
         IBackupStorage backupStorage,
         IInnerDatabaseServiceResolver innerDbs,
-        IOptions<KrintOptions> options)
+        IOptions<KrintOptions> options,
+        ConfigManagedGuard guard)
         : ICommandHandler<UpgradeDatabaseCommand, DatabaseInstanceDto>
     {
         public async ValueTask<DatabaseInstanceDto> Handle(UpgradeDatabaseCommand command, CancellationToken cancellationToken)
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
+            guard.EnsureMutable(instance);
 
             // Upgrade is dump-restore-swap: it destroys the old container and provisions a fresh
             // one with a new name + image. For externals (typically pinned in the user's

@@ -19,6 +19,7 @@ namespace KRINT.Application.Mappings.DatabaseInstance
             CreatedAt = d.CreatedAt,
             IsManaged = d.IsManaged,
             IsPublic = d.IsPublic,
+            IsConfigManaged = d.IsConfigManaged,
         };
     }
 }

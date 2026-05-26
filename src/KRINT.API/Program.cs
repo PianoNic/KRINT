@@ -36,6 +36,7 @@ builder.Services.AddOpenApi(options =>
 });
 
 builder.Services.AddMediator(options => { options.ServiceLifetime = ServiceLifetime.Scoped; });
+builder.Services.AddScoped<KRINT.Application.ConfigManagedGuard>();
 
 builder.Services.AddDbContext<KrintDbContext>(options =>
     options.UseNpgsql(
@@ -57,6 +58,7 @@ builder.Services.AddInnerDatabases();
 builder.Services.AddCatalog();
 
 builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
+builder.Services.AddHostedService<KRINT.API.InstanceReconciliationHostedService>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? throw new InvalidOperationException("Cors:AllowedOrigins not configured");

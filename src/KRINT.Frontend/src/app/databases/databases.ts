@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowUpCircle, lucideBrain, lucideDatabase, lucideEllipsisVertical, lucideEye, lucideGlobe, lucideLink, lucideLock, lucidePencil, lucidePlay, lucidePlus, lucideSquare, lucideTrash2 } from '@ng-icons/lucide';
+import { lucideArrowUpCircle, lucideBrain, lucideClipboardCopy, lucideDatabase, lucideEllipsisVertical, lucideEye, lucideGlobe, lucideLink, lucideLock, lucidePencil, lucidePlay, lucidePlus, lucideSquare, lucideTrash2 } from '@ng-icons/lucide';
 import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -15,8 +15,10 @@ import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dial
 import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
 import { DatabasesStore } from '../shared/stores/databases.store';
+import { DatabaseService } from '../api/api/database.service';
 import { DatabaseDetailsDialog } from './database-details-dialog';
 import { DatabaseEditDialog } from './database-edit-dialog';
+import { DatabaseExportYamlDialog } from './database-export-yaml-dialog';
 import { DatabaseRegisterExternalDialog } from './database-register-external-dialog';
 import { DatabaseUpgradeDialog } from './database-upgrade-dialog';
 
@@ -37,6 +39,7 @@ import { DatabaseUpgradeDialog } from './database-upgrade-dialog';
     provideIcons({
       lucideArrowUpCircle,
       lucideBrain,
+      lucideClipboardCopy,
       lucideDatabase,
       lucideEllipsisVertical,
       lucideEye,
@@ -72,6 +75,7 @@ export class Databases {
   protected readonly store = inject(DatabasesStore);
   private readonly dialog = inject(HlmDialogService);
   private readonly confirmService = inject(ConfirmService);
+  private readonly api = inject(DatabaseService);
 
   protected viewDetails(id: string): void {
     this.dialog.open(DatabaseDetailsDialog, {
@@ -84,6 +88,17 @@ export class Databases {
     this.dialog.open(DatabaseEditDialog, {
       context: { id: db.id, engine: db.engine, containerName: db.containerName ?? db.displayName, displayName: db.displayName },
       contentClass: 'sm:max-w-[640px]',
+    });
+  }
+
+  protected exportYaml(db: DatabaseInstanceDto): void {
+    this.api.apiDatabaseIdExportGet(db.id).subscribe({
+      next: (res) => {
+        this.dialog.open(DatabaseExportYamlDialog, {
+          context: { yaml: res.yaml, displayName: db.displayName },
+          contentClass: 'sm:max-w-[640px]',
+        });
+      },
     });
   }
 

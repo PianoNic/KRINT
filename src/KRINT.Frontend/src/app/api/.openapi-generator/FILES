@@ -37,6 +37,7 @@ model/discoveredContainerDto.ts
 model/engineCapabilitiesDto.ts
 model/engineCountDto.ts
 model/enginePluginDto.ts
+model/exportInstanceYamlResult.ts
 model/grantInnerUserDto.ts
 model/innerUserPasswordDto.ts
 model/insertRowDto.ts

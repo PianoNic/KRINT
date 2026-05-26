@@ -9,12 +9,13 @@ namespace KRINT.Application.Command.DatabaseInstance
 {
     public record DeleteDatabaseCommand(Guid Id) : ICommand;
 
-    public class DeleteDatabaseCommandHandler(KrintDbContext db, IDockerService docker, ISecretsVaultService vault, IActivityLogger activity, IOptions<KrintOptions> options) : ICommandHandler<DeleteDatabaseCommand>
+    public class DeleteDatabaseCommandHandler(KrintDbContext db, IDockerService docker, ISecretsVaultService vault, IActivityLogger activity, IOptions<KrintOptions> options, ConfigManagedGuard guard) : ICommandHandler<DeleteDatabaseCommand>
     {
         public async ValueTask<Unit> Handle(DeleteDatabaseCommand command, CancellationToken cancellationToken)
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.Id, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.Id);
+            guard.EnsureMutable(instance);
 
             // External instances are "forgotten" - KRINT didn't create the database, so it doesn't
             // destroy it. We drop the row + vault entry only and leave the remote engine untouched.

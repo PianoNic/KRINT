@@ -28,13 +28,15 @@ namespace KRINT.Application.Command.DatabaseInstance
         ISecretsVaultService vault,
         IInnerDatabaseServiceResolver innerDbs,
         IActivityLogger activity,
-        IOptions<KrintOptions> options)
+        IOptions<KrintOptions> options,
+        ConfigManagedGuard guard)
         : ICommandHandler<SetInstanceVisibilityCommand, DatabaseInstanceDto>
     {
         public async ValueTask<DatabaseInstanceDto> Handle(SetInstanceVisibilityCommand command, CancellationToken cancellationToken)
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
+            guard.EnsureMutable(instance);
 
             if (!instance.IsManaged || instance.ContainerName is null || instance.ContainerId is null)
                 throw new InvalidOperationException("Visibility can only be changed on KRINT-managed databases. External containers are owned by the orchestrator that created them.");

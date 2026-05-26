@@ -15,6 +15,14 @@ public sealed class KrintOptions
     /// </summary>
     public StorageOptions Storage { get; set; } = new();
 
+    /// <summary>
+    /// Optional path (relative to krint.yaml or absolute) to a YAML file that declares
+    /// instances KRINT should ensure exist on startup. When set, the reconcile hosted
+    /// service reads it, provisions missing entries, and flags them IsConfigManaged so the
+    /// UI hides mutation controls. Removing an entry and restarting clears the flag.
+    /// </summary>
+    public string? InstancesFile { get; set; }
+
     public PortRange GetPortRange(string engine)
     {
         if (!PortRanges.TryGetValue(engine, out var raw))

@@ -33,7 +33,7 @@ namespace KRINT.Application.Command.Database
         /// different IP than loopback and would be refused. This split fixes the readiness probe
         /// for localhost-only instances.
         /// </summary>
-        internal static string ResolveProbeHost(bool isPublic) => isPublic ? ProbeHost : "127.0.0.1";
+        public static string ResolveProbeHost(bool isPublic) => isPublic ? ProbeHost : "127.0.0.1";
 
         private readonly KrintOptions _options = options.Value;
 
