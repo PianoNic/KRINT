@@ -216,7 +216,7 @@ export class DatabaseRegisterExternalDialog {
 
   // v1 of the migration command supports only the SQL engines with an existing IBackupService.
   // Keep this in sync with StreamMigrateContainerCommandHandler.SupportedSourceEngines.
-  private static readonly migrationEngines = new Set(['postgres', 'pgvector', 'timescaledb', 'mysql', 'mariadb']);
+  private static readonly migrationEngines = new Set(['postgres', 'pgvector', 'timescaledb', 'mysql', 'mariadb', 'mssql']);
 
   protected canMigrate(c: DiscoveredContainerDto): boolean {
     return !!c.composeProject

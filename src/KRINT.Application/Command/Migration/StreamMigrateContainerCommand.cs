@@ -27,12 +27,12 @@ namespace KRINT.Application.Command.Migration
         IActivityLogger activity)
         : IStreamCommandHandler<StreamMigrateContainerCommand, MigrationProgressDto>
     {
-        // v1 supports SQL engines with an existing IBackupService. mssql/cockroachdb/clickhouse
-        // backup services are deferred (see issue #114, follow-up PRs 1b/1c/1d) - excluding
-        // them here gives a clear error rather than a NotSupportedException from the resolver.
+        // v1 supports SQL engines with an existing IBackupService. cockroachdb and clickhouse
+        // backups are still deferred (issues #119 and #120 capture why) - excluding them here
+        // gives a clear error instead of NotSupportedException from the resolver.
         private static readonly HashSet<string> SupportedSourceEngines = new(StringComparer.OrdinalIgnoreCase)
         {
-            "postgres", "pgvector", "timescaledb", "mysql", "mariadb",
+            "postgres", "pgvector", "timescaledb", "mysql", "mariadb", "mssql",
         };
 
         private const int TotalSteps = 5;
