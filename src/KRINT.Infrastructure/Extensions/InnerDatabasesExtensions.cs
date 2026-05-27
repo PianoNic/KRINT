@@ -82,6 +82,7 @@ namespace KRINT.Infrastructure.Extensions
             services.AddScoped<IBackupService, RedisBackupService>();
             services.AddScoped<IBackupService, PgVectorBackupService>();
             services.AddScoped<IBackupService, ValkeyBackupService>();
+            services.AddScoped<IBackupService, MsSqlBackupService>();
             services.AddScoped<IBackupServiceResolver, BackupServiceResolver>();
             return services;
         }

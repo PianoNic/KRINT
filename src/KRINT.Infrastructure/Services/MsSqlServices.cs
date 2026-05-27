@@ -5,8 +5,8 @@ using Microsoft.Data.SqlClient;
 namespace KRINT.Infrastructure.Services
 {
     // Microsoft SQL Server. Uses Microsoft.Data.SqlClient (TDS). Engine concepts map cleanly:
-    // databases, logins/users, schemas/tables, rows. Backup deferred (would use BACKUP DATABASE
-    // TO DISK and read the bak file out of the container).
+    // databases, logins/users, schemas/tables, rows. Backup lives in MsSqlBackupService -
+    // BACKUP DATABASE writes a .bak inside the container, then we cat it to stdout.
 
     internal static class MsSqlConnect
     {
