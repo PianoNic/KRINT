@@ -50,6 +50,25 @@ namespace KRINT.Application.Queries.Database
                                  ?? c.Ports?.FirstOrDefault(p => p.PublicPort != 0)?.PublicPort
                                  ?? 0);
 
+                // Compose labels are present iff the container was launched via `docker compose`.
+                // Used downstream by the migration flow to (a) gate the "Migrate into KRINT"
+                // button and (b) tell the user which compose file and service to remove after
+                // the migration succeeds. config_files can be a comma-separated list; we keep
+                // the first entry, which is the primary compose file.
+                string? composeProject = null;
+                string? composeService = null;
+                string? composeFilePath = null;
+                if (c.Labels is not null)
+                {
+                    c.Labels.TryGetValue("com.docker.compose.project", out composeProject);
+                    c.Labels.TryGetValue("com.docker.compose.service", out composeService);
+                    if (c.Labels.TryGetValue("com.docker.compose.project.config_files", out var cfg) && !string.IsNullOrWhiteSpace(cfg))
+                    {
+                        var first = cfg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+                        composeFilePath = string.IsNullOrEmpty(first) ? null : first;
+                    }
+                }
+
                 results.Add(new DiscoveredContainerDto
                 {
                     ContainerId = c.ID,
@@ -63,6 +82,9 @@ namespace KRINT.Application.Queries.Database
                     Password = ExtractPassword(engine, env),
                     DatabaseName = ExtractDatabase(engine, env) ?? spec.DefaultDatabase,
                     State = c.State ?? "unknown",
+                    ComposeProject = string.IsNullOrEmpty(composeProject) ? null : composeProject,
+                    ComposeService = string.IsNullOrEmpty(composeService) ? null : composeService,
+                    ComposeFilePath = composeFilePath,
                 });
             }
 

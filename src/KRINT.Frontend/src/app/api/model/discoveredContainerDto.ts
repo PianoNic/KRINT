@@ -22,5 +22,8 @@ export interface DiscoveredContainerDto {
     password?: string | null;
     databaseName: string;
     state: string;
+    composeProject?: string | null;
+    composeService?: string | null;
+    composeFilePath?: string | null;
 }
 

@@ -23,5 +23,15 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         /// <summary>Container state from Docker: "running", "exited", etc. The UI greys out
         /// non-running entries since the connection probe at register time would fail anyway.</summary>
         public required string State { get; init; }
+        /// <summary>Compose project the container belongs to (com.docker.compose.project label),
+        /// or null if not under compose. Used by the migration flow to offer a guided cutover.</summary>
+        public string? ComposeProject { get; init; }
+        /// <summary>Compose service name inside the project (com.docker.compose.service label).
+        /// Null when ComposeProject is null.</summary>
+        public string? ComposeService { get; init; }
+        /// <summary>Absolute path of the compose file Docker recorded
+        /// (com.docker.compose.project.config_files label, first entry). Shown in the cleanup
+        /// step so the user knows which file to edit.</summary>
+        public string? ComposeFilePath { get; init; }
     }
 }
