@@ -29,5 +29,9 @@ namespace KRINT.Domain
         /// changes so the declared config remains the source of truth. Cleared automatically on
         /// startup when the entry is removed from the file - then the user can clean it up via the UI.</summary>
         public bool IsConfigManaged { get; set; }
+        /// <summary>Set when this row was the *source* of a guided migration. Points at the
+        /// new KRINT-managed instance that holds the migrated data. The UI uses this to badge
+        /// the source row as "Migrated -&gt;" and to suppress re-offering it in discovery.</summary>
+        public Guid? MigratedToInstanceId { get; set; }
     }
 }

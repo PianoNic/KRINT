@@ -131,6 +131,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
 app.MapHub<DashboardHub>("/hubs/dashboard").RequireAuthorization();
+app.MapHub<MigrationHub>("/hubs/migration").RequireAuthorization();
 
 if (app.Environment.IsProduction())
     app.MapFallbackToFile("index.html").AllowAnonymous();
