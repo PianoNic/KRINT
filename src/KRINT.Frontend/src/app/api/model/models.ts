@@ -26,6 +26,8 @@ export * from './exportInstanceYamlResult';
 export * from './grantInnerUserDto';
 export * from './innerUserPasswordDto';
 export * from './insertRowDto';
+export * from './migrationProgressDto';
+export * from './migrationRequestDto';
 export * from './portRangeDto';
 export * from './problemDetails';
 export * from './problemDetailsStatus';
