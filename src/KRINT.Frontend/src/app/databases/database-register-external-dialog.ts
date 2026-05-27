@@ -1,16 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideRefreshCw, lucideContainer } from '@ng-icons/lucide';
+import { lucideRefreshCw, lucideContainer, lucideArrowRight } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmDialogDescription, HlmDialogHeader, HlmDialogTitle } from '@spartan-ng/helm/dialog';
+import { HlmDialogDescription, HlmDialogHeader, HlmDialogService, HlmDialogTitle } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { DatabaseService } from '../api/api/database.service';
 import { DiscoveredContainerDto } from '../api/model/discoveredContainerDto';
 import { DatabasesStore } from '../shared/stores/databases.store';
+import { DatabaseMigrateDialog } from './database-migrate-dialog';
 
 @Component({
   selector: 'app-database-register-external-dialog',
@@ -25,7 +26,7 @@ import { DatabasesStore } from '../shared/stores/databases.store';
     HlmLabelImports,
     HlmSelectImports,
   ],
-  providers: [provideIcons({ lucideRefreshCw, lucideContainer })],
+  providers: [provideIcons({ lucideRefreshCw, lucideContainer, lucideArrowRight })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
   template: `
@@ -82,9 +83,17 @@ import { DatabasesStore } from '../shared/stores/databases.store';
                   {{ c.image }} · {{ c.host }}:{{ c.port || '?' }}
                 </span>
               </div>
-              <button hlmBtn size="sm" variant="outline" type="button" (click)="pickCandidate(c)">
-                Use
-              </button>
+              <div class="flex items-center gap-1.5">
+                @if (canMigrate(c)) {
+                  <button hlmBtn size="sm" variant="outline" type="button" (click)="migrate(c)" title="Provision a fresh KRINT instance and copy data into it">
+                    <ng-icon name="lucideArrowRight" size="12" />
+                    Migrate
+                  </button>
+                }
+                <button hlmBtn size="sm" variant="outline" type="button" (click)="pickCandidate(c)">
+                  Use
+                </button>
+              </div>
             </li>
           }
         </ul>
@@ -203,6 +212,25 @@ export class DatabaseRegisterExternalDialog {
   protected readonly store = inject(DatabasesStore);
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
   private readonly api = inject(DatabaseService);
+  private readonly dialog = inject(HlmDialogService);
+
+  // v1 of the migration command supports only the SQL engines with an existing IBackupService.
+  // Keep this in sync with StreamMigrateContainerCommandHandler.SupportedSourceEngines.
+  private static readonly migrationEngines = new Set(['postgres', 'pgvector', 'timescaledb', 'mysql', 'mariadb']);
+
+  protected canMigrate(c: DiscoveredContainerDto): boolean {
+    return !!c.composeProject
+      && c.state === 'running'
+      && DatabaseRegisterExternalDialog.migrationEngines.has(c.engine);
+  }
+
+  protected migrate(c: DiscoveredContainerDto): void {
+    this.ref.close();
+    this.dialog.open(DatabaseMigrateDialog, {
+      context: c,
+      contentClass: 'sm:max-w-[640px]',
+    });
+  }
 
   protected readonly engine = signal<string | null>(null);
   protected readonly version = signal('');
