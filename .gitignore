@@ -407,3 +407,5 @@ FodyWeavers.xsd
 .env
 .env.*
 !.env.example
+
+.playwright-mcp/
