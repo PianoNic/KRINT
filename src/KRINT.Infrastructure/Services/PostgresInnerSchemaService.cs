@@ -12,13 +12,16 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(database);
             await using var conn = await OpenAsync(target, database, cancellationToken);
-            await using var cmd = new NpgsqlCommand("SELECT table_name, table_type FROM information_schema.tables " + "WHERE table_schema NOT IN ('pg_catalog','information_schema') " + "ORDER BY table_schema, table_name", conn);
+            await using var cmd = new NpgsqlCommand("SELECT table_schema, table_name, table_type FROM information_schema.tables " + "WHERE table_schema NOT IN ('pg_catalog','information_schema') " + "ORDER BY table_schema, table_name", conn);
             var results = new List<TableSummary>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                var name = reader.GetString(0);
-                var kind = reader.GetString(1) == "VIEW" ? "view" : "table";
+                // Tables outside "public" are exposed as "schema.name" so row operations can
+                // address them; the bare name only resolves in public via search_path.
+                var schema = reader.GetString(0);
+                var name = schema == "public" ? reader.GetString(1) : $"{schema}.{reader.GetString(1)}";
+                var kind = reader.GetString(2) == "VIEW" ? "view" : "table";
                 results.Add(new TableSummary(name, kind));
             }
             return results;
@@ -27,14 +30,14 @@ namespace KRINT.Infrastructure.Services
         public async Task<TableRows> FetchRowsAsync(InnerDatabaseTarget target, string database, string table, int limit, int offset, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
             await using var conn = await OpenAsync(target, database, cancellationToken);
 
             long? total = null;
-            await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM \"{table}\"", conn))
+            await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM {qualified}", conn))
             {
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
                 if (raw is long l) total = l;
@@ -54,13 +57,14 @@ namespace KRINT.Infrastructure.Services
                         ? $"\"{c.Name}\"::text AS \"{c.Name}\""
                         : $"\"{c.Name}\""));
 
-            await using var cmd = new NpgsqlCommand($"SELECT {selectList} FROM \"{table}\" LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
+            await using var cmd = new NpgsqlCommand($"SELECT {selectList} FROM {qualified} LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             return await ReadRowsAsync(reader, total, columnInfos, cancellationToken);
         }
 
         private static async Task<IReadOnlyList<ColumnInfo>> FetchColumnInfosAsync(NpgsqlConnection conn, string table, CancellationToken cancellationToken)
         {
+            var (schema, name) = SplitTable(table);
             // Joining information_schema.columns with pg_constraint (via pg_attribute) so we can
             // surface IsPrimaryKey + IsGenerated to the UI without per-column round-trips.
             await using var cmd = new NpgsqlCommand("""
@@ -74,13 +78,14 @@ namespace KRINT.Infrastructure.Services
                     SELECT a.attname AS column_name, TRUE AS is_pk
                     FROM   pg_index i
                     JOIN   pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-                    WHERE  i.indrelid = quote_ident(@t)::regclass AND i.indisprimary
+                    WHERE  i.indrelid = (quote_ident(@s) || '.' || quote_ident(@t))::regclass AND i.indisprimary
                 ) pk ON pk.column_name = c.column_name
-                WHERE  c.table_schema NOT IN ('pg_catalog','information_schema')
+                WHERE  c.table_schema = @s
                 AND    c.table_name = @t
                 ORDER BY c.ordinal_position;
             """, conn);
-            cmd.Parameters.AddWithValue("@t", table);
+            cmd.Parameters.AddWithValue("@s", schema);
+            cmd.Parameters.AddWithValue("@t", name);
             var results = new List<ColumnInfo>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -98,12 +103,12 @@ namespace KRINT.Infrastructure.Services
         public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             UpdateRowRequestValidator.Require(request);
 
             await using var conn = await OpenAsync(target, database, cancellationToken);
             await using var tx = await conn.BeginTransactionAsync(cancellationToken);
-            await ApplyUpdateAsync(conn, tx, table, request, cancellationToken);
+            await ApplyUpdateAsync(conn, tx, qualified, request, cancellationToken);
             await tx.CommitAsync(cancellationToken);
         }
 
@@ -112,18 +117,18 @@ namespace KRINT.Infrastructure.Services
         public async Task BulkUpdateRowsAsync(InnerDatabaseTarget target, string database, string table, BulkUpdateRowsRequest request, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             if (request.Updates.Count == 0) return;
             foreach (var u in request.Updates) UpdateRowRequestValidator.Require(u);
 
             await using var conn = await OpenAsync(target, database, cancellationToken);
             await using var tx = await conn.BeginTransactionAsync(cancellationToken);
             foreach (var update in request.Updates)
-                await ApplyUpdateAsync(conn, tx, table, update, cancellationToken);
+                await ApplyUpdateAsync(conn, tx, qualified, update, cancellationToken);
             await tx.CommitAsync(cancellationToken);
         }
 
-        private static async Task ApplyUpdateAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string table, UpdateRowRequest request, CancellationToken cancellationToken)
+        private static async Task ApplyUpdateAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string qualifiedTable, UpdateRowRequest request, CancellationToken cancellationToken)
         {
             var changedIndexes = new List<int>();
             for (var i = 0; i < request.Columns.Count; i++)
@@ -161,11 +166,11 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            cmd.CommandText = $"UPDATE \"{table}\" SET {string.Join(", ", setClauses)} " +
-                              $"WHERE ctid = (SELECT ctid FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2)";
+            cmd.CommandText = $"UPDATE {qualifiedTable} SET {string.Join(", ", setClauses)} " +
+                              $"WHERE ctid = (SELECT ctid FROM {qualifiedTable} WHERE {string.Join(" AND ", whereClauses)} LIMIT 2)";
 
             // Two-step strategy: peek matches first to enforce "exactly one row".
-            await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
+            await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM (SELECT 1 FROM {qualifiedTable} WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
             {
                 foreach (NpgsqlParameter param in cmd.Parameters)
                 {
@@ -185,7 +190,7 @@ namespace KRINT.Infrastructure.Services
         public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             if (request.Columns.Count == 0 || request.Columns.Count != request.Values.Count)
                 throw new ArgumentException("Columns and values must have the same non-zero length.", nameof(request));
             foreach (var c in request.Columns) InnerDatabaseNameValidator.Require(c);
@@ -193,7 +198,7 @@ namespace KRINT.Infrastructure.Services
             await using var conn = await OpenAsync(target, database, cancellationToken);
             var cols = string.Join(", ", request.Columns.Select(c => $"\"{c}\""));
             var placeholders = string.Join(", ", request.Values.Select((_, i) => $"@v{i}"));
-            await using var cmd = new NpgsqlCommand($"INSERT INTO \"{table}\" ({cols}) VALUES ({placeholders})", conn);
+            await using var cmd = new NpgsqlCommand($"INSERT INTO {qualified} ({cols}) VALUES ({placeholders})", conn);
             for (var i = 0; i < request.Values.Count; i++)
                 cmd.Parameters.AddWithValue($"@v{i}", (object?)request.Values[i] ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -202,7 +207,7 @@ namespace KRINT.Infrastructure.Services
         public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             if (request.Columns.Count == 0 || request.Columns.Count != request.OriginalValues.Count)
                 throw new ArgumentException("Columns and values must have the same non-zero length.", nameof(request));
             foreach (var c in request.Columns) InnerDatabaseNameValidator.Require(c);
@@ -228,7 +233,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // Match-count guard - refuse to delete if zero or >1 rows match the row the UI sent.
-            await using (var countCmd = new NpgsqlCommand( $"SELECT COUNT(*) FROM (SELECT 1 FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
+            await using (var countCmd = new NpgsqlCommand( $"SELECT COUNT(*) FROM (SELECT 1 FROM {qualified} WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
             {
                 foreach (NpgsqlParameter param in cmd.Parameters)
                     if (param.ParameterName.StartsWith("@o", StringComparison.Ordinal))
@@ -239,7 +244,7 @@ namespace KRINT.Infrastructure.Services
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches. Refusing to delete.");
             }
 
-            cmd.CommandText = $"DELETE FROM \"{table}\" WHERE ctid = (SELECT ctid FROM \"{table}\" WHERE {string.Join(" AND ", whereClauses)} LIMIT 1)";
+            cmd.CommandText = $"DELETE FROM {qualified} WHERE ctid = (SELECT ctid FROM {qualified} WHERE {string.Join(" AND ", whereClauses)} LIMIT 1)";
             var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
             if (affected != 1) throw new InvalidOperationException($"Expected to delete 1 row, got {affected}.");
             await tx.CommitAsync(cancellationToken);
@@ -248,10 +253,27 @@ namespace KRINT.Infrastructure.Services
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             await using var conn = await OpenAsync(target, database, cancellationToken);
-            await using var cmd = new NpgsqlCommand($"DROP TABLE IF EXISTS \"{table}\"", conn);
+            await using var cmd = new NpgsqlCommand($"DROP TABLE IF EXISTS {qualified}", conn);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // Browse exposes non-public tables as "schema.name" (see ListTablesAsync); a bare name
+        // means public. Both parts go through the identifier validator before interpolation.
+        public static (string Schema, string Name) SplitTable(string table)
+        {
+            var i = table.IndexOf('.');
+            var (schema, name) = i < 0 ? ("public", table) : (table[..i], table[(i + 1)..]);
+            InnerDatabaseNameValidator.Require(schema);
+            InnerDatabaseNameValidator.Require(name);
+            return (schema, name);
+        }
+
+        public static string QualifyTable(string table)
+        {
+            var (schema, name) = SplitTable(table);
+            return $"\"{schema}\".\"{name}\"";
         }
 
         // Postgres extension types Npgsql can't decode without a third-party plugin. We cast
