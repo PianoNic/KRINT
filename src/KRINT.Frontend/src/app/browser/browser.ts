@@ -5,6 +5,7 @@ import {
   lucideCheck,
   lucideChevronLeft,
   lucideChevronRight,
+  lucideDatabase,
   lucideEllipsisVertical,
   lucidePencil,
   lucidePlus,
@@ -60,6 +61,7 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
       lucideCheck,
       lucideChevronLeft,
       lucideChevronRight,
+      lucideDatabase,
       lucideEllipsisVertical,
       lucidePencil,
       lucidePlus,
@@ -279,7 +281,7 @@ export class Browser {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
-      default:         return 'simplePostgresql';
+      default:         return 'lucideDatabase';
     }
   }
 

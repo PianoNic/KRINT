@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnDestroy, 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideDatabase,
   lucideEraser,
   lucidePause,
   lucidePlay,
@@ -48,6 +49,7 @@ type ActiveTab = 'logs' | 'exec';
   ],
   providers: [
     provideIcons({
+      lucideDatabase,
       lucideEraser,
       lucidePause,
       lucidePlay,
@@ -196,7 +198,7 @@ export class Console implements OnDestroy {
       case 'qdrant': return 'customQdrant';
       case 'valkey': return 'customValkey';
       case 'mssql': return 'customMssql';
-      default: return 'simplePostgresql';
+      default: return 'lucideDatabase';
     }
   }
 
