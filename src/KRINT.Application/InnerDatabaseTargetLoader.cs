@@ -20,19 +20,22 @@ namespace KRINT.Application
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instanceId}.");
 
-            // For managed instances, instance.Host is "localhost" - the user-facing connection
-            // string. When this code runs inside the krint container, "localhost" is krint's
-            // loopback, not the docker host. Translate based on the container's binding:
-            //   * IsPublic (0.0.0.0): use host.docker.internal so KRINT-in-a-container can reach
-            //     the host-published port via the host-gateway alias.
-            //   * !IsPublic (127.0.0.1): the binding only accepts loopback connections, so we
-            //     must use 127.0.0.1 directly - host.docker.internal resolves to a different IP.
-            // External instances use the host the user typed verbatim - never translate that.
-            var host = instance.IsManaged && instance.Host == "localhost"
-                ? (instance.IsPublic ? "host.docker.internal" : "127.0.0.1")
-                : instance.Host;
+            var host = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
 
             return new InnerDatabaseTarget(instance.Engine, host, instance.Port, instance.Username, password, instance.DatabaseName);
         }
+
+        // "localhost"/"127.0.0.1" in instance.Host is the user-facing connection string. Inside
+        // the krint container that's krint's own loopback, not the docker host, so translate:
+        //   * managed + !IsPublic: the container port is bound to 127.0.0.1 only, which rejects
+        //     host.docker.internal (a different IP) - keep 127.0.0.1.
+        //   * everything else (managed public, external on localhost): host.docker.internal via
+        //     the host-gateway alias - the same rewrite RegisterExternalDatabaseCommand uses for
+        //     its probe, so post-registration operations reach the same address that was probed.
+        // Any other host the user typed is used verbatim.
+        public static string ResolveTargetHost(string host, bool isManaged, bool isPublic) =>
+            host is not ("localhost" or "127.0.0.1") ? host
+            : isManaged && !isPublic ? "127.0.0.1"
+            : "host.docker.internal";
     }
 }

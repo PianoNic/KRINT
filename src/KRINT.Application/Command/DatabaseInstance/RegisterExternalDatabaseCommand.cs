@@ -46,7 +46,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             // itself. Rewrite to host.docker.internal for the probe only; the original host is
             // stored in the DB so the UI shows what the user typed.
             var inner = ResolveInner(req.Engine);
-            var probeHost = (req.Host is "localhost" or "127.0.0.1") ? "host.docker.internal" : req.Host;
+            var probeHost = InnerDatabaseTargetLoader.ResolveTargetHost(req.Host, isManaged: false, isPublic: false);
             var target = new InnerDatabaseTarget(req.Engine, probeHost, req.Port, req.Username, req.Password, req.DatabaseName);
             try
             {
