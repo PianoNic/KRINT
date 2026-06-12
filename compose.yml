@@ -7,36 +7,25 @@ services:
       POSTGRES_PASSWORD: d4vpas8w0rd13!!!
       POSTGRES_DB: krint
     ports:
-      - "5432:5432"
+      - "57460:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
-      - ./keycloak/init-keycloak-db.sql:/docker-entrypoint-initdb.d/10-keycloak-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d krint"]
       interval: 2s
       timeout: 3s
       retries: 30
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.6
-    container_name: krint-keycloak
+  mock-oauth2:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    container_name: krint-mock-oauth2
     restart: unless-stopped
-    command: start --import-realm
-    env_file: .env
     environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
-      KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: d4vpas8w0rd13!!!
-    ports:
-      - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
+      JSON_CONFIG_PATH: /app/config.json
     volumes:
-      - ./keycloak/krint-realm.json:/opt/keycloak/data/import/krint-realm.json:ro
-      - ./keycloak/keycloakify/dist_keycloak/keycloak-theme-for-kc-all-other-versions.jar:/opt/keycloak/providers/krint-keycloak-theme.jar:ro
-      - keycloak-data:/opt/keycloak/data
+      - ./e2e/mock-oauth2-config.json:/app/config.json:ro
+    ports:
+      - "57538:8080"
 
   krint:
     image: ghcr.io/pianonic/krint:latest
@@ -45,23 +34,27 @@ services:
       dockerfile: src/KRINT.API/Dockerfile
     container_name: krint
     restart: unless-stopped
-    # KRINT probes sibling DB containers via their host-published ports during provision /
-    # upgrade readiness. Inside this container localhost is the krint loopback, not the host,
-    # so the probe needs a name that resolves to the Docker host. host-gateway is supported on
-    # Docker Desktop and on Docker Engine 20.10+ for plain Linux.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file: .env
     environment:
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=d4vpas8w0rd13!!!"
-      Oidc__InternalAuthority: "http://keycloak:8080/realms/krint"
+      Oidc__Authority: "http://localhost:57538/default"
+      Oidc__InternalAuthority: "http://mock-oauth2:8080/default"
+      Oidc__RequireHttpsMetadata: "false"
+      Oidc__ClientId: krint
+      Oidc__RedirectUri: "http://localhost:56722/"
+      Oidc__PostLogoutRedirectUri: "http://localhost:56722/"
+      Oidc__Scope: "openid profile email roles"
+      Cors__AllowedOrigins__0: "http://localhost:56722"
+      Vault__MasterKey: "2P+vvGUw5v3weZdFU04YOicpVNs9eIyRKo6NliiDR4c="
     depends_on:
       db:
         condition: service_healthy
-      keycloak:
+      mock-oauth2:
         condition: service_started
     ports:
-      - "5000:8080"
+      - "56722:8080"
     volumes:
       - //var/run/docker.sock:/var/run/docker.sock
       - ./backups:/app/backups
@@ -69,4 +62,3 @@ services:
 
 volumes:
   postgres-data:
-  keycloak-data:
