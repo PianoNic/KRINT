@@ -156,7 +156,7 @@ export class Settings {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
-      default:         return 'simplePostgresql';
+      default:         return 'lucideDatabase';
     }
   }
 }
