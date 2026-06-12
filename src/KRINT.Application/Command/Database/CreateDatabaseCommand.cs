@@ -261,6 +261,13 @@ namespace KRINT.Application.Command.Database
                 case "mssql":
                     // SA password must be ≥8 chars, mixed case, digit, special. SecretGenerator already does this.
                     return new EngineSpec("mcr.microsoft.com/mssql/server", "mssql", 1433, "sa", "master", "/var/opt/mssql");
+                case "seaweedfs":
+                    // `server -s3` runs master+volume+filer+S3 gateway in one process; we publish
+                    // only the S3 port (8333). Username is the S3 access key; the AWS_* env vars
+                    // seed it as an admin identity. "default" is just the recorded bucket name -
+                    // buckets are created on demand via the UI.
+                    return new EngineSpec("chrislusf/seaweedfs", "weed", 8333, "krint", "default", "/data",
+                        CmdFactory: _ => new[] { "server", "-s3", "-dir=/data" });
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
@@ -380,6 +387,13 @@ namespace KRINT.Application.Command.Database
                         "ACCEPT_EULA=Y",
                         $"MSSQL_SA_PASSWORD={password}",
                         "MSSQL_PID=Developer",
+                    };
+                case "seaweedfs":
+                    // SeaweedFS reads these as a fallback admin identity when no s3 config exists.
+                    return new List<string>
+                    {
+                        "AWS_ACCESS_KEY_ID=krint",
+                        $"AWS_SECRET_ACCESS_KEY={password}",
                     };
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));

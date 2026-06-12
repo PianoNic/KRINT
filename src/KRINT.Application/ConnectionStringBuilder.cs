@@ -27,6 +27,7 @@ namespace KRINT.Application
                 "qdrant" => $"http://{host}:{port} (api-key: {password})",
                 "valkey" => $"redis://default:{password}@{host}:{port}/{database}",
                 "mssql" => $"Server={host},{port};User Id={username};Password={password};Database={database};TrustServerCertificate=true",
+                "seaweedfs" => $"http://{host}:{port} (S3 access-key: {username}, secret-key: {password})",
                 _ => throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine)),
             };
         }

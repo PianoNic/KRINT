@@ -33,3 +33,4 @@ krint:
     neo4j:          33200-33399
     qdrant:         34000-34199
     valkey:         34200-34399
+    seaweedfs:      34400-34599
