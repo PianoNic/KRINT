@@ -126,13 +126,16 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(database);
             await using var conn = await MsSqlConnect.OpenAsync(target, database, cancellationToken);
-            await using var cmd = new SqlCommand("SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' ORDER BY TABLE_NAME", conn);
+            await using var cmd = new SqlCommand("SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_SCHEMA, TABLE_NAME", conn);
             var results = new List<TableSummary>();
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                var name = reader.GetString(0);
-                var kind = reader.GetString(1).Equals("VIEW", StringComparison.OrdinalIgnoreCase) ? "view" : "table";
+                // Tables outside "dbo" are exposed as "schema.name" so row operations can
+                // address them; the bare name only resolves in the user's default schema.
+                var schema = reader.GetString(0);
+                var name = schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) ? reader.GetString(1) : $"{schema}.{reader.GetString(1)}";
+                var kind = reader.GetString(2).Equals("VIEW", StringComparison.OrdinalIgnoreCase) ? "view" : "table";
                 results.Add(new TableSummary(name, kind));
             }
             return results;
@@ -141,14 +144,14 @@ namespace KRINT.Infrastructure.Services
         public async Task<TableRows> FetchRowsAsync(InnerDatabaseTarget target, string database, string table, int limit, int offset, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
             await using var conn = await MsSqlConnect.OpenAsync(target, database, cancellationToken);
 
             long? total = null;
-            await using (var countCmd = new SqlCommand($"SELECT COUNT(*) FROM [{table}]", conn))
+            await using (var countCmd = new SqlCommand($"SELECT COUNT(*) FROM {qualified}", conn))
             {
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
                 if (raw is int i) total = i;
@@ -156,7 +159,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // OFFSET/FETCH requires an ORDER BY; sort by the first column to get a stable page.
-            await using var cmd = new SqlCommand($"SELECT * FROM [{table}] ORDER BY (SELECT NULL) OFFSET {offset.ToString(CultureInfo.InvariantCulture)} ROWS FETCH NEXT {limit.ToString(CultureInfo.InvariantCulture)} ROWS ONLY", conn);
+            await using var cmd = new SqlCommand($"SELECT * FROM {qualified} ORDER BY (SELECT NULL) OFFSET {offset.ToString(CultureInfo.InvariantCulture)} ROWS FETCH NEXT {limit.ToString(CultureInfo.InvariantCulture)} ROWS ONLY", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             var columns = new List<string>();
@@ -179,7 +182,7 @@ namespace KRINT.Infrastructure.Services
         public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             if (request.Columns.Count == 0 || request.Columns.Count != request.Values.Count)
                 throw new ArgumentException("Columns and values must have the same non-zero length.", nameof(request));
             foreach (var c in request.Columns) InnerDatabaseNameValidator.Require(c);
@@ -187,7 +190,7 @@ namespace KRINT.Infrastructure.Services
             await using var conn = await MsSqlConnect.OpenAsync(target, database, cancellationToken);
             var cols = string.Join(", ", request.Columns.Select(c => $"[{c}]"));
             var placeholders = string.Join(", ", request.Values.Select((_, i) => $"@v{i}"));
-            await using var cmd = new SqlCommand($"INSERT INTO [{table}] ({cols}) VALUES ({placeholders})", conn);
+            await using var cmd = new SqlCommand($"INSERT INTO {qualified} ({cols}) VALUES ({placeholders})", conn);
             for (var i = 0; i < request.Values.Count; i++)
                 cmd.Parameters.AddWithValue($"@v{i}", (object?)request.Values[i] ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -196,7 +199,7 @@ namespace KRINT.Infrastructure.Services
         public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             if (request.Columns.Count == 0) throw new ArgumentException("Columns required.", nameof(request));
 
             var changedIndexes = new List<int>();
@@ -232,7 +235,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // Match guard.
-            await using (var countCmd = new SqlCommand( $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM [{table}] WHERE {string.Join(" AND ", whereClauses)}) s", conn, tx))
+            await using (var countCmd = new SqlCommand( $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM {qualified} WHERE {string.Join(" AND ", whereClauses)}) s", conn, tx))
             {
                 foreach (SqlParameter p in cmd.Parameters)
                     if (p.ParameterName.StartsWith("@o", StringComparison.Ordinal))
@@ -244,7 +247,7 @@ namespace KRINT.Infrastructure.Services
             }
 
             // TOP (1) caps the update to a single row to match the guard.
-            cmd.CommandText = $"UPDATE TOP (1) [{table}] SET {string.Join(", ", setClauses)} WHERE {string.Join(" AND ", whereClauses)}";
+            cmd.CommandText = $"UPDATE TOP (1) {qualified} SET {string.Join(", ", setClauses)} WHERE {string.Join(" AND ", whereClauses)}";
             var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
             if (affected != 1) throw new InvalidOperationException($"Expected to update 1 row, got {affected}.");
             await tx.CommitAsync(cancellationToken);
@@ -253,7 +256,7 @@ namespace KRINT.Infrastructure.Services
         public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
 
             await using var conn = await MsSqlConnect.OpenAsync(target, database, cancellationToken);
             await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
@@ -272,7 +275,7 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            await using (var countCmd = new SqlCommand( $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM [{table}] WHERE {string.Join(" AND ", whereClauses)}) s", conn, tx))
+            await using (var countCmd = new SqlCommand( $"SELECT COUNT(*) FROM (SELECT TOP 2 1 c FROM {qualified} WHERE {string.Join(" AND ", whereClauses)}) s", conn, tx))
             {
                 foreach (SqlParameter p in cmd.Parameters) countCmd.Parameters.AddWithValue(p.ParameterName, p.Value!);
                 var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
@@ -281,7 +284,7 @@ namespace KRINT.Infrastructure.Services
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches. Refusing to delete.");
             }
 
-            cmd.CommandText = $"DELETE TOP (1) FROM [{table}] WHERE {string.Join(" AND ", whereClauses)}";
+            cmd.CommandText = $"DELETE TOP (1) FROM {qualified} WHERE {string.Join(" AND ", whereClauses)}";
             var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
             if (affected != 1) throw new InvalidOperationException($"Expected to delete 1 row, got {affected}.");
             await tx.CommitAsync(cancellationToken);
@@ -290,10 +293,27 @@ namespace KRINT.Infrastructure.Services
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            InnerDatabaseNameValidator.Require(table);
+            var qualified = QualifyTable(table);
             await using var conn = await MsSqlConnect.OpenAsync(target, database, cancellationToken);
-            await using var cmd = new SqlCommand($"DROP TABLE IF EXISTS [{table}]", conn);
+            await using var cmd = new SqlCommand($"DROP TABLE IF EXISTS {qualified}", conn);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // Browse exposes non-dbo tables as "schema.name" (see ListTablesAsync); a bare name
+        // means dbo. Both parts go through the identifier validator before interpolation.
+        public static (string Schema, string Name) SplitTable(string table)
+        {
+            var i = table.IndexOf('.');
+            var (schema, name) = i < 0 ? ("dbo", table) : (table[..i], table[(i + 1)..]);
+            InnerDatabaseNameValidator.Require(schema);
+            InnerDatabaseNameValidator.Require(name);
+            return (schema, name);
+        }
+
+        public static string QualifyTable(string table)
+        {
+            var (schema, name) = SplitTable(table);
+            return $"[{schema}].[{name}]";
         }
     }
 }
