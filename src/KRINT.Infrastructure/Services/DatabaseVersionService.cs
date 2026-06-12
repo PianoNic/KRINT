@@ -43,6 +43,8 @@ namespace KRINT.Infrastructure.Services
             ["cockroachdb"] = new[] { "v26.2.0", "latest-v26.2", "v26.1.4", "v25.4.10", "v24.1.29" },
             // SQL Server uses Microsoft-curated marketing tags. 2025 is the current GA.
             ["mssql"] = new[] { "2025-latest", "2022-latest", "2019-latest" },
+            // SeaweedFS - 4.33 is current (verified on hub.docker.com 2026-06-12).
+            ["seaweedfs"] = new[] { "4.33", "4.32", "4.31" },
         };
 
         private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);

@@ -132,6 +132,21 @@ namespace KRINT.Application.Queries.SupportedDatabase
             SupportsBackup = false,
         };
 
+        // SeaweedFS: blob store via its S3 gateway. Buckets = databases, one virtual
+        // "_all_objects" collection per bucket, objects = rows (key/size/modified/etag).
+        // Deleting a row deletes the object; upload/edit need a file UI - out of scope for v1.
+        private static readonly EngineCapabilitiesDto SeaweedFsCaps = SqlCaps with
+        {
+            DatabaseTerm = "bucket",
+            TableTerm = "collection",
+            RowTerm = "object",
+            SupportsDropTable = false,
+            SupportsRowInsert = false,
+            SupportsRowEdit = false,
+            SupportsUsers = false,
+            SupportsBackup = false,
+        };
+
         // Redis: 16 fixed DB numbers, no logical-DB CRUD; key-value rows; no users in our model.
         private static readonly EngineCapabilitiesDto RedisCaps = new()
         {
@@ -266,6 +281,8 @@ namespace KRINT.Application.Queries.SupportedDatabase
             ("elasticsearch", "Elasticsearch", "elasticsearch",     ElasticCaps),
             // Vector
             ("qdrant",      "Qdrant",      "qdrant/qdrant",         QdrantCaps),
+            // Blob / object storage
+            ("seaweedfs",   "SeaweedFS",   "chrislusf/seaweedfs",   SeaweedFsCaps),
         };
 
         public async ValueTask<IReadOnlyList<SupportedDatabaseDto>> Handle(GetSupportedDatabasesQuery query, CancellationToken cancellationToken)
