@@ -42,8 +42,12 @@ namespace KRINT.Application.Command.DatabaseInstance
             // Probe the engine before persisting anything. ListAsync is the same readiness check
             // used after provisioning - if we can list databases we trust host+port+creds are
             // good enough for the inner operations the user will run.
+            // When running inside a container, localhost/127.0.0.1 resolves to the container
+            // itself. Rewrite to host.docker.internal for the probe only; the original host is
+            // stored in the DB so the UI shows what the user typed.
             var inner = ResolveInner(req.Engine);
-            var target = new InnerDatabaseTarget(req.Engine, req.Host, req.Port, req.Username, req.Password, req.DatabaseName);
+            var probeHost = (req.Host is "localhost" or "127.0.0.1") ? "host.docker.internal" : req.Host;
+            var target = new InnerDatabaseTarget(req.Engine, probeHost, req.Port, req.Username, req.Password, req.DatabaseName);
             try
             {
                 await inner.ListAsync(target, cancellationToken);
