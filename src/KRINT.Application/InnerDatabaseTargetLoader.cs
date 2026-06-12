@@ -20,9 +20,46 @@ namespace KRINT.Application
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instanceId}.");
 
-            var host = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
+            var preferred = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
+            var host = await PickReachableHostAsync(preferred, instance.Port, cancellationToken);
 
             return new InnerDatabaseTarget(instance.Engine, host, instance.Port, instance.Username, password, instance.DatabaseName);
+        }
+
+        // Which local probe host can reach a published port depends on where KRINT runs: a
+        // containerized KRINT can't reach 127.0.0.1-bound ports via its own loopback but can
+        // via Docker Desktop's host-gateway (host.docker.internal); a host-run KRINT is the
+        // reverse. Pre-probe with a cheap TCP connect and fall back to the alternate.
+        // ponytail: one extra TCP connect per operation (~1ms locally) - cache per port if it
+        // ever shows up in profiles.
+        private static async Task<string> PickReachableHostAsync(string preferred, int port, CancellationToken cancellationToken)
+        {
+            var alternate = preferred switch
+            {
+                "127.0.0.1" => "host.docker.internal",
+                "host.docker.internal" => "127.0.0.1",
+                _ => null,   // real hostname the user typed - never second-guess it
+            };
+            if (alternate is null) return preferred;
+            if (await CanConnectAsync(preferred, port, cancellationToken)) return preferred;
+            if (await CanConnectAsync(alternate, port, cancellationToken)) return alternate;
+            return preferred;   // neither answered - let the engine call surface the real error
+        }
+
+        private static async Task<bool> CanConnectAsync(string host, int port, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var client = new System.Net.Sockets.TcpClient();
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(2));
+                await client.ConnectAsync(host, port, cts.Token);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         // "localhost"/"127.0.0.1" in instance.Host is the user-facing connection string. Inside

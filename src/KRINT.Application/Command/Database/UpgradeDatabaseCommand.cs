@@ -129,10 +129,9 @@ namespace KRINT.Application.Command.Database
                 await docker.StartContainerAsync(newCreateResult.ID, cancellationToken);
 
                 // Wait for the engine inside the new container to accept connections.
-                // Probe via host.docker.internal so krint can reach the host-published port.
-                // See CreateDatabaseCommandHandler.ProbeHost for the rationale.
+                // ReadinessProbe tries both probe hosts - see its doc comment.
                 var readinessTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ResolveProbeHost(instance.IsPublic), instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
-                await WaitForReadyAsync(readinessTarget, cancellationToken);
+                await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(instance.Engine), readinessTarget, instance.IsPublic, cancellationToken);
 
                 // 5. Restore the pre-upgrade dump into NEW.
                 await using (var stream = backupStorage.OpenRead(backupPath)
@@ -183,36 +182,5 @@ namespace KRINT.Application.Command.Database
             catch { /* not accessible from this process; user cleans up manually */ }
         }
 
-        /// <summary>Real-query readiness probe. A bare TCP probe lies for Postgres (it binds
-        /// 5432 during init but refuses queries until bootstrap is done), which then crashes the
-        /// pg_restore step. Running an actual ListAsync against the inner-db service only returns
-        /// once the engine accepts queries. Mirrors CreateDatabaseCommandHandler.WaitForReadyAsync.</summary>
-        private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
-        {
-            var inner = innerDbs.Resolve(target.Engine);
-            var ceilingSeconds = target.Engine switch
-            {
-                "cassandra" or "elasticsearch" or "neo4j" => 180,
-                _ => 60,
-            };
-            var deadline = DateTime.UtcNow.AddSeconds(ceilingSeconds);
-            Exception? last = null;
-            var delayMs = 500;
-            while (DateTime.UtcNow < deadline)
-            {
-                try
-                {
-                    await inner.ListAsync(target, cancellationToken);
-                    return;
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    last = ex;
-                    await Task.Delay(delayMs, cancellationToken);
-                    delayMs = Math.Min(delayMs * 2, 3000);
-                }
-            }
-            throw new InvalidOperationException($"{target.Engine} container did not become ready within {ceilingSeconds}s.", last);
-        }
     }
 }
