@@ -123,9 +123,14 @@ namespace KRINT.Application.Command.Database
                 await docker.StartContainerAsync(createResult.ID, cancellationToken);
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
-                // Wait for the engine inside the container to accept connections.
-                var readinessTarget = new InnerDatabaseTarget(command.Engine, ResolveProbeHost(command.IsPublic), hostPort, spec.DefaultUsername, password, databaseName);
-                await WaitForReadyAsync(readinessTarget, cancellationToken);
+                // Wait for the engine inside the container to accept connections. The returned
+                // target carries whichever probe host actually responded - init steps below
+                // must use it so they reach the same address.
+                var readinessTarget = await ReadinessProbe.WaitForReadyAsync(
+                    innerDbs.Resolve(command.Engine),
+                    new InnerDatabaseTarget(command.Engine, ResolveProbeHost(command.IsPublic), hostPort, spec.DefaultUsername, password, databaseName),
+                    command.IsPublic,
+                    cancellationToken);
 
                 // pgvector engine entry: enable the extension once the container accepts connections.
                 if (string.Equals(command.Engine, "pgvector", StringComparison.OrdinalIgnoreCase))
@@ -429,38 +434,6 @@ namespace KRINT.Application.Command.Database
             await conn.OpenAsync(cancellationToken);
             await using var cmd = new Npgsql.NpgsqlCommand(sql, conn);
             await cmd.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
-        {
-            var inner = innerDbs.Resolve(target.Engine);
-            // Cold-boot envelope per engine. JVM-heavy ones (Cassandra, Elasticsearch, Neo4j)
-            // routinely need >60s on first start; SQL engines + cache stores come up in a
-            // handful of seconds.
-            var ceilingSeconds = target.Engine switch
-            {
-                "cassandra" or "elasticsearch" or "neo4j" => 180,
-                _ => 60,
-            };
-            var deadline = DateTime.UtcNow.AddSeconds(ceilingSeconds);
-            var delayMs = 500;
-            Exception? last = null;
-
-            while (DateTime.UtcNow < deadline)
-            {
-                try
-                {
-                    await inner.ListAsync(target, cancellationToken);
-                    return;
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    last = ex;
-                    await Task.Delay(delayMs, cancellationToken);
-                    delayMs = Math.Min(delayMs * 2, 3000);
-                }
-            }
-            throw new InvalidOperationException($"{target.Engine} container did not become ready within {ceilingSeconds}s.", last);
         }
 
         private async Task<int> AllocateHostPortAsync(string engine, CancellationToken cancellationToken)
