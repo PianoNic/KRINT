@@ -25,7 +25,7 @@ COPY src .
 RUN dotnet publish "KRINT.API/KRINT.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 # ---------- Stage 4: runtime (distroless Azure Linux) ----------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.8-azurelinux3.0-distroless AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.8-azurelinux3.0 AS final
 WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080 ASPNETCORE_ENVIRONMENT=Production
