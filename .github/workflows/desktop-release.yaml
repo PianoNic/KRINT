@@ -21,7 +21,6 @@ jobs:
           - { os: ubuntu-22.04,   label: Linux x64,   rid: linux-x64, portable: appimage }
           - { os: windows-latest, label: Windows x64,  rid: win-x64,   portable: zip }
           - { os: macos-14,       label: macOS arm64,  rid: osx-arm64, portable: zip }
-          - { os: macos-13,       label: macOS x64,    rid: osx-x64,   portable: zip }
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
