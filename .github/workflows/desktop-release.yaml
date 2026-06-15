@@ -62,17 +62,15 @@ jobs:
       # tauri-action runs the beforeBuildCommand (scripts/publish-sidecar.mjs), which builds
       # the SPA and publishes KRINT.API self-contained for this runner's RID, then builds the
       # installers (.deb/.rpm/.AppImage, .msi/.exe, .dmg/.app) and uploads them to the release.
+      # Auto-update is off (no updater signing key set up): builds + uploads installers only.
+      # To re-enable, set the TAURI_SIGNING_* secrets + tauri.conf.json pubkey, flip
+      # createUpdaterArtifacts back on, and restore includeUpdaterJson here (see docs/desktop.md).
       - name: Build desktop app and upload installers
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Signs the updater bundles and generates latest.json (the update manifest).
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ github.event.release.id }}
-          # Generates + uploads latest.json so installed apps can auto-update.
-          includeUpdaterJson: true
 
       # Linux: the AppImage produced above is already the portable build, so nothing more to do.
 
