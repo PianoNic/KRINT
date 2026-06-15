@@ -1,0 +1,15 @@
+{
+  "name": "krint-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tauri desktop shell for KRINT (wraps KRINT.API as a sidecar).",
+  "scripts": {
+    "publish:sidecar": "node scripts/publish-sidecar.mjs",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

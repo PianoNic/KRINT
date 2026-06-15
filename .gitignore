@@ -409,3 +409,13 @@ FodyWeavers.xsd
 !.env.example
 
 .playwright-mcp/
+
+# Tauri desktop shell
+/src-tauri/target/
+/src-tauri/gen/
+/src-tauri/binaries/*
+!/src-tauri/binaries/.gitkeep
+/src-tauri/icons/android/
+/src-tauri/icons/ios/
+/src-tauri/icons/Square*.png
+/src-tauri/icons/StoreLogo.png
