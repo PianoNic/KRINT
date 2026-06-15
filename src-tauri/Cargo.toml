@@ -1,0 +1,39 @@
+[package]
+name = "krint-desktop"
+version = "0.1.0"
+description = "KRINT desktop app"
+authors = ["KRINT"]
+edition = "2021"
+
+# The library is what Tauri (and the mobile entry points, if ever added) link against.
+[lib]
+name = "krint_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# devtools intentionally NOT enabled: the desktop app ships locked down (no inspector).
+tauri = { version = "2" }
+tauri-plugin-shell = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+base64 = "0.22"
+url = "2"
+# Embedded OIDC issuer (replaces the Docker mock-oauth2-server for desktop auth).
+axum = "0.7"
+tokio = { version = "1", features = ["rt", "net", "time", "macros"] }
+tower-http = { version = "0.5", features = ["cors"] }
+jsonwebtoken = "9"
+rsa = "0.9"
+sha2 = "0.10"
+
+# Windows: confine the API sidecar to a Job Object so it dies with us even on a hard crash.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }

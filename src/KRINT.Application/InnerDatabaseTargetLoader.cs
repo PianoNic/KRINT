@@ -32,7 +32,7 @@ namespace KRINT.Application
         // reverse. Pre-probe with a cheap TCP connect and fall back to the alternate.
         // ponytail: one extra TCP connect per operation (~1ms locally) - cache per port if it
         // ever shows up in profiles.
-        private static async Task<string> PickReachableHostAsync(string preferred, int port, CancellationToken cancellationToken)
+        public static async Task<string> PickReachableHostAsync(string preferred, int port, CancellationToken cancellationToken)
         {
             var alternate = preferred switch
             {
