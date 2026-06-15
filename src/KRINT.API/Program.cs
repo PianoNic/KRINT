@@ -51,8 +51,9 @@ builder.Services.AddCatalog();
 builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
 builder.Services.AddHostedService<KRINT.API.InstanceReconciliationHostedService>();
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? throw new InvalidOperationException("Cors:AllowedOrigins not configured");
+// Defaults to no cross-origin allowlist when unset. The desktop build serves the SPA
+// same-origin from the sidecar, so it needs none; server deployments set it explicitly.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

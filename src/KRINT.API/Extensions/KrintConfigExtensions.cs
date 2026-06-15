@@ -12,9 +12,21 @@ public static class KrintConfigExtensions
 
     public static IServiceCollection AddKrintConfig(this IServiceCollection services, IHostEnvironment env)
     {
-        var path = Environment.GetEnvironmentVariable(EnvVar)
-            ?? FindUpwards(env.ContentRootPath)
-            ?? throw new InvalidOperationException($"Could not find {FileName}. Set {EnvVar} or place {FileName} at the repo root.");
+        var path = Environment.GetEnvironmentVariable(EnvVar);
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            path = FindUpwards(env.ContentRootPath);
+
+        if (path is null || !File.Exists(path))
+        {
+            // No config file present: start with defaults rather than crashing. Provisioning
+            // needs port ranges (krint.yaml -> krint.port_ranges), so those operations surface a
+            // clear error until configured, but the app boots — important for the desktop build.
+            Console.Error.WriteLine($"[KRINT] No {FileName} found (set {EnvVar} or place {FileName} at the content root). Starting with defaults.");
+            var defaults = new KrintOptions();
+            services.AddSingleton<IOptions<KrintOptions>>(Options.Create(defaults));
+            services.AddSingleton<IInstancesConfigLoader>(_ => new InstancesConfigLoader(env.ContentRootPath, defaults.InstancesFile));
+            return services;
+        }
 
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
