@@ -13,7 +13,13 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+# "portable": embed the API sidecar + resources into the exe and self-extract on launch, for a
+# single no-install KRINT.exe. Off by default (the installer build uses Tauri's normal sidecar).
+[features]
+portable = ["dep:include_dir"]
+
 [dependencies]
+include_dir = { version = "0.7", optional = true }
 # devtools intentionally NOT enabled: the desktop app ships locked down (no inspector).
 tauri = { version = "2" }
 tauri-plugin-shell = "2"

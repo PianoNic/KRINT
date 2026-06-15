@@ -64,6 +64,20 @@ bun run desktop:dev              # dev window
 bun run desktop:build            # installers under src-tauri/target/release/bundle/
 ```
 
+### Portable single exe (Windows)
+
+For a no-install build, compile with the `portable` Cargo feature. It embeds the API sidecar +
+resources into `krint-desktop.exe` and self-extracts them to
+`%APPDATA%/app.krint.desktop/runtime-<version>/` on first launch — one ~150 MB double-clickable file:
+
+```bash
+bun run publish:sidecar                                            # produce the sidecar + wwwroot to embed
+cargo build --release --features portable --manifest-path src-tauri/Cargo.toml
+# -> src-tauri/target/release/krint-desktop.exe  (rename to KRINT.exe)
+```
+
+The release workflow builds and uploads this as `KRINT-portable-win-x64.exe` alongside the NSIS installer.
+
 > First run also needs app icons. Generate them once with `bun run tauri icon path/to/icon.png`
 > (writes into `src-tauri/icons/`, which is gitignored).
 
