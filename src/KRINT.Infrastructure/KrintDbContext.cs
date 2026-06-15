@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using KRINT.Domain;
+using KRINT.Infrastructure.Extensions;
 
 namespace KRINT.Infrastructure
 {
@@ -45,8 +46,13 @@ namespace KRINT.Infrastructure
     {
         public KrintDbContext CreateDbContext(string[] args)
         {
+            // Used by the EF Core CLI. Provider and connection string are read straight from
+            // the environment so `dotnet ef` targets the same database the app would at runtime.
+            var provider = DatabaseExtensions.ParseProvider(Environment.GetEnvironmentVariable("Database__Provider"));
+            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__KrintDatabase");
+
             var optionsBuilder = new DbContextOptionsBuilder<KrintDbContext>();
-            optionsBuilder.UseNpgsql();
+            optionsBuilder.ConfigureKrintProvider(provider, connectionString);
             return new KrintDbContext(optionsBuilder.Options);
         }
     }

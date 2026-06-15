@@ -14,6 +14,7 @@ WORKDIR /src/backend
 COPY ["src/KRINT.API/KRINT.API.csproj",                       "KRINT.API/"]
 COPY ["src/KRINT.Application/KRINT.Application.csproj",       "KRINT.Application/"]
 COPY ["src/KRINT.Infrastructure/KRINT.Infrastructure.csproj", "KRINT.Infrastructure/"]
+COPY ["src/KRINT.Infrastructure.Migrations.Sqlite/KRINT.Infrastructure.Migrations.Sqlite.csproj", "KRINT.Infrastructure.Migrations.Sqlite/"]
 COPY ["src/KRINT.Domain/KRINT.Domain.csproj",                 "KRINT.Domain/"]
 COPY ["src/Directory.Build.props",                            "./"]
 RUN dotnet restore "KRINT.API/KRINT.API.csproj"

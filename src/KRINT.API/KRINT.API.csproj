@@ -32,6 +32,7 @@
   <ItemGroup>
     <ProjectReference Include="..\KRINT.Application\KRINT.Application.csproj" />
     <ProjectReference Include="..\KRINT.Infrastructure\KRINT.Infrastructure.csproj" />
+    <ProjectReference Include="..\KRINT.Infrastructure.Migrations.Sqlite\KRINT.Infrastructure.Migrations.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>
