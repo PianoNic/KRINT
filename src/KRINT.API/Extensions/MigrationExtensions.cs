@@ -15,6 +15,10 @@ namespace KRINT.API.Extensions
             const int maxAttempts = 30;
             var delay = TimeSpan.FromSeconds(2);
 
+            // SQLite is a local file, so a failure there is not transient and shouldn't be
+            // retried. Only a networked Postgres needs the wait-for-database retry loop.
+            var retryOnFailure = db.Database.IsNpgsql();
+
             for (var attempt = 1; ; attempt++)
             {
                 try
@@ -22,7 +26,9 @@ namespace KRINT.API.Extensions
                     db.Database.Migrate();
                     return app;
                 }
-                catch (Exception ex) when ((ex is NpgsqlException || ex.InnerException is NpgsqlException) && attempt < maxAttempts)
+                catch (Exception ex) when (retryOnFailure
+                    && (ex is NpgsqlException || ex.InnerException is NpgsqlException)
+                    && attempt < maxAttempts)
                 {
                     logger.LogWarning("Database not reachable (attempt {Attempt}/{Max}): {Message}. Retrying in {Delay}s.",
                         attempt, maxAttempts, ex.GetBaseException().Message, delay.TotalSeconds);

@@ -38,16 +38,7 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddMediator(options => { options.ServiceLifetime = ServiceLifetime.Scoped; });
 builder.Services.AddScoped<KRINT.Application.ConfigManagedGuard>();
 
-builder.Services.AddDbContext<KrintDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("KrintDatabase"),
-        npgsqlOptions => npgsqlOptions
-        .EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(10),
-            errorCodesToAdd: null
-        )
-    ));
+builder.Services.AddKrintDatabase(builder.Configuration);
 
 builder.Services.AddDocker(builder.Configuration);
 

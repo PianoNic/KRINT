@@ -38,6 +38,7 @@ services:
       - "host.docker.internal:host-gateway"
     env_file: .env
     environment:
+      Database__Provider: "Postgres"
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=d4vpas8w0rd13!!!"
       Oidc__Authority: "http://localhost:57538/default"
       Oidc__InternalAuthority: "http://mock-oauth2:8080/default"

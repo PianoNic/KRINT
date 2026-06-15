@@ -38,6 +38,7 @@ services:
       - "18081:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      Database__Provider: Postgres
       ConnectionStrings__KrintDatabase: Host=postgres;Port=5432;Database=krint-test;Username=postgres;Password=postgres-test
       Oidc__Authority: http://localhost:18080/default
       Oidc__InternalAuthority: http://mock-oauth2:8080/default

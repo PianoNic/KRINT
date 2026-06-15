@@ -78,8 +78,40 @@ These live in the `krint` service's `environment:` block because they reference 
 
 | Variable                            | Value                                                                                    |
 | ----------------------------------- | ---------------------------------------------------------------------------------------- |
-| `ConnectionStrings__KrintDatabase`  | `Host=db;Port=5432;Database=krint;Username=postgres;Password=<the-shared-pw>`            |
+| `Database__Provider`                | `Postgres` for the bundled stack (set in the shipped `compose.yml`). Omit it or set `Sqlite` to use the file-based default. See "Choosing the app database" below. |
+| `ConnectionStrings__KrintDatabase`  | Postgres: `Host=db;Port=5432;Database=krint;Username=postgres;Password=<the-shared-pw>`. SQLite: `Data Source=/data/krint.db` (defaults to `krint.db` if unset). |
 | `Oidc__InternalAuthority`           | `http://keycloak:8080/realms/krint`. The in-cluster Keycloak URL the API fetches discovery + JWKS from. Don't change unless you rename the keycloak service. |
+
+### Choosing the app database
+
+KRINT stores its own metadata (provisioned-instance records, encrypted secrets, activity log,
+backup schedules) in either **SQLite** or **PostgreSQL**, picked with `Database__Provider`:
+
+| Provider | When to use it | Config |
+| -------- | -------------- | ------ |
+| `Sqlite` (default) | Single-node self-host, simplest setup. No extra container - data lives in one file. | `Database__Provider=Sqlite` and a writable path, e.g. `ConnectionStrings__KrintDatabase=Data Source=/data/krint.db`. |
+| `Postgres` | Shared with the bundled Keycloak DB, or if you already run Postgres. Used by the shipped `compose.yml`. | `Database__Provider=Postgres` and a Npgsql `ConnectionStrings__KrintDatabase`. |
+
+The schema is created and migrated automatically on startup for whichever provider is active, so
+there's nothing to run by hand.
+
+**Running on SQLite** (drops the `db` service entirely). In the `krint` service of your
+`compose.yml`, set:
+
+```yaml
+    environment:
+      Database__Provider: "Sqlite"
+      ConnectionStrings__KrintDatabase: "Data Source=/data/krint.db"
+    volumes:
+      - ./db:/data        # persist the SQLite file across restarts
+```
+
+Then remove the `db:` service and the `depends_on: db` from the `krint` service. Keep the Keycloak
+DB separate (Keycloak still needs its own storage); the bundled compose co-locates both in one
+Postgres, so dropping `db` only makes sense with an external/own OIDC provider.
+
+> The SQLite file must live on a mounted volume (`/data` above). Without it the database is wiped
+> every time the container is recreated.
 
 ### Generating the vault key
 

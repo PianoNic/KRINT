@@ -151,10 +151,28 @@ Headless by default. Set `KrintTestFixture.Headless = false` in `KrintSessionHoo
 
 ## 7. EF migrations
 
-Migrations live in `src/KRINT.Infrastructure/Migrations/` and are auto-applied at API startup via `ApplyMigrations()`. To add a new one after changing entities:
+KRINT can store its own data in **SQLite** (default) or **PostgreSQL**, selected with
+`Database__Provider` (`Sqlite` or `Postgres`). The connection string is
+`ConnectionStrings__KrintDatabase`; for SQLite it defaults to `Data Source=krint.db`.
+
+Because EF Core can't keep two providers' migrations in one assembly, there are **two**
+migration sets, both auto-applied at API startup via `ApplyMigrations()` for whichever
+provider is active:
+
+- **Postgres** → `src/KRINT.Infrastructure/Migrations/`
+- **SQLite** → `src/KRINT.Infrastructure.Migrations.Sqlite/Migrations/`
+
+After changing entities, add the migration to **both** sets (the EF tooling reads the
+target provider from `Database__Provider`):
 
 ```powershell
+# Postgres
+$env:Database__Provider="Postgres"
 dotnet ef migrations add <Name> -p src/KRINT.Infrastructure -s src/KRINT.API
+
+# SQLite
+$env:Database__Provider="Sqlite"
+dotnet ef migrations add <Name> -p src/KRINT.Infrastructure.Migrations.Sqlite -s src/KRINT.API
 ```
 
 `dotnet ef database update` is **not** needed for local dev. `dotnet run` does it on startup. Run it manually only if you want to apply migrations without booting the API.
