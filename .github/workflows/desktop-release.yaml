@@ -82,7 +82,7 @@ jobs:
         run: |
           $rel = "src-tauri/target/release"
           $out = "KRINT-portable-${{ matrix.rid }}.zip"
-          Compress-Archive -Path "$rel/KRINT.exe", "$rel/resources", "$rel/binaries" -DestinationPath $out -Force
+          Compress-Archive -Path "$rel/krint-desktop.exe", "$rel/krint-api.exe", "$rel/resources" -DestinationPath $out -Force
           gh release upload "${{ github.event.release.tag_name }}" $out --clobber
 
       - name: Package portable archive (macOS)
