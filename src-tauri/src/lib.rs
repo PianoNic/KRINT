@@ -162,18 +162,12 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
     start_oidc(authority.clone(), oidc_port);
     let urls = format!("http://127.0.0.1:{api_port}");
     let conn = format!("Data Source={}", db_path.to_string_lossy());
-    let krint_yaml = app
-        .path()
-        .resolve("resources/krint.yaml", tauri::path::BaseDirectory::Resource)?;
-    // The SPA (wwwroot) is bundled under resources/; point the API's content root there so
-    // UseStaticFiles + MapFallbackToFile serve it. WebRoot defaults to {ContentRoot}/wwwroot.
-    let content_root = app
-        .path()
-        .resolve("resources", tauri::path::BaseDirectory::Resource)?;
+    // Where the API binary + its resources (krint.yaml + the SPA's wwwroot) come from: Tauri's
+    // bundled sidecar/resources for the installer build, or a self-extracted copy for the single
+    // portable exe. WebRoot defaults to {ContentRoot}/wwwroot, so content_root points at resources/.
+    let (program, content_root, krint_yaml) = resolve_runtime(app, &data_dir)?;
 
-    let sidecar = app
-        .shell()
-        .sidecar("krint-api")?
+    let sidecar = program
         .env("ASPNETCORE_ENVIRONMENT", "Production")
         .env("ASPNETCORE_URLS", &urls)
         .env("ASPNETCORE_CONTENTROOT", content_root.to_string_lossy().to_string())
@@ -243,6 +237,60 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
     });
 
     Ok(())
+}
+
+/// Resolve the API program to spawn plus its content root and krint.yaml path.
+///
+/// Installer build: Tauri's bundled sidecar + `resources/` (resolved from the bundle).
+/// Portable build (`portable` feature): the sidecar + resources are embedded in this exe and
+/// self-extracted once into the app-data dir, so a single KRINT.exe runs with no install.
+#[cfg(not(feature = "portable"))]
+fn resolve_runtime(
+    app: &tauri::AppHandle,
+    _data_dir: &std::path::Path,
+) -> Result<(tauri_plugin_shell::process::Command, PathBuf, PathBuf), Box<dyn std::error::Error>> {
+    let content_root = app
+        .path()
+        .resolve("resources", tauri::path::BaseDirectory::Resource)?;
+    let krint_yaml = app
+        .path()
+        .resolve("resources/krint.yaml", tauri::path::BaseDirectory::Resource)?;
+    Ok((app.shell().sidecar("krint-api")?, content_root, krint_yaml))
+}
+
+#[cfg(feature = "portable")]
+fn resolve_runtime(
+    app: &tauri::AppHandle,
+    data_dir: &std::path::Path,
+) -> Result<(tauri_plugin_shell::process::Command, PathBuf, PathBuf), Box<dyn std::error::Error>> {
+    let runtime = extract_payload(data_dir)?;
+    let program = app
+        .shell()
+        .command(runtime.join("krint-api.exe").to_string_lossy().to_string());
+    let krint_yaml = runtime.join("krint.yaml");
+    Ok((program, runtime, krint_yaml))
+}
+
+/// Self-extract the embedded API sidecar + resources into `{app_data}/runtime-{version}/` once.
+/// Keyed by version so an upgraded exe re-extracts; reused as-is otherwise for a fast launch.
+#[cfg(feature = "portable")]
+fn extract_payload(data_dir: &std::path::Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    static RESOURCES: include_dir::Dir =
+        include_dir::include_dir!("$CARGO_MANIFEST_DIR/resources");
+    const SIDECAR: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/binaries/krint-api-x86_64-pc-windows-msvc.exe"
+    ));
+
+    let runtime = data_dir.join(concat!("runtime-", env!("CARGO_PKG_VERSION")));
+    let sidecar_exe = runtime.join("krint-api.exe");
+    // The sidecar is written last, so its presence means a previous extraction completed.
+    if !sidecar_exe.exists() {
+        std::fs::create_dir_all(&runtime)?;
+        RESOURCES.extract(&runtime)?;
+        std::fs::write(&sidecar_exe, SIDECAR)?;
+    }
+    Ok(runtime)
 }
 
 /// Put the sidecar in a Windows Job Object whose handle we hold for the life of the process.

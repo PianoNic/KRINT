@@ -74,15 +74,19 @@ jobs:
 
       # Linux: the AppImage produced above is already the portable build, so nothing more to do.
 
-      - name: Package portable archive (Windows)
+      # Single no-install exe: rebuild with the `portable` feature, which embeds the API sidecar
+      # + resources (already produced by the build step above) into krint-desktop.exe and
+      # self-extracts them on launch. One ~150 MB double-clickable file.
+      - name: Build & upload portable single exe (Windows)
         if: matrix.portable == 'zip' && runner.os == 'Windows'
         shell: pwsh
+        working-directory: src-tauri
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $rel = "src-tauri/target/release"
-          $out = "KRINT-portable-${{ matrix.rid }}.zip"
-          Compress-Archive -Path "$rel/krint-desktop.exe", "$rel/krint-api.exe", "$rel/resources" -DestinationPath $out -Force
+          cargo build --release --features portable
+          $out = "KRINT-portable-${{ matrix.rid }}.exe"
+          Copy-Item target/release/krint-desktop.exe $out
           gh release upload "${{ github.event.release.tag_name }}" $out --clobber
 
       - name: Package portable archive (macOS)
