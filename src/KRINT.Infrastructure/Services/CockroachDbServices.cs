@@ -1,3 +1,5 @@
+using KRINT.Infrastructure.Interfaces;
+
 namespace KRINT.Infrastructure.Services
 {
     // CockroachDB speaks the Postgres wire protocol - Npgsql talks to it natively, and the
@@ -19,6 +21,20 @@ namespace KRINT.Infrastructure.Services
     public sealed class CockroachDbInnerUserService : PostgresInnerUserService
     {
         public override string Engine => "cockroachdb";
+
+        // We run CockroachDB with `start-single-node --insecure`, which rejects any password
+        // operation ("setting or updating a password is not supported in insecure mode"). Create
+        // passwordless login roles instead - in insecure mode they authenticate without one.
+        public override async Task CreateAsync(InnerDatabaseTarget target, string name, string password, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(name);
+            await using var conn = await OpenAsync(target, cancellationToken);
+            await using var cmd = new Npgsql.NpgsqlCommand($"CREATE ROLE \"{name}\" LOGIN", conn);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        public override Task ResetPasswordAsync(InnerDatabaseTarget target, string name, string newPassword, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("CockroachDB runs in insecure mode, which has no user passwords.");
     }
 
     public sealed class CockroachDbInnerSchemaService : PostgresInnerSchemaService
