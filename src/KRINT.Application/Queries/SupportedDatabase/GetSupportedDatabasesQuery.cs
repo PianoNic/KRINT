@@ -80,6 +80,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "document",
             SupportsCreateDatabase = false,   // there's just one "_cluster"
             SupportsDropDatabase = false,
+            SupportsRowInsert = false,
             SupportsRowEdit = false,
             SupportsRowDelete = false,
             SupportsUsers = false,
@@ -95,6 +96,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "document",
             SupportsListTables = true,
             SupportsDropTable = false,
+            SupportsRowInsert = false,
             SupportsRowEdit = false,
             SupportsRowDelete = false,
             SupportsUsers = false,
@@ -110,6 +112,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "node",
             SupportsCreateDatabase = false,  // Neo4j Community is single-database
             SupportsDropDatabase = false,
+            SupportsRowInsert = false,
             SupportsRowEdit = false,
             SupportsRowDelete = false,
             SupportsUsers = false,
