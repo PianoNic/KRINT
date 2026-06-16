@@ -147,6 +147,14 @@ namespace KRINT.Application.Queries.SupportedDatabase
             SupportsBackup = false,
         };
 
+        // Azurite (Azure Blob emulator): containers = databases, one virtual "_all_blobs"
+        // collection per container, blobs = rows. Same shape as SeaweedFS but over the Blob API.
+        private static readonly EngineCapabilitiesDto AzuriteCaps = SeaweedFsCaps with
+        {
+            DatabaseTerm = "container",
+            RowTerm = "blob",
+        };
+
         // Redis: 16 fixed DB numbers, no logical-DB CRUD; key-value rows; no users in our model.
         private static readonly EngineCapabilitiesDto RedisCaps = new()
         {
@@ -283,6 +291,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
             ("qdrant",      "Qdrant",      "qdrant/qdrant",         QdrantCaps),
             // Blob / object storage
             ("seaweedfs",   "SeaweedFS",   "chrislusf/seaweedfs",   SeaweedFsCaps),
+            ("azurite",     "Azure Blob (Azurite)", "mcr.microsoft.com/azure-storage/azurite", AzuriteCaps),
         };
 
         public async ValueTask<IReadOnlyList<SupportedDatabaseDto>> Handle(GetSupportedDatabasesQuery query, CancellationToken cancellationToken)

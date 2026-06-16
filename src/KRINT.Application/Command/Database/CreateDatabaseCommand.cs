@@ -291,6 +291,12 @@ namespace KRINT.Application.Command.Database
                     // buckets are created on demand via the UI.
                     return new EngineSpec("chrislusf/seaweedfs", "weed", 8333, "krint", "default", "/data",
                         CmdFactory: _ => new[] { "server", "-s3", "-dir=/data" });
+                case "azurite":
+                    // Azure Storage emulator. We publish only the blob port (10000) and bind it to
+                    // 0.0.0.0 so the host can reach it; --skipApiVersionCheck keeps newer SDKs happy.
+                    // Uses the fixed dev account "devstoreaccount1" - the generated password is unused.
+                    return new EngineSpec("mcr.microsoft.com/azure-storage/azurite", "azurite", 10000, "devstoreaccount1", "default", "/data",
+                        CmdFactory: _ => new[] { "azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--location", "/data", "--skipApiVersionCheck" });
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
@@ -418,6 +424,9 @@ namespace KRINT.Application.Command.Database
                         "AWS_ACCESS_KEY_ID=krint",
                         $"AWS_SECRET_ACCESS_KEY={password}",
                     };
+                case "azurite":
+                    // Azurite uses its built-in "devstoreaccount1" account - no env needed.
+                    return new List<string>();
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
             }
