@@ -25,6 +25,7 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerDatabaseService, ValkeyInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, MsSqlInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, SeaweedFsInnerDatabaseService>();
+            services.AddSingleton<IInnerDatabaseService, AzuriteInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseServiceResolver, InnerDatabaseServiceResolver>();
 
             services.AddSingleton<IInnerUserService, PostgresInnerUserService>();
@@ -44,6 +45,7 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerUserService, ValkeyInnerUserService>();
             services.AddSingleton<IInnerUserService, MsSqlInnerUserService>();
             services.AddSingleton<IInnerUserService, SeaweedFsInnerUserService>();
+            services.AddSingleton<IInnerUserService, AzuriteInnerUserService>();
             services.AddSingleton<IInnerUserServiceResolver, InnerUserServiceResolver>();
 
             services.AddSingleton<IInnerSchemaService, PostgresInnerSchemaService>();
@@ -63,6 +65,7 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerSchemaService, ValkeyInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, MsSqlInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, SeaweedFsInnerSchemaService>();
+            services.AddSingleton<IInnerSchemaService, AzuriteInnerSchemaService>();
             services.AddSingleton<IInnerSchemaServiceResolver, InnerSchemaServiceResolver>();
 
             // Query console - SQL engines only for v1. Engines without an entry surface in the

@@ -28,6 +28,7 @@ namespace KRINT.Application
                 "valkey" => $"redis://default:{password}@{host}:{port}/{database}",
                 "mssql" => $"Server={host},{port};User Id={username};Password={password};Database={database};TrustServerCertificate=true",
                 "seaweedfs" => $"http://{host}:{port} (S3 access-key: {username}, secret-key: {password})",
+                "azurite" => $"DefaultEndpointsProtocol=http;AccountName={username};AccountKey=<azurite-dev-key>;BlobEndpoint=http://{host}:{port}/{username};",
                 _ => throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine)),
             };
         }

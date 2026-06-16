@@ -46,6 +46,8 @@ namespace KRINT.Infrastructure.Services
             ["mssql"] = new[] { "2025-latest", "2022-latest", "2019-latest" },
             // SeaweedFS - 4.33 is current (verified on hub.docker.com 2026-06-12).
             ["seaweedfs"] = new[] { "4.33", "4.32", "4.31" },
+            // Azurite (Azure Storage emulator) on MCR - "latest" plus a couple of pinned 3.x tags.
+            ["azurite"] = new[] { "latest", "3.34.0", "3.33.0" },
         };
 
         private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
