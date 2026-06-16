@@ -42,8 +42,16 @@ namespace KRINT.Infrastructure.Services
         public virtual string Engine => "elasticsearch";
         protected virtual bool UseHttps => false;
 
-        public Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<string>>(new[] { "_cluster" });
+        public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
+        {
+            // ES exposes a single virtual "_cluster" database, but actually hit the cluster so this
+            // doubles as a real readiness probe - returning a constant would let provisioning report
+            // "ready" while the JVM is still starting, breaking the first query/browse.
+            using var http = ElasticHttp.Build(target, UseHttps);
+            using var resp = await http.GetAsync("/", cancellationToken);
+            resp.EnsureSuccessStatusCode();
+            return new[] { "_cluster" };
+        }
 
         public Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("Elasticsearch/OpenSearch don't have logical databases - there's only the single cluster.");

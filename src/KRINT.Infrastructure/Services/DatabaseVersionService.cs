@@ -3,10 +3,11 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using KRINT.Infrastructure.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace KRINT.Infrastructure.Services
 {
-    public class DatabaseVersionService(HttpClient http, IMemoryCache cache) : IDatabaseVersionService
+    public class DatabaseVersionService(HttpClient http, IMemoryCache cache, ILogger<DatabaseVersionService> logger) : IDatabaseVersionService
     {
         private static readonly IReadOnlyDictionary<string, string> EngineToEndOfLifeSlug = new Dictionary<string, string>
         {
@@ -49,6 +50,10 @@ namespace KRINT.Infrastructure.Services
 
         private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
 
+        // Used when the external version lookup can't be reached. "latest" exists as a rolling tag
+        // for every supported engine's image, so provisioning still works.
+        private static readonly IReadOnlyList<string> FallbackVersions = new[] { "latest" };
+
         public async Task<IReadOnlyList<string>> GetSupportedVersionsAsync(string engineKey, CancellationToken cancellationToken = default)
         {
             if (StaticEngineVersions.TryGetValue(engineKey, out var staticVersions))
@@ -68,10 +73,24 @@ namespace KRINT.Infrastructure.Services
             }
 
             var url = $"https://endoflife.date/api/{slug}.json";
-            var entries = await http.GetFromJsonAsync<EndOfLifeEntry[]>(url, cancellationToken);
+            EndOfLifeEntry[]? entries;
+            try
+            {
+                entries = await http.GetFromJsonAsync<EndOfLifeEntry[]>(url, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // endoflife.date is an optional convenience lookup, not a hard dependency. If it's
+                // unreachable / rate-limited / down, fall back to Docker's rolling "latest" tag so
+                // the create-instance screen keeps working offline. Not cached, so it retries next time.
+                logger.LogWarning(ex, "Version lookup for '{Slug}' failed; falling back to 'latest'.", slug);
+                return FallbackVersions;
+            }
+
             if (entries is null)
             {
-                throw new InvalidOperationException($"endoflife.date returned no data for '{slug}'.");
+                logger.LogWarning("endoflife.date returned no data for '{Slug}'; falling back to 'latest'.", slug);
+                return FallbackVersions;
             }
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);

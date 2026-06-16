@@ -34,3 +34,4 @@ krint:
     qdrant:         34000-34199
     valkey:         34200-34399
     seaweedfs:      34400-34599
+    pgvector:       34600-34799

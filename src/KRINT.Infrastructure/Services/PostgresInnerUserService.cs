@@ -18,7 +18,7 @@ namespace KRINT.Infrastructure.Services
             return results;
         }
 
-        public async Task CreateAsync(InnerDatabaseTarget target, string name, string password, CancellationToken cancellationToken = default)
+        public virtual async Task CreateAsync(InnerDatabaseTarget target, string name, string password, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(name);
             SafePasswordGuard.Require(password);
@@ -61,7 +61,7 @@ namespace KRINT.Infrastructure.Services
             await dropCmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        public async Task ResetPasswordAsync(InnerDatabaseTarget target, string name, string newPassword, CancellationToken cancellationToken = default)
+        public virtual async Task ResetPasswordAsync(InnerDatabaseTarget target, string name, string newPassword, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(name);
             SafePasswordGuard.Require(newPassword);
@@ -79,7 +79,7 @@ namespace KRINT.Infrastructure.Services
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        private static async Task<NpgsqlConnection> OpenAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
+        protected static async Task<NpgsqlConnection> OpenAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
         {
             var csb = new NpgsqlConnectionStringBuilder
             {

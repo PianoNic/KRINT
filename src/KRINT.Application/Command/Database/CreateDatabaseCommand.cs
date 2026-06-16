@@ -123,14 +123,30 @@ namespace KRINT.Application.Command.Database
                 await docker.StartContainerAsync(createResult.ID, cancellationToken);
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
+                // mssql and cockroachdb can't create the default database from an env var (unlike
+                // POSTGRES_DB / MYSQL_DATABASE / CLICKHOUSE_DB). For those, probe readiness against
+                // the engine's always-present system db (master / defaultdb) - otherwise the probe
+                // connects to a database that doesn't exist yet and the instance never comes ready -
+                // then CREATE the requested default database explicitly afterwards.
+                var needsExplicitDefaultDb =
+                    (string.Equals(command.Engine, "mssql", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(command.Engine, "cockroachdb", StringComparison.OrdinalIgnoreCase))
+                    && !string.Equals(databaseName, spec.DefaultDatabase, StringComparison.OrdinalIgnoreCase);
+                var probeDatabase = needsExplicitDefaultDb ? spec.DefaultDatabase : databaseName;
+
                 // Wait for the engine inside the container to accept connections. The returned
                 // target carries whichever probe host actually responded - init steps below
                 // must use it so they reach the same address.
                 var readinessTarget = await ReadinessProbe.WaitForReadyAsync(
                     innerDbs.Resolve(command.Engine),
-                    new InnerDatabaseTarget(command.Engine, ResolveProbeHost(command.IsPublic), hostPort, spec.DefaultUsername, password, databaseName),
+                    new InnerDatabaseTarget(command.Engine, ResolveProbeHost(command.IsPublic), hostPort, spec.DefaultUsername, password, probeDatabase),
                     command.IsPublic,
                     cancellationToken);
+
+                if (needsExplicitDefaultDb)
+                {
+                    await innerDbs.Resolve(command.Engine).CreateAsync(readinessTarget, databaseName, cancellationToken);
+                }
 
                 // pgvector engine entry: enable the extension once the container accepts connections.
                 if (string.Equals(command.Engine, "pgvector", StringComparison.OrdinalIgnoreCase))
@@ -212,9 +228,11 @@ namespace KRINT.Application.Command.Database
                 case "postgres":
                     // pg 18+ stores data in /var/lib/postgresql/<major>/docker - mount the parent.
                     // pg <=17 uses PGDATA=/var/lib/postgresql/data - mount that directly.
-                    var pgDataPath = TryGetMajorVersion(version) is { } major && major >= 18
-                        ? "/var/lib/postgresql"
-                        : "/var/lib/postgresql/data";
+                    // Unknown/"latest" tags resolve to the modern (18+) layout: "latest" is 18+ today
+                    // and every future release will be too, so only known <=17 majors use the legacy path.
+                    var pgDataPath = TryGetMajorVersion(version) is { } major && major <= 17
+                        ? "/var/lib/postgresql/data"
+                        : "/var/lib/postgresql";
                     return new EngineSpec("postgres", "pg", 5432, "postgres", "postgres", pgDataPath);
                 case "timescaledb":
                     // timescale/timescaledb tags use Postgres <=17 layout (PGDATA=/var/lib/postgresql/data).

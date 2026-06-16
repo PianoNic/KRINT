@@ -32,8 +32,12 @@ namespace KRINT.Infrastructure.Services
                 var records = await result.ToListAsync(cancellationToken);
                 return records.Select(r => r["name"].As<string>()).Where(n => !string.Equals(n, "system", StringComparison.OrdinalIgnoreCase)).ToList();
             }
-            catch
+            catch (Neo4j.Driver.ClientException)
             {
+                // SHOW DATABASES is Enterprise-only; on Community it's a query-level ClientException,
+                // so fall back to the single "neo4j" db. Connection errors (ServiceUnavailable) are
+                // deliberately NOT caught - they must propagate so the readiness probe keeps waiting
+                // instead of treating a still-booting server as ready.
                 return new[] { "neo4j" };
             }
         }
