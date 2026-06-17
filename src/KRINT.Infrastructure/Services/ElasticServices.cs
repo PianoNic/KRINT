@@ -26,7 +26,9 @@ namespace KRINT.Infrastructure.Services
             var client = new HttpClient(handler, disposeHandler: true)
             {
                 BaseAddress = new Uri($"{scheme}://{target.Host}:{target.Port}"),
-                Timeout = TimeSpan.FromSeconds(10),
+                // ES writes with refresh=true (and first-index creation) can exceed a tight budget,
+                // especially right after startup; give it room so edits don't spuriously time out.
+                Timeout = TimeSpan.FromSeconds(30),
             };
             if (!string.IsNullOrEmpty(target.Username))
             {
@@ -44,12 +46,18 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
-            // ES exposes a single virtual "_cluster" database, but actually hit the cluster so this
-            // doubles as a real readiness probe - returning a constant would let provisioning report
-            // "ready" while the JVM is still starting, breaking the first query/browse.
+            // ES exposes a single virtual "_cluster" database, but actually hit cluster health so
+            // this doubles as a real readiness probe: GET / returns 200 before the cluster can
+            // accept writes (first insert would 503). Requiring a non-red status means the probe
+            // (and provisioning) waits until ES is actually usable.
             using var http = ElasticHttp.Build(target, UseHttps);
-            using var resp = await http.GetAsync("/", cancellationToken);
+            using var resp = await http.GetAsync("/_cluster/health", cancellationToken);
             resp.EnsureSuccessStatusCode();
+            await using var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            var status = doc.RootElement.TryGetProperty("status", out var s) ? s.GetString() : null;
+            if (string.Equals(status, "red", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Elasticsearch cluster health is red - not ready.");
             return new[] { "_cluster" };
         }
 
@@ -128,12 +136,49 @@ namespace KRINT.Infrastructure.Services
             return new TableRows(new[] { "_id", "_source" }, rows, total);
         }
 
-        public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Elasticsearch/OpenSearch insert is not exposed in this version.");
-        public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Elasticsearch/OpenSearch document update is not exposed in this version.");
-        public Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Elasticsearch/OpenSearch document delete is not exposed in this version.");
+        private static int Idx(IReadOnlyList<string> cols, string name)
+        {
+            for (var i = 0; i < cols.Count; i++) if (cols[i] == name) return i;
+            return -1;
+        }
+
+        public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var idIdx = Idx(request.Columns, "_id");
+            var srcIdx = Idx(request.Columns, "_source");
+            var id = idIdx >= 0 ? request.Values[idIdx] : null;
+            var src = (srcIdx >= 0 ? request.Values[srcIdx] : null) ?? "{}";
+            using var http = ElasticHttp.Build(target, UseHttps);
+            var content = new StringContent(src, Encoding.UTF8, "application/json");
+            // No id -> POST for an auto-generated id; explicit id -> PUT to that id.
+            using var resp = string.IsNullOrWhiteSpace(id)
+                ? await http.PostAsync($"/{Uri.EscapeDataString(table)}/_doc?refresh=true", content, cancellationToken)
+                : await http.PutAsync($"/{Uri.EscapeDataString(table)}/_doc/{Uri.EscapeDataString(id)}?refresh=true", content, cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
+
+        public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var idIdx = Idx(request.Columns, "_id");
+            var srcIdx = Idx(request.Columns, "_source");
+            var id = idIdx >= 0 ? request.OriginalValues[idIdx] : null;
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Document _id is required to update.");
+            var src = (srcIdx >= 0 ? request.NewValues[srcIdx] : null) ?? "{}";
+            using var http = ElasticHttp.Build(target, UseHttps);
+            var content = new StringContent(src, Encoding.UTF8, "application/json");
+            using var resp = await http.PutAsync($"/{Uri.EscapeDataString(table)}/_doc/{Uri.EscapeDataString(id)}?refresh=true", content, cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
+
+        public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var idIdx = Idx(request.Columns, "_id");
+            var id = idIdx >= 0 ? request.OriginalValues[idIdx] : null;
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Document _id is required to delete.");
+            using var http = ElasticHttp.Build(target, UseHttps);
+            using var resp = await http.DeleteAsync($"/{Uri.EscapeDataString(table)}/_doc/{Uri.EscapeDataString(id)}?refresh=true", cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
 
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {

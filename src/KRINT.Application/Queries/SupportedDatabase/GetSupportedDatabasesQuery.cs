@@ -27,14 +27,11 @@ namespace KRINT.Application.Queries.SupportedDatabase
             SupportsBackup = true,
         };
 
-        // Mongo: docs not rows; current implementation lacks per-document edit/insert/delete.
+        // Mongo: docs rendered as a single JSON column; insert/replace/delete keyed on _id.
         private static readonly EngineCapabilitiesDto MongoCaps = SqlCaps with
         {
             TableTerm = "collection",
             RowTerm = "document",
-            SupportsRowInsert = false,
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
         };
 
         // CockroachDB: Postgres-wire-compatible but no `ctid` and no pg_dump. We disable row
@@ -70,9 +67,8 @@ namespace KRINT.Application.Queries.SupportedDatabase
             SupportsBackup = false,
         };
 
-        // Elasticsearch / OpenSearch: indices look like tables; docs look like rows but the JSON
-        // shape is per-document, so we render each doc as a single JSON column (like Mongo).
-        // Per-doc edit/delete needs _id lookup; skipping for v1.
+        // Elasticsearch / OpenSearch: indices look like tables; each doc is one JSON _source
+        // column keyed by _id. Index/update/delete are by _id (refresh=true for immediacy).
         private static readonly EngineCapabilitiesDto ElasticCaps = SqlCaps with
         {
             DatabaseTerm = "cluster",
@@ -80,8 +76,6 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "document",
             SupportsCreateDatabase = false,   // there's just one "_cluster"
             SupportsDropDatabase = false,
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
             SupportsUsers = false,
             SupportsBackup = false,
         };
@@ -95,8 +89,6 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "document",
             SupportsListTables = true,
             SupportsDropTable = false,
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
             SupportsUsers = false,
             SupportsBackup = false,
         };
@@ -110,14 +102,13 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "node",
             SupportsCreateDatabase = false,  // Neo4j Community is single-database
             SupportsDropDatabase = false,
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
             SupportsUsers = false,
             SupportsBackup = false,
         };
 
-        // Qdrant: vector DB. We expose collections as "tables" and points as "rows" (id + payload + vector preview).
-        // No multi-DB concept; insert/edit/delete are out of scope until we have a vector-aware UI.
+        // Qdrant: vector DB. Collections = tables, points = rows (id + payload). Payload edit and
+        // point delete work by id; insert stays off because a new point requires a vector, which
+        // the generic row form can't supply.
         private static readonly EngineCapabilitiesDto QdrantCaps = SqlCaps with
         {
             DatabaseTerm = "cluster",
@@ -125,9 +116,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "point",
             SupportsCreateDatabase = false,
             SupportsDropDatabase = false,
-            SupportsRowEdit = false,
             SupportsRowInsert = false,
-            SupportsRowDelete = false,
             SupportsUsers = false,
             SupportsBackup = false,
         };

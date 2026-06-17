@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Infrastructure.Services
@@ -117,12 +118,54 @@ namespace KRINT.Infrastructure.Services
             return new TableRows(new[] { "_id", "document" }, rows, total);
         }
 
-        public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("CouchDB document insert is not exposed in this version.");
-        public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("CouchDB document update is not exposed in this version (requires _rev).");
-        public Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("CouchDB document delete is not exposed in this version (requires _rev).");
+        private static int Idx(IReadOnlyList<string> cols, string name)
+        {
+            for (var i = 0; i < cols.Count; i++) if (cols[i] == name) return i;
+            return -1;
+        }
+
+        public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            var docJson = request.Values[Idx(request.Columns, "document")] ?? "{}";
+            var node = JsonNode.Parse(docJson)!.AsObject();
+            node.Remove("_rev"); // a new doc must not carry a rev
+            using var http = CouchDbHttp.Build(target);
+            var content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json");
+            // POST to the database: CouchDB honours an embedded _id, or assigns one when absent.
+            using var resp = await http.PostAsync($"/{Uri.EscapeDataString(database)}", content, cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
+
+        public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var idIdx = Idx(request.Columns, "_id");
+            var docIdx = Idx(request.Columns, "document");
+            var id = request.OriginalValues[idIdx];
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Document _id is required to update.");
+            // CouchDB needs the current _rev; take it from the original doc and stamp it on the new body.
+            var rev = JsonDocument.Parse(request.OriginalValues[docIdx] ?? "{}").RootElement.TryGetProperty("_rev", out var r) ? r.GetString() : null;
+            var node = JsonNode.Parse(request.NewValues[docIdx] ?? "{}")!.AsObject();
+            node["_id"] = id;
+            if (rev is not null) node["_rev"] = rev;
+            using var http = CouchDbHttp.Build(target);
+            var content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json");
+            using var resp = await http.PutAsync($"/{Uri.EscapeDataString(database)}/{Uri.EscapeDataString(id)}", content, cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
+
+        public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var idIdx = Idx(request.Columns, "_id");
+            var docIdx = Idx(request.Columns, "document");
+            var id = request.OriginalValues[idIdx];
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Document _id is required to delete.");
+            var rev = JsonDocument.Parse(request.OriginalValues[docIdx] ?? "{}").RootElement.TryGetProperty("_rev", out var r) ? r.GetString() : null;
+            if (string.IsNullOrWhiteSpace(rev)) throw new ArgumentException("Document _rev is required to delete.");
+            using var http = CouchDbHttp.Build(target);
+            using var resp = await http.DeleteAsync($"/{Uri.EscapeDataString(database)}/{Uri.EscapeDataString(id)}?rev={Uri.EscapeDataString(rev)}", cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
         public Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("CouchDB has no tables - drop the database instead.");
     }
