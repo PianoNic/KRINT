@@ -103,12 +103,58 @@ namespace KRINT.Infrastructure.Services
             return new TableRows(new[] { "_id", "properties" }, rows, total);
         }
 
-        public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Neo4j node insert is not exposed in this version.");
-        public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Neo4j node update is not exposed in this version.");
-        public Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Neo4j node delete is not exposed in this version.");
+        private static int Idx(IReadOnlyList<string> cols, string name)
+        {
+            for (var i = 0; i < cols.Count; i++) if (cols[i] == name) return i;
+            return -1;
+        }
+
+        // Neo4j node properties must be primitives/arrays - convert the JSON object to a CLR map.
+        private static Dictionary<string, object?> PropsFromJson(string? json)
+        {
+            var map = new Dictionary<string, object?>();
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
+            foreach (var p in doc.RootElement.EnumerateObject())
+            {
+                map[p.Name] = p.Value.ValueKind switch
+                {
+                    JsonValueKind.String => p.Value.GetString(),
+                    JsonValueKind.Number => p.Value.TryGetInt64(out var l) ? l : p.Value.GetDouble(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.Null => null,
+                    _ => p.Value.GetRawText(),
+                };
+            }
+            return map;
+        }
+
+        public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var props = PropsFromJson(request.Values[Idx(request.Columns, "properties")]);
+            using var driver = Neo4jConnect.Build(target);
+            await using var session = driver.AsyncSession(o => o.WithDatabase(database));
+            await session.RunAsync($"CREATE (n:`{table}`) SET n = $props", new { props });
+        }
+
+        public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var id = request.OriginalValues[Idx(request.Columns, "_id")];
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Node elementId is required to update.");
+            var props = PropsFromJson(request.NewValues[Idx(request.Columns, "properties")]);
+            using var driver = Neo4jConnect.Build(target);
+            await using var session = driver.AsyncSession(o => o.WithDatabase(database));
+            await session.RunAsync("MATCH (n) WHERE elementId(n) = $id SET n = $props", new { id, props });
+        }
+
+        public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var id = request.OriginalValues[Idx(request.Columns, "_id")];
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Node elementId is required to delete.");
+            using var driver = Neo4jConnect.Build(target);
+            await using var session = driver.AsyncSession(o => o.WithDatabase(database));
+            await session.RunAsync("MATCH (n) WHERE elementId(n) = $id DETACH DELETE n", new { id });
+        }
 
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {

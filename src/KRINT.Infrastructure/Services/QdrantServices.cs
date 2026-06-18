@@ -114,10 +114,37 @@ namespace KRINT.Infrastructure.Services
 
         public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("Qdrant point insert needs a vector - not exposed in this version.");
-        public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Qdrant point update is not exposed in this version.");
-        public Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Qdrant point delete is not exposed in this version.");
+
+        private static int Idx(IReadOnlyList<string> cols, string name)
+        {
+            for (var i = 0; i < cols.Count; i++) if (cols[i] == name) return i;
+            return -1;
+        }
+
+        // Point ids are either integers or UUID strings; emit the correct JSON token for each.
+        private static string IdToken(string? id) => long.TryParse(id, out _) ? id! : JsonSerializer.Serialize(id ?? "");
+
+        public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var id = request.OriginalValues[Idx(request.Columns, "id")];
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Point id is required to update.");
+            var payload = request.NewValues[Idx(request.Columns, "payload")] ?? "{}";
+            using var http = QdrantHttp.Build(target);
+            // Overwrite the point's payload (vector is left untouched).
+            var body = $"{{\"points\":[{IdToken(id)}],\"payload\":{payload}}}";
+            using var resp = await http.PostAsync($"/collections/{Uri.EscapeDataString(table)}/points/payload?wait=true", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
+
+        public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var id = request.OriginalValues[Idx(request.Columns, "id")];
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Point id is required to delete.");
+            using var http = QdrantHttp.Build(target);
+            var body = $"{{\"points\":[{IdToken(id)}]}}";
+            using var resp = await http.PostAsync($"/collections/{Uri.EscapeDataString(table)}/points/delete?wait=true", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
 
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {

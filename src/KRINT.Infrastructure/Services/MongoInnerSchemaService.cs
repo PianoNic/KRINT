@@ -41,18 +41,38 @@ namespace KRINT.Infrastructure.Services
             return new TableRows(new[] { "document" }, rows, total);
         }
 
-        public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
+        public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
         {
-            // Mongo edits require document-level semantics (replace by _id, type-aware patches).
-            // Out of scope for v1 row editing - surface a clear error to the UI.
-            throw new NotSupportedException("Row editing is not supported for Mongo yet.");
+            InnerDatabaseNameValidator.Require(database);
+            InnerDatabaseNameValidator.Require(table);
+            // The single "document" column carries the whole doc as JSON; identity is its _id.
+            var original = BsonDocument.Parse(request.OriginalValues[0] ?? "{}");
+            var replacement = BsonDocument.Parse(request.NewValues[0] ?? "{}");
+            if (!original.TryGetValue("_id", out var id))
+                throw new ArgumentException("Document has no _id; cannot update.");
+            var collection = Connect(target).GetDatabase(database).GetCollection<BsonDocument>(table);
+            await collection.ReplaceOneAsync(Builders<BsonDocument>.Filter.Eq("_id", id), replacement, cancellationToken: cancellationToken);
         }
 
-        public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Row insertion is not supported for Mongo yet.");
+        public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            InnerDatabaseNameValidator.Require(table);
+            var doc = BsonDocument.Parse(request.Values[0] ?? "{}");
+            var collection = Connect(target).GetDatabase(database).GetCollection<BsonDocument>(table);
+            await collection.InsertOneAsync(doc, cancellationToken: cancellationToken);
+        }
 
-        public Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Row deletion is not supported for Mongo yet.");
+        public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            InnerDatabaseNameValidator.Require(table);
+            var original = BsonDocument.Parse(request.OriginalValues[0] ?? "{}");
+            if (!original.TryGetValue("_id", out var id))
+                throw new ArgumentException("Document has no _id; cannot delete.");
+            var collection = Connect(target).GetDatabase(database).GetCollection<BsonDocument>(table);
+            await collection.DeleteOneAsync(Builders<BsonDocument>.Filter.Eq("_id", id), cancellationToken);
+        }
 
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {
