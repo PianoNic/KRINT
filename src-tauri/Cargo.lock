@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "krint-desktop"
-version = "0.1.0"
+version = "2.3.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
