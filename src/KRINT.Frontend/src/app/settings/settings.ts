@@ -6,7 +6,7 @@ import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { ContentHeader } from '../shared/components/content-header/content-header';
-import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
+import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { SettingsService } from '../api/api/settings.service';
 import { SettingsDto } from '../api/model/settingsDto';
 
@@ -40,6 +40,8 @@ import { SettingsDto } from '../api/model/settingsDto';
       customMssql,
       customQdrant,
       customValkey,
+      customAzurite,
+      customSeaweedfs,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -156,6 +158,8 @@ export class Settings {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
+      case 'seaweedfs':       return 'customSeaweedfs';
+      case 'azurite':       return 'customAzurite';
       default:         return 'lucideDatabase';
     }
   }

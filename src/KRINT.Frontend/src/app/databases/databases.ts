@@ -12,7 +12,7 @@ import { HlmTableImports } from '@spartan-ng/helm/table';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
-import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
+import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { DatabaseService } from '../api/api/database.service';
@@ -66,6 +66,8 @@ import { DatabaseUpgradeDialog } from './database-upgrade-dialog';
       customMssql,
       customQdrant,
       customValkey,
+      customAzurite,
+      customSeaweedfs,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -185,6 +187,8 @@ export class Databases {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
+      case 'seaweedfs':       return 'customSeaweedfs';
+      case 'azurite':       return 'customAzurite';
       default:         return 'lucideDatabase';
     }
   }

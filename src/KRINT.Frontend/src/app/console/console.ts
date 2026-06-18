@@ -31,7 +31,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { ContentHeader } from '../shared/components/content-header/content-header';
-import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
+import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
 import { ContainerHubService } from './container-hub.service';
@@ -70,6 +70,8 @@ type ActiveTab = 'logs' | 'exec';
       customMssql,
       customQdrant,
       customValkey,
+      customAzurite,
+      customSeaweedfs,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -198,6 +200,8 @@ export class Console implements OnDestroy {
       case 'qdrant': return 'customQdrant';
       case 'valkey': return 'customValkey';
       case 'mssql': return 'customMssql';
+      case 'seaweedfs': return 'customSeaweedfs';
+      case 'azurite': return 'customAzurite';
       default: return 'lucideDatabase';
     }
   }
