@@ -300,6 +300,21 @@ namespace KRINT.API.Controllers
             catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         }
 
+        // Cluster view: a collection's points with vectors, for the 3D scatter (Qdrant only).
+        [HttpGet("{id:guid}/cluster/{collection}")]
+        [ProducesResponseType(typeof(VectorClusterDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> FetchCluster(Guid id, string collection, [FromQuery] int limit = 500, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return Ok(await mediator.Send(new FetchVectorPointsQuery(id, collection, limit), cancellationToken));
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
         [HttpPatch("{id:guid}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
