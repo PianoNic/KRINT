@@ -30,7 +30,7 @@ import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dial
 import { QueryConsole } from '../shared/components/query-console/query-console';
 import { VectorScatter, VectorCluster } from '../shared/components/vector-scatter/vector-scatter';
 import { environment } from '../shared/environments/environment';
-import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
+import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
 import { EngineCapabilitiesDto } from '../api/model/engineCapabilitiesDto';
@@ -88,6 +88,8 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
       customMssql,
       customQdrant,
       customValkey,
+      customAzurite,
+      customSeaweedfs,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -314,6 +316,8 @@ export class Browser {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
+      case 'seaweedfs':   return 'customSeaweedfs';
+      case 'azurite':     return 'customAzurite';
       default:         return 'lucideDatabase';
     }
   }

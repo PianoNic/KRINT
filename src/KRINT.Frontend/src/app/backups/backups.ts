@@ -26,7 +26,7 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { environment } from '../shared/environments/environment';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
-import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
+import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { BackupsService } from '../api/api/backups.service';
 import { DatabaseService } from '../api/api/database.service';
 import { BackupEntryDto } from '../api/model/backupEntryDto';
@@ -76,6 +76,8 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
       customMssql,
       customQdrant,
       customValkey,
+      customAzurite,
+      customSeaweedfs,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -604,6 +606,8 @@ export class Backups {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
+      case 'seaweedfs':       return 'customSeaweedfs';
+      case 'azurite':       return 'customAzurite';
       default:         return 'lucideDatabase';
     }
   }

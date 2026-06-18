@@ -23,7 +23,7 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
-import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
+import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
 import { SupportedDatabaseDto } from '../api/model/supportedDatabaseDto';
 import { ProvisionResultDto } from '../api/model/provisionResultDto';
@@ -71,6 +71,8 @@ type WizardUser = { name: string; grantDatabases: string[] };
       customMssql,
       customQdrant,
       customValkey,
+      customAzurite,
+      customSeaweedfs,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -261,6 +263,8 @@ export class Create {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
+      case 'seaweedfs':       return 'customSeaweedfs';
+      case 'azurite':       return 'customAzurite';
       default:         return 'lucideDatabase';
     }
   }

@@ -9,7 +9,7 @@ import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { ContentHeader } from '../shared/components/content-header/content-header';
-import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
+import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { DashboardService } from '../api/api/dashboard.service';
 import { DashboardStatsDto } from '../api/model/dashboardStatsDto';
 
@@ -47,6 +47,8 @@ import { DashboardStatsDto } from '../api/model/dashboardStatsDto';
       customMssql,
       customQdrant,
       customValkey,
+      customAzurite,
+      customSeaweedfs,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -243,6 +245,8 @@ export class Home implements OnDestroy {
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';
       case 'mssql':       return 'customMssql';
+      case 'seaweedfs':       return 'customSeaweedfs';
+      case 'azurite':       return 'customAzurite';
       default:         return 'lucideDatabase';
     }
   }
