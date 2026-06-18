@@ -158,7 +158,10 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
     let api_port = free_port()?;
     let oidc_port = free_port()?;
 
-    let authority = format!("http://localhost:{oidc_port}");
+    // Use 127.0.0.1 (not "localhost"): the issuer binds to 127.0.0.1, and on Windows
+    // "localhost" resolves to ::1 first, so metadata/token fetches would eat a failed-IPv6
+    // -then-IPv4 fallback delay on every call.
+    let authority = format!("http://127.0.0.1:{oidc_port}");
     start_oidc(authority.clone(), oidc_port);
     let urls = format!("http://127.0.0.1:{api_port}");
     let conn = format!("Data Source={}", db_path.to_string_lossy());
