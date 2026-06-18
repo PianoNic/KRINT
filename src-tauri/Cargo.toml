@@ -1,6 +1,6 @@
 [package]
 name = "krint-desktop"
-version = "0.1.0"
+version = "2.3.0"
 description = "KRINT desktop app"
 authors = ["KRINT"]
 edition = "2021"
