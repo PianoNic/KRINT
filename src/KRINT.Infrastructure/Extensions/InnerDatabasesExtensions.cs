@@ -68,6 +68,9 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerSchemaService, AzuriteInnerSchemaService>();
             services.AddSingleton<IInnerSchemaServiceResolver, InnerSchemaServiceResolver>();
 
+            // Qdrant cluster view: fetches points with vectors for the 3D scatter.
+            services.AddSingleton<IQdrantVectorService, QdrantVectorService>();
+
             // Query console - SQL engines only for v1. Engines without an entry surface in the
             // UI as "console not available" rather than throwing.
             services.AddSingleton<IInnerQueryService, PostgresInnerQueryService>();

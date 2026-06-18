@@ -124,6 +124,18 @@
       >
         Query
       </button>
+      @if (canCluster()) {
+        <button
+          type="button"
+          class="hover:bg-muted/60 rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+          [class.bg-muted]="view() === 'cluster'"
+          [class.text-muted-foreground]="view() !== 'cluster'"
+          [disabled]="!table()"
+          (click)="view.set('cluster')"
+        >
+          Cluster view
+        </button>
+      }
     </nav>
 
     @if (view() === 'query') {
@@ -134,6 +146,18 @@
         [engine]="selectedInstance()?.engine ?? null"
         [tables]="tables()"
       />
+    } @else if (view() === 'cluster') {
+      @if (!table()) {
+        <p class="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+          Select a {{ tableTerm() }} to plot its {{ rowTerm() }}s.
+        </p>
+      } @else if (clusterLoading()) {
+        <p class="text-muted-foreground flex flex-1 items-center justify-center text-sm">Reducing vectors…</p>
+      } @else if (clusterError()) {
+        <p class="text-destructive flex flex-1 items-center justify-center text-sm">{{ clusterError() }}</p>
+      } @else {
+        <app-vector-scatter class="flex-1 overflow-hidden" [data]="clusterData()" />
+      }
     } @else if (!table()) {
       <p class="text-muted-foreground flex flex-1 items-center justify-center text-sm">
         @if (!instanceId()) {

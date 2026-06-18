@@ -1,3 +1,4 @@
+import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -27,6 +28,8 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
 import { QueryConsole } from '../shared/components/query-console/query-console';
+import { VectorScatter, VectorCluster } from '../shared/components/vector-scatter/vector-scatter';
+import { environment } from '../shared/environments/environment';
 import { customMssql, customQdrant, customValkey } from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
@@ -54,6 +57,7 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
     HlmTableImports,
     HlmTooltipImports,
     QueryConsole,
+    VectorScatter,
   ],
   providers: [
     provideIcons({
@@ -91,6 +95,7 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
 })
 export class Browser {
   private readonly api = inject(DatabaseService);
+  private readonly http = inject(HttpClient);
   private readonly confirmService = inject(ConfirmService);
   protected readonly nullToken = NULL_TOKEN;
 
@@ -109,7 +114,12 @@ export class Browser {
 
   // Right-pane tabs. 'data' is the row browser (default); 'query' swaps in the SQL console
   // pre-scoped to the currently-selected instance + database.
-  protected readonly view = signal<'data' | 'query'>('data');
+  protected readonly view = signal<'data' | 'query' | 'cluster'>('data');
+
+  // Qdrant-only "Cluster view": points fetched with vectors, plotted as a 3D scatter.
+  protected readonly clusterData = signal<VectorCluster | null>(null);
+  protected readonly clusterLoading = signal(false);
+  protected readonly clusterError = signal<string | null>(null);
 
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -147,6 +157,9 @@ export class Browser {
 
   // Legacy alias kept so the template can keep using canEdit() until the next sweep.
   protected readonly canEdit = this.canEditRow;
+
+  // Cluster view is Qdrant-specific (vectors to visualise).
+  protected readonly canCluster = computed(() => this.selectedInstance()?.engine === 'qdrant');
 
   protected readonly editingIndex = computed(() => {
     const d = this.draft();
@@ -213,6 +226,26 @@ export class Browser {
       this.pendingEdits.set(new Map());
       this.loadRows(id, db, tbl, lim, off);
     });
+
+    // Load cluster points whenever the Cluster view is active for a selected Qdrant collection.
+    effect(() => {
+      const id = this.instanceId();
+      const tbl = this.table();
+      if (this.view() !== 'cluster' || !id || !tbl) return;
+      this.loadCluster(id, tbl);
+    });
+  }
+
+  private loadCluster(id: string, collection: string): void {
+    this.clusterLoading.set(true);
+    this.clusterError.set(null);
+    this.clusterData.set(null);
+    this.http
+      .get<VectorCluster>(`${environment.apiBaseUrl}/api/Database/${id}/cluster/${encodeURIComponent(collection)}?limit=500`)
+      .subscribe({
+        next: (c) => { this.clusterData.set(c); this.clusterLoading.set(false); },
+        error: (err) => { this.clusterError.set(messageOf(err)); this.clusterLoading.set(false); },
+      });
   }
 
   private refreshTables(id: string, db: string): void {
