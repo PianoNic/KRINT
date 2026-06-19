@@ -99,7 +99,6 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "point",
             SupportsCreateDatabase = false,
             SupportsDropDatabase = false,
-            SupportsRowInsert = false,
             SupportsUsers = false,
             SupportsBackup = false,
         };

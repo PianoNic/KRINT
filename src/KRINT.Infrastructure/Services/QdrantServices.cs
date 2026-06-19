@@ -79,8 +79,9 @@ namespace KRINT.Infrastructure.Services
             limit = Math.Clamp(limit, 1, 500);
             using var http = QdrantHttp.Build(target);
 
-            // /collections/{name}/points/scroll
-            var body = new { limit, with_payload = true, with_vector = false, offset = (object?)null };
+            // /collections/{name}/points/scroll - pull the vector too so the grid can show and edit it
+            // (a point's identity-free data is vector + payload; both are needed to insert/upsert).
+            var body = new { limit, with_payload = true, with_vector = true, offset = (object?)null };
             using var resp = await http.PostAsync($"/collections/{Uri.EscapeDataString(table)}/points/scroll", new StringContent(JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"), cancellationToken);
             resp.EnsureSuccessStatusCode();
             await using var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
@@ -105,15 +106,37 @@ namespace KRINT.Infrastructure.Services
                 foreach (var p in pts.EnumerateArray())
                 {
                     var id = p.TryGetProperty("id", out var i) ? i.ToString() : null;
+                    var vector = p.TryGetProperty("vector", out var vec) ? vec.GetRawText() : "[]";
                     var payload = p.TryGetProperty("payload", out var pl) ? pl.GetRawText() : "{}";
-                    rows.Add(new[] { id, payload });
+                    rows.Add(new[] { id, vector, payload });
                 }
             }
-            return new TableRows(new[] { "id", "payload" }, rows, total);
+            // id is the point identity (client-supplied, not generated); vector + payload are editable.
+            var columnInfos = new[]
+            {
+                new ColumnInfo("id", "point id", false, true, false),
+                new ColumnInfo("vector", "vector", false, false, false),
+                new ColumnInfo("payload", "json", true, false, false),
+            };
+            return new TableRows(new[] { "id", "vector", "payload" }, rows, total, columnInfos);
         }
 
-        public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Qdrant point insert needs a vector - not exposed in this version.");
+        public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
+        {
+            var id = request.Values[Idx(request.Columns, "id")];
+            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Point id is required to insert.");
+            var vectorIdx = Idx(request.Columns, "vector");
+            var vector = vectorIdx >= 0 ? request.Values[vectorIdx] : null;
+            if (string.IsNullOrWhiteSpace(vector) || vector!.Trim() is "[]" or "{}")
+                throw new ArgumentException("A vector is required to insert a Qdrant point (e.g. [0.1, 0.2, ...]).");
+            var payloadIdx = Idx(request.Columns, "payload");
+            var payload = payloadIdx >= 0 ? request.Values[payloadIdx] ?? "{}" : "{}";
+
+            using var http = QdrantHttp.Build(target);
+            var body = $"{{\"points\":[{{\"id\":{IdToken(id)},\"vector\":{vector},\"payload\":{payload}}}]}}";
+            using var resp = await http.PutAsync($"/collections/{Uri.EscapeDataString(table)}/points?wait=true", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
+            resp.EnsureSuccessStatusCode();
+        }
 
         private static int Idx(IReadOnlyList<string> cols, string name)
         {
@@ -126,14 +149,27 @@ namespace KRINT.Infrastructure.Services
 
         public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
         {
+            // Identity is the point id as loaded; upsert the whole point so both vector and payload
+            // edits land. (Editing the id itself isn't supported - that would be a different point.)
             var id = request.OriginalValues[Idx(request.Columns, "id")];
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Point id is required to update.");
             var payload = request.NewValues[Idx(request.Columns, "payload")] ?? "{}";
+            var vectorIdx = Idx(request.Columns, "vector");
             using var http = QdrantHttp.Build(target);
-            // Overwrite the point's payload (vector is left untouched).
-            var body = $"{{\"points\":[{IdToken(id)}],\"payload\":{payload}}}";
-            using var resp = await http.PostAsync($"/collections/{Uri.EscapeDataString(table)}/points/payload?wait=true", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
-            resp.EnsureSuccessStatusCode();
+
+            if (vectorIdx >= 0 && !string.IsNullOrWhiteSpace(request.NewValues[vectorIdx]) && request.NewValues[vectorIdx]!.Trim() is not ("[]" or "{}"))
+            {
+                // Full upsert: replaces vector + payload for the point in place.
+                var body = $"{{\"points\":[{{\"id\":{IdToken(id)},\"vector\":{request.NewValues[vectorIdx]},\"payload\":{payload}}}]}}";
+                using var resp = await http.PutAsync($"/collections/{Uri.EscapeDataString(table)}/points?wait=true", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
+                resp.EnsureSuccessStatusCode();
+                return;
+            }
+
+            // No usable vector supplied - just overwrite the payload, leave the vector untouched.
+            var payloadBody = $"{{\"points\":[{IdToken(id)}],\"payload\":{payload}}}";
+            using var pResp = await http.PostAsync($"/collections/{Uri.EscapeDataString(table)}/points/payload?wait=true", new StringContent(payloadBody, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
+            pResp.EnsureSuccessStatusCode();
         }
 
         public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
