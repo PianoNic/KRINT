@@ -17,6 +17,7 @@ model/activityEntryDto.ts
 model/apiActivityGetLimitParameter.ts
 model/apiDatabaseIdBrowseDatabaseTablesTableRowsGetLimitParameter.ts
 model/apiDatabaseIdBrowseDatabaseTablesTableRowsGetOffsetParameter.ts
+model/apiDatabaseIdClusterCollectionGetLimitParameter.ts
 model/appDto.ts
 model/backupEntryDto.ts
 model/backupEntryDtoSizeBytes.ts
@@ -64,6 +65,9 @@ model/tableSummaryDto.ts
 model/toggleScheduleBody.ts
 model/updateRowDto.ts
 model/upgradeDatabaseDto.ts
+model/vectorClusterDto.ts
+model/vectorPointDto.ts
+model/vectorPointDtoVectorInner.ts
 param.ts
 provide-api.ts
 query.params.ts

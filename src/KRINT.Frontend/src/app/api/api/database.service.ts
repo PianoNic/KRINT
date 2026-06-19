@@ -21,6 +21,8 @@ import { ApiDatabaseIdBrowseDatabaseTablesTableRowsGetLimitParameter } from '../
 // @ts-ignore
 import { ApiDatabaseIdBrowseDatabaseTablesTableRowsGetOffsetParameter } from '../model/apiDatabaseIdBrowseDatabaseTablesTableRowsGetOffsetParameter';
 // @ts-ignore
+import { ApiDatabaseIdClusterCollectionGetLimitParameter } from '../model/apiDatabaseIdClusterCollectionGetLimitParameter';
+// @ts-ignore
 import { BulkUpdateRowsDto } from '../model/bulkUpdateRowsDto';
 // @ts-ignore
 import { CreateDatabaseDto } from '../model/createDatabaseDto';
@@ -72,6 +74,8 @@ import { TableSummaryDto } from '../model/tableSummaryDto';
 import { UpdateRowDto } from '../model/updateRowDto';
 // @ts-ignore
 import { UpgradeDatabaseDto } from '../model/upgradeDatabaseDto';
+// @ts-ignore
+import { VectorClusterDto } from '../model/vectorClusterDto';
 
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS }                     from '../variables';
@@ -750,6 +754,83 @@ export class DatabaseService extends BaseService {
             {
                 context: localVarHttpContext,
                 body: insertRowDto,
+                responseType: <any>responseType_,
+                ...(withCredentials ? { withCredentials } : {}),
+                headers: localVarHeaders,
+                observe: observe,
+                ...(localVarTransferCache !== undefined ? { transferCache: localVarTransferCache } : {}),
+                reportProgress: reportProgress
+            }
+        );
+    }
+
+    /**
+     * @endpoint get /api/Database/{id}/cluster/{collection}
+     * @param id 
+     * @param collection 
+     * @param limit 
+     * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
+     * @param reportProgress flag to report request and response progress.
+     * @param options additional options
+     */
+    public apiDatabaseIdClusterCollectionGet(id: string, collection: string, limit?: ApiDatabaseIdClusterCollectionGetLimitParameter, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<VectorClusterDto>;
+    public apiDatabaseIdClusterCollectionGet(id: string, collection: string, limit?: ApiDatabaseIdClusterCollectionGetLimitParameter, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<VectorClusterDto>>;
+    public apiDatabaseIdClusterCollectionGet(id: string, collection: string, limit?: ApiDatabaseIdClusterCollectionGetLimitParameter, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<VectorClusterDto>>;
+    public apiDatabaseIdClusterCollectionGet(id: string, collection: string, limit?: ApiDatabaseIdClusterCollectionGetLimitParameter, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'text/plain' | 'application/json' | 'text/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+        if (id === null || id === undefined) {
+            throw new Error('Required parameter id was null or undefined when calling apiDatabaseIdClusterCollectionGet.');
+        }
+        if (collection === null || collection === undefined) {
+            throw new Error('Required parameter collection was null or undefined when calling apiDatabaseIdClusterCollectionGet.');
+        }
+
+        let localVarQueryParameters = new OpenApiHttpParams(this.encoder);
+
+        localVarQueryParameters = this.addToHttpParams(
+            localVarQueryParameters,
+            'limit',
+            <any>limit,
+            QueryParamStyle.Form,
+            true,
+        );
+
+
+        let localVarHeaders = this.defaultHeaders;
+
+        // authentication (OAuth2) required
+        localVarHeaders = this.configuration.addCredentialToHeaders('OAuth2', 'Authorization', localVarHeaders, 'Bearer ');
+
+        const localVarHttpHeaderAcceptSelected: string | undefined = options?.httpHeaderAccept ?? this.configuration.selectHeaderAccept([
+            'text/plain',
+            'application/json',
+            'text/json'
+        ]);
+        if (localVarHttpHeaderAcceptSelected !== undefined) {
+            localVarHeaders = localVarHeaders.set('Accept', localVarHttpHeaderAcceptSelected);
+        }
+
+        const localVarHttpContext: HttpContext = options?.context ?? new HttpContext();
+
+        const localVarTransferCache: boolean = options?.transferCache ?? true;
+
+
+        let responseType_: 'text' | 'json' | 'blob' = 'json';
+        if (localVarHttpHeaderAcceptSelected) {
+            if (localVarHttpHeaderAcceptSelected.startsWith('text')) {
+                responseType_ = 'text';
+            } else if (this.configuration.isJsonMime(localVarHttpHeaderAcceptSelected)) {
+                responseType_ = 'json';
+            } else {
+                responseType_ = 'blob';
+            }
+        }
+
+        let localVarPath = `/api/Database/${this.configuration.encodeParam({name: "id", value: id, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: "uuid"})}/cluster/${this.configuration.encodeParam({name: "collection", value: collection, in: "path", style: "simple", explode: false, dataType: "string", dataFormat: undefined})}`;
+        const { basePath, withCredentials } = this.configuration;
+        return this.httpClient.request<VectorClusterDto>('get', `${basePath}${localVarPath}`,
+            {
+                context: localVarHttpContext,
+                params: localVarQueryParameters.toHttpParams(),
                 responseType: <any>responseType_,
                 ...(withCredentials ? { withCredentials } : {}),
                 headers: localVarHeaders,
