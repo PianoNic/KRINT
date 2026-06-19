@@ -55,13 +55,12 @@ namespace KRINT.Application.Queries.SupportedDatabase
         };
 
         // Cassandra / ScyllaDB: keyspace ≈ database, table, row. We provision with auth disabled
-        // for v1 (cassandra's auth bootstrap is non-trivial). Row edit/delete excluded because
-        // CQL UPDATE/DELETE without the full PK is unsafe; user mgmt out of scope.
+        // for v1 (cassandra's auth bootstrap is non-trivial). Full row CRUD is supported: the schema
+        // service addresses rows by their full primary key (from schema metadata) and guards writes
+        // with LWT IF EXISTS / IF NOT EXISTS. User mgmt + backup remain out of scope.
         private static readonly EngineCapabilitiesDto CassandraCaps = SqlCaps with
         {
             DatabaseTerm = "keyspace",
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
             SupportsUsers = false,
             SupportsBackup = false,
         };
