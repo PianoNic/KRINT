@@ -249,7 +249,7 @@
                   <tr hlmTableRow class="bg-primary/5">
                     @for (c of r.columns; track c; let colIdx = $index) {
                       <td hlmTableCell class="font-mono text-xs">
-                        @if (isProtectedColumn(colIdx)) {
+                        @if (isInsertAutoColumn(colIdx)) {
                           <span class="text-muted-foreground italic">auto</span>
                         } @else {
                           <div class="flex items-center gap-1">

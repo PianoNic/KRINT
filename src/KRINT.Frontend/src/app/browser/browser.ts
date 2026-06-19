@@ -402,6 +402,17 @@ export class Browser {
     return r?.columns[colIndex]?.toLowerCase() === 'id';
   }
 
+  /** Columns the database fills itself on insert (identity / generated / sequence-backed). Shown as
+   *  "auto" and dropped from the insert payload. Distinct from isProtectedColumn: a client-supplied
+   *  primary key (e.g. a Qdrant point id) is locked for *edit* but must still be entered on *insert*,
+   *  so it is not an auto column. */
+  protected isInsertAutoColumn(colIndex: number): boolean {
+    const r = this.rows();
+    const info = r?.columnInfos?.[colIndex];
+    if (info) return info.isGenerated;
+    return r?.columns[colIndex]?.toLowerCase() === 'id';
+  }
+
   protected draftValue(colIndex: number): string {
     const v = this.draft()?.values[colIndex];
     return v === undefined || v === NULL_TOKEN ? '' : v;
@@ -534,12 +545,13 @@ export class Browser {
     this.editError.set(null);
 
     if (d.mode === 'insert') {
-      // Strip DB-owned columns (id) so the database generates them. Otherwise an empty
-      // string from the input would either be rejected (SERIAL NOT NULL) or coerced.
+      // Strip DB-generated columns so the database fills them. Otherwise an empty string from the
+      // input would be rejected (e.g. SERIAL NOT NULL) or coerced. Client-supplied keys (Qdrant
+      // point id, natural keys) are kept - isInsertAutoColumn only drops truly auto columns.
       const insertCols: string[] = [];
       const insertVals: (string | null)[] = [];
       for (let i = 0; i < r.columns.length; i++) {
-        if (r.columns[i].toLowerCase() === 'id') continue;
+        if (this.isInsertAutoColumn(i)) continue;
         insertCols.push(r.columns[i]);
         insertVals.push(newValues[i]);
       }
