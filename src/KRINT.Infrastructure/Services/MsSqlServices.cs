@@ -141,6 +141,20 @@ namespace KRINT.Infrastructure.Services
             return results;
         }
 
+        private static async Task<IReadOnlyList<string>> FetchColumnNamesAsync(SqlConnection conn, string table, CancellationToken cancellationToken)
+        {
+            var (schema, name) = SplitTable(table);
+            await using var cmd = new SqlCommand(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @s AND TABLE_NAME = @t ORDER BY ORDINAL_POSITION",
+                conn);
+            cmd.Parameters.AddWithValue("@s", schema);
+            cmd.Parameters.AddWithValue("@t", name);
+            var names = new List<string>();
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) names.Add(reader.GetString(0));
+            return names;
+        }
+
         public async Task<TableRows> FetchRowsAsync(InnerDatabaseTarget target, string database, string table, int limit, int offset, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
@@ -158,8 +172,17 @@ namespace KRINT.Infrastructure.Services
                 else if (raw is long l) total = l;
             }
 
+            // Render every column to text server-side with the same CAST(... AS NVARCHAR(MAX)) the
+            // row-identity WHERE clause uses, so the strings the grid loads round-trip exactly. Reading
+            // typed values and formatting them in .NET (bit -> "True", datetime -> .NET format) disagreed
+            // with SQL Server's CAST ("1", ISO dates), so edits/deletes matched zero rows.
+            var columnNames = await FetchColumnNamesAsync(conn, table, cancellationToken);
+            var selectList = columnNames.Count == 0
+                ? "*"
+                : string.Join(", ", columnNames.Select(c => $"CAST([{c}] AS NVARCHAR(MAX)) AS [{c}]"));
+
             // OFFSET/FETCH requires an ORDER BY; sort by the first column to get a stable page.
-            await using var cmd = new SqlCommand($"SELECT * FROM {qualified} ORDER BY (SELECT NULL) OFFSET {offset.ToString(CultureInfo.InvariantCulture)} ROWS FETCH NEXT {limit.ToString(CultureInfo.InvariantCulture)} ROWS ONLY", conn);
+            await using var cmd = new SqlCommand($"SELECT {selectList} FROM {qualified} ORDER BY (SELECT NULL) OFFSET {offset.ToString(CultureInfo.InvariantCulture)} ROWS FETCH NEXT {limit.ToString(CultureInfo.InvariantCulture)} ROWS ONLY", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             var columns = new List<string>();

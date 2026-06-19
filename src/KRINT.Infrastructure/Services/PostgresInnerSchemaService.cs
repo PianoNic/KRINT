@@ -45,17 +45,14 @@ namespace KRINT.Infrastructure.Services
 
             var columnInfos = await FetchColumnInfosAsync(conn, table, cancellationToken);
 
-            // Build an explicit SELECT list rather than SELECT *: extension types that Npgsql
-            // has no CLR mapping for (pgvector's `vector`, hstore without the plugin, etc.)
-            // throw InvalidCastException on GetValue. Casting those columns to text in SQL
-            // sidesteps the reader entirely - Postgres always knows how to render its own
-            // types as text, and the UI is a string grid anyway.
+            // Render every column to text server-side so the strings the grid loads are exactly what
+            // the row-identity WHERE clause compares against ("col"::text = @original). Reading typed
+            // values and formatting them in .NET (bool -> "True", timestamps -> .NET format, arrays ->
+            // "System.String[]") disagreed with Postgres's own ::text rendering ("true", ISO dates),
+            // so every later UPDATE/DELETE matched zero rows and failed with "Row not found".
             var selectList = columnInfos.Count == 0
                 ? "*"
-                : string.Join(", ", columnInfos.Select(c =>
-                    IsClientUnmappedType(c.Type)
-                        ? $"\"{c.Name}\"::text AS \"{c.Name}\""
-                        : $"\"{c.Name}\""));
+                : string.Join(", ", columnInfos.Select(c => $"\"{c.Name}\"::text AS \"{c.Name}\""));
 
             await using var cmd = new NpgsqlCommand($"SELECT {selectList} FROM {qualified} LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -128,7 +125,16 @@ namespace KRINT.Infrastructure.Services
             await tx.CommitAsync(cancellationToken);
         }
 
-        private static async Task ApplyUpdateAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string qualifiedTable, UpdateRowRequest request, CancellationToken cancellationToken)
+        // The actual UPDATE/DELETE statements that pin the single matched row. Postgres uses ctid
+        // (its physical row pointer); engines without ctid (CockroachDB) override these. Safe because
+        // the caller's match-count guard has already proven exactly one row matches the WHERE.
+        protected virtual string BuildUpdateCommandText(string qualifiedTable, string setClause, string whereClause)
+            => $"UPDATE {qualifiedTable} SET {setClause} WHERE ctid = (SELECT ctid FROM {qualifiedTable} WHERE {whereClause} LIMIT 2)";
+
+        protected virtual string BuildDeleteCommandText(string qualifiedTable, string whereClause)
+            => $"DELETE FROM {qualifiedTable} WHERE ctid = (SELECT ctid FROM {qualifiedTable} WHERE {whereClause} LIMIT 1)";
+
+        private async Task ApplyUpdateAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string qualifiedTable, UpdateRowRequest request, CancellationToken cancellationToken)
         {
             var changedIndexes = new List<int>();
             for (var i = 0; i < request.Columns.Count; i++)
@@ -166,8 +172,7 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            cmd.CommandText = $"UPDATE {qualifiedTable} SET {string.Join(", ", setClauses)} " +
-                              $"WHERE ctid = (SELECT ctid FROM {qualifiedTable} WHERE {string.Join(" AND ", whereClauses)} LIMIT 2)";
+            cmd.CommandText = BuildUpdateCommandText(qualifiedTable, string.Join(", ", setClauses), string.Join(" AND ", whereClauses));
 
             // Two-step strategy: peek matches first to enforce "exactly one row".
             await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM (SELECT 1 FROM {qualifiedTable} WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
@@ -244,7 +249,7 @@ namespace KRINT.Infrastructure.Services
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches. Refusing to delete.");
             }
 
-            cmd.CommandText = $"DELETE FROM {qualified} WHERE ctid = (SELECT ctid FROM {qualified} WHERE {string.Join(" AND ", whereClauses)} LIMIT 1)";
+            cmd.CommandText = BuildDeleteCommandText(qualified, string.Join(" AND ", whereClauses));
             var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
             if (affected != 1) throw new InvalidOperationException($"Expected to delete 1 row, got {affected}.");
             await tx.CommitAsync(cancellationToken);
@@ -276,17 +281,7 @@ namespace KRINT.Infrastructure.Services
             return $"\"{schema}\".\"{name}\"";
         }
 
-        // Postgres extension types Npgsql can't decode without a third-party plugin. We cast
-        // these to text in the SELECT so the reader gets a plain string back. udt_name comes
-        // from information_schema.columns and is lowercase.
-        private static bool IsClientUnmappedType(string udtName) => udtName switch
-        {
-            "vector" => true,
-            "halfvec" => true,
-            "sparsevec" => true,
-            _ => false,
-        };
-
+        // Every column comes back as text (cast in the SELECT), so the reader always yields strings.
         private static async Task<TableRows> ReadRowsAsync(NpgsqlDataReader reader, long? total, IReadOnlyList<ColumnInfo>? columnInfos, CancellationToken cancellationToken)
         {
             var columns = new List<string>();

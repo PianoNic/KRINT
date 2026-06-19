@@ -45,7 +45,15 @@ namespace KRINT.Infrastructure.Services
 
             var columnInfos = await FetchColumnInfosAsync(conn, database, table, cancellationToken);
 
-            await using var cmd = new MySqlCommand($"SELECT * FROM `{table}` LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
+            // Render every column to text server-side with the same CAST(... AS CHAR) the row-identity
+            // WHERE clause uses, so the strings the grid loads round-trip exactly. Reading typed values
+            // and formatting them in .NET (tinyint(1) -> "True", DATETIME -> .NET format) disagreed with
+            // MySQL's CAST ("1", "2026-06-19 12:34:56"), so edits/deletes matched zero rows.
+            var selectList = columnInfos.Count == 0
+                ? "*"
+                : string.Join(", ", columnInfos.Select(c => $"CAST(`{c.Name}` AS CHAR) AS `{c.Name}`"));
+
+            await using var cmd = new MySqlCommand($"SELECT {selectList} FROM `{table}` LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             var columns = new List<string>();
