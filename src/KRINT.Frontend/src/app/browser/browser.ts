@@ -13,6 +13,7 @@ import {
   lucideRefreshCw,
   lucideTable,
   lucideTrash2,
+  lucideUpload,
   lucideX,
 } from '@ng-icons/lucide';
 import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
@@ -72,6 +73,7 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
       lucideRefreshCw,
       lucideTable,
       lucideTrash2,
+      lucideUpload,
       lucideX,
       simplePostgresql,
       simpleMysql,
@@ -149,6 +151,7 @@ export class Browser {
 
   // Convenience computed flags so the template stays readable.
   protected readonly canInsertRow = computed(() => this.capabilities()?.supportsRowInsert ?? false);
+  protected readonly canUploadObject = computed(() => this.capabilities()?.supportsObjectUpload ?? false);
   protected readonly canEditRow   = computed(() => this.capabilities()?.supportsRowEdit ?? false);
   protected readonly canDeleteRow = computed(() => this.capabilities()?.supportsRowDelete ?? false);
   protected readonly canDropTable = computed(() => this.capabilities()?.supportsDropTable ?? false);
@@ -367,6 +370,49 @@ export class Browser {
     const values: EditValue[] = r.columns.map(() => '');
     this.draft.set({ values, mode: 'insert', rowIndex: null });
     this.editError.set(null);
+  }
+
+  // ----- object/blob upload (SeaweedFS, Azurite) -----
+  protected readonly uploadOpen = signal(false);
+  protected readonly uploadKey = signal('');
+  protected readonly uploadFile = signal<File | null>(null);
+  protected readonly uploading = signal(false);
+  protected readonly uploadError = signal<string | null>(null);
+
+  protected openUpload(): void {
+    this.uploadKey.set('');
+    this.uploadFile.set(null);
+    this.uploadError.set(null);
+    this.uploadOpen.set(true);
+  }
+
+  protected cancelUpload(): void {
+    this.uploadOpen.set(false);
+    this.uploadFile.set(null);
+  }
+
+  protected onUploadFileSelected(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    this.uploadFile.set(file);
+    // Default the key to the file name so the common case is one click.
+    if (file && !this.uploadKey().trim()) this.uploadKey.set(file.name);
+  }
+
+  protected doUpload(): void {
+    const id = this.instanceId(); const db = this.database();
+    const key = this.uploadKey().trim(); const file = this.uploadFile();
+    if (!id || !db || !key || !file) return;
+    this.uploading.set(true);
+    this.uploadError.set(null);
+    this.api.apiDatabaseIdBrowseDatabaseObjectsPost(id, db, key, file).subscribe({
+      next: () => {
+        this.uploading.set(false);
+        this.uploadOpen.set(false);
+        this.uploadFile.set(null);
+        this.reloadRows();
+      },
+      error: (err) => { this.uploadError.set(messageOf(err)); this.uploading.set(false); },
+    });
   }
 
   protected cancelDraft(): void {

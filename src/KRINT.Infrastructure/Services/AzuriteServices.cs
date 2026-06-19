@@ -113,9 +113,24 @@ namespace KRINT.Infrastructure.Services
         }
 
         public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Uploading blobs is not exposed in this version.");
+            => throw new NotSupportedException("Use object upload to add blobs to a container.");
         public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Blobs cannot be edited in place.");
+            => throw new NotSupportedException("Blobs cannot be edited in place - re-upload with the same name to replace.");
+
+        public async Task UploadObjectAsync(InnerDatabaseTarget target, string database, string key, Stream content, string? contentType, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Blob name is required.", nameof(key));
+            var blob = AzuriteBlob.Build(target).GetBlobContainerClient(database).GetBlobClient(key);
+            // overwrite: true so re-uploading the same name replaces the blob.
+            await blob.UploadAsync(content, new Azure.Storage.Blobs.Models.BlobUploadOptions
+            {
+                HttpHeaders = new Azure.Storage.Blobs.Models.BlobHttpHeaders
+                {
+                    ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
+                },
+            }, cancellationToken);
+        }
 
         public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
         {

@@ -372,6 +372,27 @@ namespace KRINT.API.Controllers
             catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
         }
 
+        // Object/blob stores (SeaweedFS, Azurite): upload or replace an object in a bucket/container.
+        // multipart/form-data so the file streams straight through instead of being JSON-encoded.
+        [HttpPost("{id:guid}/browse/{database}/objects")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UploadObject(Guid id, string database, [FromForm] string key, IFormFile file, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (file is null || file.Length == 0) return BadRequest(new { error = "A non-empty file is required." });
+                if (string.IsNullOrWhiteSpace(key)) return BadRequest(new { error = "An object key is required." });
+                await using var stream = file.OpenReadStream();
+                await mediator.Send(new UploadObjectCommand(id, database, key, stream, file.ContentType), cancellationToken);
+                return NoContent();
+            }
+            catch (InstanceNotFoundException) { return NotFound(); }
+            catch (NotSupportedException ex) { return BadRequest(new { error = ex.Message }); }
+            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        }
+
         [HttpDelete("{id:guid}/browse/{database}/tables/{table}/rows")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

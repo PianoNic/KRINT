@@ -124,9 +124,28 @@ namespace KRINT.Infrastructure.Services
         }
 
         public Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Uploading objects is not exposed in this version.");
+            => throw new NotSupportedException("Use object upload to add objects to a bucket.");
         public Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Objects cannot be edited in place.");
+            => throw new NotSupportedException("Objects cannot be edited in place - re-upload with the same key to replace.");
+
+        public async Task UploadObjectAsync(InnerDatabaseTarget target, string database, string key, Stream content, string? contentType, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Object key is required.", nameof(key));
+            using var s3 = SeaweedFsS3.Build(target);
+            // PutObject overwrites an existing key, so "replace" is just re-upload.
+            await s3.PutObjectAsync(new PutObjectRequest
+            {
+                BucketName = database,
+                Key = key,
+                InputStream = content,
+                ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
+                AutoCloseStream = false,
+                // S3-compatible stores generally don't accept aws-chunked streaming uploads - send a
+                // single signed payload with Content-Length instead.
+                UseChunkEncoding = false,
+            }, cancellationToken);
+        }
 
         public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
         {
