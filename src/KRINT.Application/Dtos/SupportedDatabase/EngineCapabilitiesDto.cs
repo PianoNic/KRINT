@@ -26,5 +26,9 @@ namespace KRINT.Application.Dtos.SupportedDatabase
 
         public required bool SupportsUsers { get; init; }
         public required bool SupportsBackup { get; init; }
+
+        /// <summary>Object/blob stores (SeaweedFS, Azurite): "rows" are uploaded files, so the UI
+        /// offers a file-upload dialog (key + file, replace re-uploads) instead of the row-insert form.</summary>
+        public bool SupportsObjectUpload { get; init; }
     }
 }

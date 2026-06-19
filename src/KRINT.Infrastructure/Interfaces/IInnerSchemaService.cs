@@ -45,6 +45,11 @@ namespace KRINT.Infrastructure.Interfaces
 
         Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default);
 
+        /// <summary>Object/blob stores only: upload (or replace) an object by key. Other engines keep
+        /// the default and reject it - they use InsertRowAsync instead.</summary>
+        Task UploadObjectAsync(InnerDatabaseTarget target, string database, string key, Stream content, string? contentType, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("This engine does not support object upload.");
+
         Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default);
 
         Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default);

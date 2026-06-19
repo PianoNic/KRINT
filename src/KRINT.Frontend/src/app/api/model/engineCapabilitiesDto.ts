@@ -24,5 +24,6 @@ export interface EngineCapabilitiesDto {
     supportsRowDelete: boolean;
     supportsUsers: boolean;
     supportsBackup: boolean;
+    supportsObjectUpload?: boolean;
 }
 

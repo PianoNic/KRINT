@@ -221,6 +221,19 @@
               Add {{ rowTerm() }}
             </button>
           }
+          @if (canUploadObject()) {
+            <button
+              hlmBtn
+              variant="outline"
+              size="sm"
+              type="button"
+              [disabled]="!table() || uploadOpen()"
+              (click)="openUpload()"
+            >
+              <ng-icon name="lucideUpload" size="14" />
+              Upload {{ rowTerm() }}
+            </button>
+          }
           <button hlmBtn variant="outline" size="icon" type="button" (click)="prev()" [disabled]="!hasPrev() || loading()" aria-label="Previous page" hlmTooltip="Previous page">
             <ng-icon name="lucideChevronLeft" size="14" />
           </button>
@@ -229,6 +242,25 @@
           </button>
         </div>
       </header>
+
+      @if (uploadOpen()) {
+        <div class="mx-4 my-2 flex flex-wrap items-center gap-2 rounded-md border bg-primary/5 p-3">
+          <input
+            class="h-8 flex-1 min-w-40 rounded-md border bg-transparent px-2 font-mono text-xs"
+            [value]="uploadKey()"
+            placeholder="object key (e.g. photos/cat.png)"
+            (input)="uploadKey.set($any($event.target).value)"
+          />
+          <input type="file" class="text-xs" (change)="onUploadFileSelected($event)" />
+          <button hlmBtn size="sm" type="button" [disabled]="uploading() || !uploadKey() || !uploadFile()" (click)="doUpload()">
+            {{ uploading() ? 'Uploading…' : 'Upload' }}
+          </button>
+          <button hlmBtn variant="outline" size="sm" type="button" [disabled]="uploading()" (click)="cancelUpload()">Cancel</button>
+          @if (uploadError(); as err) {
+            <span class="text-destructive text-xs">{{ err }}</span>
+          }
+        </div>
+      }
 
       <div class="flex-1 overflow-auto px-4">
         @if (rows(); as r) {

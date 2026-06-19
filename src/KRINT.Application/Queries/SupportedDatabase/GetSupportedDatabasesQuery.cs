@@ -114,6 +114,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
             SupportsDropTable = false,
             SupportsRowInsert = false,
             SupportsRowEdit = false,
+            SupportsObjectUpload = true,
             SupportsUsers = false,
             SupportsBackup = false,
         };
