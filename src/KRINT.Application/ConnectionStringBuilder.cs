@@ -21,7 +21,6 @@ namespace KRINT.Application
                 "clickhouse" => $"http://{username}:{password}@{host}:{port}/?database={database}",
                 "cassandra" => $"cassandra://{host}:{port}/{database}",
                 "couchdb" => $"http://{username}:{password}@{host}:{port}/",
-                "elasticsearch" => $"http://{username}:{password}@{host}:{port}/",
                 "pgvector" => $"postgres://{username}:{password}@{host}:{port}/{database}",
                 "neo4j" => $"bolt://{username}:{password}@{host}:{port}",
                 "qdrant" => $"http://{host}:{port} (api-key: {password})",

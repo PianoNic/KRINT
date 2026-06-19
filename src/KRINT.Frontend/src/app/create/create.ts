@@ -13,7 +13,7 @@ import {
   lucideRocket,
   lucideTrash2,
 } from '@ng-icons/lucide';
-import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
+import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -63,7 +63,6 @@ type WizardUser = { name: string; grantDatabases: string[] };
       simpleApachecouchdb,
       simpleClickhouse,
       simpleCockroachlabs,
-      simpleElasticsearch,
       simpleMariadb,
       simpleNeo4j,
       simpleRedis,
@@ -123,7 +122,7 @@ export class Create {
   protected readonly tableTermPlural    = computed(() => pluralize(this.tableTerm()));
 
   // Whether the engine supports a user-named default database. Single-keyspace engines
-  // (Qdrant, Elasticsearch, Redis) hide the Basics > Default DB input and the Databases
+  // (Qdrant, Redis) hide the Basics > Default DB input and the Databases
   // step entirely - there's nothing meaningful for the user to type.
   protected readonly supportsDatabaseNaming = computed(() => this.capabilities()?.supportsCreateDatabase ?? true);
 
@@ -257,7 +256,6 @@ export class Create {
       case 'clickhouse':  return 'simpleClickhouse';
       case 'cassandra':   return 'simpleApachecassandra';
       case 'couchdb':     return 'simpleApachecouchdb';
-      case 'elasticsearch': return 'simpleElasticsearch';
       case 'pgvector':    return 'simplePostgresql';
       case 'neo4j':       return 'simpleNeo4j';
       case 'qdrant':      return 'customQdrant';

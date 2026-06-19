@@ -65,19 +65,6 @@ namespace KRINT.Application.Queries.SupportedDatabase
             SupportsBackup = false,
         };
 
-        // Elasticsearch / OpenSearch: indices look like tables; each doc is one JSON _source
-        // column keyed by _id. Index/update/delete are by _id (refresh=true for immediacy).
-        private static readonly EngineCapabilitiesDto ElasticCaps = SqlCaps with
-        {
-            DatabaseTerm = "cluster",
-            TableTerm = "index",
-            RowTerm = "document",
-            SupportsCreateDatabase = false,   // there's just one "_cluster"
-            SupportsDropDatabase = false,
-            SupportsUsers = false,
-            SupportsBackup = false,
-        };
-
         // CouchDB: HTTP doc store. "databases" are real, but docs live straight inside them
         // (no tables). We expose a single virtual "_all_docs" table per database, similar
         // to how Redis exposes "keys".
@@ -272,8 +259,6 @@ namespace KRINT.Application.Queries.SupportedDatabase
             // Key-value / cache
             ("redis",       "Redis",       "redis",                 RedisCaps),
             ("valkey",      "Valkey",      "valkey/valkey",         RedisCaps),
-            // Search
-            ("elasticsearch", "Elasticsearch", "elasticsearch",     ElasticCaps),
             // Vector
             ("qdrant",      "Qdrant",      "qdrant/qdrant",         QdrantCaps),
             // Blob / object storage

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideBrain, lucideCheck, lucideCircleAlert, lucideDatabase } from '@ng-icons/lucide';
-import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
+import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmTableImports } from '@spartan-ng/helm/table';
@@ -32,7 +32,6 @@ import { SettingsDto } from '../api/model/settingsDto';
       simpleApachecouchdb,
       simpleClickhouse,
       simpleCockroachlabs,
-      simpleElasticsearch,
       simpleMariadb,
       simpleNeo4j,
       simpleRedis,
@@ -152,7 +151,6 @@ export class Settings {
       case 'clickhouse':  return 'simpleClickhouse';
       case 'cassandra':   return 'simpleApachecassandra';
       case 'couchdb':     return 'simpleApachecouchdb';
-      case 'elasticsearch': return 'simpleElasticsearch';
       case 'pgvector':    return 'simplePostgresql';
       case 'neo4j':       return 'simpleNeo4j';
       case 'qdrant':      return 'customQdrant';

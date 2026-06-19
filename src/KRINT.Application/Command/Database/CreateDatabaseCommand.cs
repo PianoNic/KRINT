@@ -264,9 +264,6 @@ namespace KRINT.Application.Command.Database
                 case "couchdb":
                     // COUCHDB_USER / COUCHDB_PASSWORD seed the admin account on first boot.
                     return new EngineSpec("couchdb", "couch", 5984, "admin", "default", "/opt/couchdb/data");
-                case "elasticsearch":
-                    // ELASTIC_PASSWORD is read from env; xpack.security.enabled is on by default in 8.x.
-                    return new EngineSpec("elasticsearch", "es", 9200, "elastic", "_cluster", "/usr/share/elasticsearch/data");
                 case "pgvector":
                     // pgvector/pgvector tags use Postgres <=17 layout. CREATE EXTENSION vector runs
                     // after the container is ready (see InitSqlFactory below).
@@ -383,16 +380,6 @@ namespace KRINT.Application.Command.Database
                     {
                         "COUCHDB_USER=admin",
                         $"COUCHDB_PASSWORD={password}",
-                    };
-                case "elasticsearch":
-                    return new List<string>
-                    {
-                        $"ELASTIC_PASSWORD={password}",
-                        // Single-node cluster, no TLS for the dev local case.
-                        "discovery.type=single-node",
-                        "xpack.security.enabled=true",
-                        "xpack.security.http.ssl.enabled=false",
-                        "ES_JAVA_OPTS=-Xms512m -Xmx512m",
                     };
                 case "pgvector":
                     var pgvecEnv = new List<string> { $"POSTGRES_PASSWORD={password}" };

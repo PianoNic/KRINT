@@ -18,7 +18,6 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerDatabaseService, ClickHouseInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, CassandraInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, CouchDbInnerDatabaseService>();
-            services.AddSingleton<IInnerDatabaseService, ElasticInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, PgVectorInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, Neo4jInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, QdrantInnerDatabaseService>();
@@ -38,7 +37,6 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerUserService, ClickHouseInnerUserService>();
             services.AddSingleton<IInnerUserService, CassandraInnerUserService>();
             services.AddSingleton<IInnerUserService, CouchDbInnerUserService>();
-            services.AddSingleton<IInnerUserService, ElasticInnerUserService>();
             services.AddSingleton<IInnerUserService, PgVectorInnerUserService>();
             services.AddSingleton<IInnerUserService, Neo4jInnerUserService>();
             services.AddSingleton<IInnerUserService, QdrantInnerUserService>();
@@ -58,7 +56,6 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerSchemaService, ClickHouseInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, CassandraInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, CouchDbInnerSchemaService>();
-            services.AddSingleton<IInnerSchemaService, ElasticInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, PgVectorInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, Neo4jInnerSchemaService>();
             services.AddSingleton<IInnerSchemaService, QdrantInnerSchemaService>();

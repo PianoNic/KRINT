@@ -52,7 +52,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             var inner = innerDbs.Resolve(target.Engine);
             var ceiling = target.Engine switch
             {
-                "cassandra" or "elasticsearch" or "neo4j" => 180,
+                "cassandra" or "neo4j" => 180,
                 _ => 60,
             };
             var deadline = DateTime.UtcNow.AddSeconds(ceiling);

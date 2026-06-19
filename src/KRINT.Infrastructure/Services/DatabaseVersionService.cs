@@ -19,7 +19,6 @@ namespace KRINT.Infrastructure.Services
             ["cockroachdb"] = "cockroachdb",
             ["clickhouse"] = "clickhouse",
             ["cassandra"] = "cassandra",
-            ["elasticsearch"] = "elasticsearch",
             ["neo4j"] = "neo4j",
             // mssql / cockroachdb intentionally omitted - endoflife.date's "latest" patch value
             // doesn't map to a docker tag for these. See StaticEngineVersions.

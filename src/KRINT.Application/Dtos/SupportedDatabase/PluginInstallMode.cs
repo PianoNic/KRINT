@@ -10,7 +10,7 @@ namespace KRINT.Application.Dtos.SupportedDatabase
         DockerImageSwap,
         /// <summary>Sets an env var on the container (e.g. NEO4J_PLUGINS=["apoc"]).</summary>
         EnvFlag,
-        /// <summary>Runs an install command inside the container (e.g. elasticsearch-plugin install).</summary>
+        /// <summary>Runs an install command inside the container (e.g. a vendor plugin installer).</summary>
         ContainerExec,
     }
 }
