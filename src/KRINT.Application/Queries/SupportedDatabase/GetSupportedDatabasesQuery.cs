@@ -34,13 +34,12 @@ namespace KRINT.Application.Queries.SupportedDatabase
             RowTerm = "document",
         };
 
-        // CockroachDB: Postgres-wire-compatible but no `ctid` and no pg_dump. We disable row
-        // edit/delete (those use ctid to enforce exactly-one-match) and disable backup until
-        // a cockroach-native dump path is added.
+        // CockroachDB: Postgres-wire-compatible but no `ctid` and no pg_dump. Row edit/delete work
+        // via a plain WHERE on the loaded values (the match-count guard already enforces exactly-one
+        // -match, so ctid isn't needed); the schema service overrides the ctid statements. Backup
+        // stays disabled until a cockroach-native dump path is added.
         private static readonly EngineCapabilitiesDto CockroachCaps = SqlCaps with
         {
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
             SupportsBackup = false,
         };
 

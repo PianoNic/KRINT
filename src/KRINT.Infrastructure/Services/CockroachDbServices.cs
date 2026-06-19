@@ -6,9 +6,8 @@ namespace KRINT.Infrastructure.Services
     // information_schema / pg_catalog views are 1:1 enough that our list/select queries work.
     // Differences we have to override:
     //   - No DROP DATABASE … WITH (FORCE) clause syntax.
-    //   - No `ctid` MVCC handle, so the row edit/delete code that uses it doesn't work; caps
-    //     advertise SupportsRowEdit/Delete=false, so the schema service's defaults are simply
-    //     never invoked from the UI.
+    //   - No `ctid` MVCC handle, so the row edit/delete statements are overridden to pin the row
+    //     with a plain WHERE instead (the base match-count guard already enforces exactly-one-match).
     //   - No pg_dump compatibility; SupportsBackup=false until we wire `cockroach sql` /
     //     `EXPORT` flows. No backup-service registration here.
     public sealed class CockroachDbInnerDatabaseService : PostgresInnerDatabaseService
@@ -40,5 +39,13 @@ namespace KRINT.Infrastructure.Services
     public sealed class CockroachDbInnerSchemaService : PostgresInnerSchemaService
     {
         public override string Engine => "cockroachdb";
+
+        // CockroachDB has no ctid. The base class's match-count guard already proves exactly one row
+        // matches the WHERE, so pinning by a plain WHERE updates/deletes precisely that row.
+        protected override string BuildUpdateCommandText(string qualifiedTable, string setClause, string whereClause)
+            => $"UPDATE {qualifiedTable} SET {setClause} WHERE {whereClause}";
+
+        protected override string BuildDeleteCommandText(string qualifiedTable, string whereClause)
+            => $"DELETE FROM {qualifiedTable} WHERE {whereClause}";
     }
 }

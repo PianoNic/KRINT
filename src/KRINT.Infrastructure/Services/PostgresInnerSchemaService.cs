@@ -125,7 +125,16 @@ namespace KRINT.Infrastructure.Services
             await tx.CommitAsync(cancellationToken);
         }
 
-        private static async Task ApplyUpdateAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string qualifiedTable, UpdateRowRequest request, CancellationToken cancellationToken)
+        // The actual UPDATE/DELETE statements that pin the single matched row. Postgres uses ctid
+        // (its physical row pointer); engines without ctid (CockroachDB) override these. Safe because
+        // the caller's match-count guard has already proven exactly one row matches the WHERE.
+        protected virtual string BuildUpdateCommandText(string qualifiedTable, string setClause, string whereClause)
+            => $"UPDATE {qualifiedTable} SET {setClause} WHERE ctid = (SELECT ctid FROM {qualifiedTable} WHERE {whereClause} LIMIT 2)";
+
+        protected virtual string BuildDeleteCommandText(string qualifiedTable, string whereClause)
+            => $"DELETE FROM {qualifiedTable} WHERE ctid = (SELECT ctid FROM {qualifiedTable} WHERE {whereClause} LIMIT 1)";
+
+        private async Task ApplyUpdateAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string qualifiedTable, UpdateRowRequest request, CancellationToken cancellationToken)
         {
             var changedIndexes = new List<int>();
             for (var i = 0; i < request.Columns.Count; i++)
@@ -163,8 +172,7 @@ namespace KRINT.Infrastructure.Services
                 }
             }
 
-            cmd.CommandText = $"UPDATE {qualifiedTable} SET {string.Join(", ", setClauses)} " +
-                              $"WHERE ctid = (SELECT ctid FROM {qualifiedTable} WHERE {string.Join(" AND ", whereClauses)} LIMIT 2)";
+            cmd.CommandText = BuildUpdateCommandText(qualifiedTable, string.Join(", ", setClauses), string.Join(" AND ", whereClauses));
 
             // Two-step strategy: peek matches first to enforce "exactly one row".
             await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM (SELECT 1 FROM {qualifiedTable} WHERE {string.Join(" AND ", whereClauses)} LIMIT 2) s", conn, tx))
@@ -241,7 +249,7 @@ namespace KRINT.Infrastructure.Services
                 if (matches > 1) throw new InvalidOperationException("Ambiguous: more than one row matches. Refusing to delete.");
             }
 
-            cmd.CommandText = $"DELETE FROM {qualified} WHERE ctid = (SELECT ctid FROM {qualified} WHERE {string.Join(" AND ", whereClauses)} LIMIT 1)";
+            cmd.CommandText = BuildDeleteCommandText(qualified, string.Join(" AND ", whereClauses));
             var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
             if (affected != 1) throw new InvalidOperationException($"Expected to delete 1 row, got {affected}.");
             await tx.CommitAsync(cancellationToken);
