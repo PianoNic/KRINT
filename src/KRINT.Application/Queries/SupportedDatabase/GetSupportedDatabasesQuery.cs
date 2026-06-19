@@ -43,14 +43,12 @@ namespace KRINT.Application.Queries.SupportedDatabase
             SupportsBackup = false,
         };
 
-        // ClickHouse: SQL-shaped (databases / tables / rows / users), but row-level UPDATE/DELETE
-        // is implemented as async mutations and there's no clean "edit exactly this row" path
-        // without primary-key introspection. INSERT works fine. Backup needs clickhouse-backup
-        // or BACKUP TO Disk - also out of scope for v1.
+        // ClickHouse: SQL-shaped (databases / tables / rows / users). Row edit/delete go through
+        // ALTER ... UPDATE/DELETE mutations, run synchronously (mutations_sync=2) and guarded by a
+        // one-row match check, with sorting-key columns locked. Backup needs clickhouse-backup or
+        // BACKUP TO Disk - still out of scope for v1.
         private static readonly EngineCapabilitiesDto ClickhouseCaps = SqlCaps with
         {
-            SupportsRowEdit = false,
-            SupportsRowDelete = false,
             SupportsBackup = false,
         };
 
