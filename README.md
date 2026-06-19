@@ -22,7 +22,7 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 
 ## Features
 
-- **17 engines**: PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Elasticsearch, Qdrant, plus object storage via SeaweedFS (S3) and Azurite (Azure Blob).
+- **16 engines**: PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Qdrant, plus object storage via SeaweedFS (S3) and Azurite (Azure Blob).
 - **Plugins**: pgvector, PostGIS, pg_trgm, Redis Stack, APOC, Graph Data Science, and more, opt-in at provision time.
 - **Live dashboard**: KPI cards, per-engine breakdown, and recent activity stream in over SignalR so the homepage stays current without refreshes.
 - **Browse & query**: spreadsheet-style in-cell editing of rows + an ad-hoc SQL console for the SQL engines (Ctrl/Cmd+Enter to run).

@@ -14,7 +14,6 @@ import {
   simpleApachecouchdb,
   simpleClickhouse,
   simpleCockroachlabs,
-  simpleElasticsearch,
   simpleMariadb,
   simpleMongodb,
   simpleMysql,
@@ -62,7 +61,6 @@ type ActiveTab = 'logs' | 'exec';
       simpleApachecouchdb,
       simpleClickhouse,
       simpleCockroachlabs,
-      simpleElasticsearch,
       simpleMariadb,
       simpleNeo4j,
       simpleRedis,
@@ -194,7 +192,6 @@ export class Console implements OnDestroy {
       case 'clickhouse': return 'simpleClickhouse';
       case 'cassandra': return 'simpleApachecassandra';
       case 'couchdb': return 'simpleApachecouchdb';
-      case 'elasticsearch': return 'simpleElasticsearch';
       case 'pgvector': return 'simplePostgresql';
       case 'neo4j': return 'simpleNeo4j';
       case 'qdrant': return 'customQdrant';

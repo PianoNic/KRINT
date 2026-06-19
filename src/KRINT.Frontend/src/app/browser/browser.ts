@@ -15,7 +15,7 @@ import {
   lucideTrash2,
   lucideX,
 } from '@ng-icons/lucide';
-import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
+import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -80,7 +80,6 @@ type Draft = { values: EditValue[]; mode: 'edit' | 'insert'; rowIndex: number | 
       simpleApachecouchdb,
       simpleClickhouse,
       simpleCockroachlabs,
-      simpleElasticsearch,
       simpleMariadb,
       simpleNeo4j,
       simpleRedis,
@@ -310,7 +309,6 @@ export class Browser {
       case 'clickhouse':  return 'simpleClickhouse';
       case 'cassandra':   return 'simpleApachecassandra';
       case 'couchdb':     return 'simpleApachecouchdb';
-      case 'elasticsearch': return 'simpleElasticsearch';
       case 'pgvector':    return 'simplePostgresql';
       case 'neo4j':       return 'simpleNeo4j';
       case 'qdrant':      return 'customQdrant';

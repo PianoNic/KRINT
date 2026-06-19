@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { DashboardHubService } from './dashboard-hub.service';
 import { lucideCircleCheckBig, lucideCpu, lucideDatabase, lucideMemoryStick, lucidePlus, lucideRefreshCw } from '@ng-icons/lucide';
-import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleElasticsearch, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
+import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -39,7 +39,6 @@ import { DashboardStatsDto } from '../api/model/dashboardStatsDto';
       simpleApachecouchdb,
       simpleClickhouse,
       simpleCockroachlabs,
-      simpleElasticsearch,
       simpleMariadb,
       simpleNeo4j,
       simpleRedis,
@@ -240,7 +239,6 @@ export class Home implements OnDestroy {
       case 'clickhouse':  return 'simpleClickhouse';
       case 'cassandra':   return 'simpleApachecassandra';
       case 'couchdb':     return 'simpleApachecouchdb';
-      case 'elasticsearch': return 'simpleElasticsearch';
       case 'neo4j':       return 'simpleNeo4j';
       case 'qdrant':      return 'customQdrant';
       case 'valkey':      return 'customValkey';

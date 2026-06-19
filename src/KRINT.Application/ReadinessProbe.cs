@@ -16,7 +16,7 @@ namespace KRINT.Application
         public static int CeilingSecondsFor(string engine) => engine switch
         {
             // JVM-heavy engines routinely need >60s on first start.
-            "cassandra" or "elasticsearch" or "neo4j" => 180,
+            "cassandra" or "neo4j" => 180,
             _ => 60,
         };
 
