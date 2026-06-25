@@ -13,7 +13,7 @@ namespace KRINT.Application.Command.DatabaseInstance
     /// preserved; the row stays. Externals without a containerId are rejected because there's
     /// nothing for KRINT to stop.
     /// </summary>
-    public class StopInstanceCommandHandler(KrintDbContext db, IDockerService docker, IActivityLogger activity, ConfigManagedGuard guard)
+    public class StopInstanceCommandHandler(KrintDbContext db, IDockerServiceResolver dockerResolver, IActivityLogger activity, ConfigManagedGuard guard)
         : ICommandHandler<StopInstanceCommand>
     {
         public async ValueTask<Unit> Handle(StopInstanceCommand command, CancellationToken cancellationToken)
@@ -25,7 +25,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             if (instance.ContainerId is null)
                 throw new InvalidOperationException("This instance has no Docker container - nothing to stop.");
 
-            await docker.StopContainerAsync(instance.ContainerId, cancellationToken);
+            await dockerResolver.Resolve(instance.NodeId).StopContainerAsync(instance.ContainerId, cancellationToken);
 
             await activity.LogAsync("instance.stop", instance.ContainerName ?? instance.DisplayName, instance.Id, instance.Engine, null, cancellationToken);
             return Unit.Value;

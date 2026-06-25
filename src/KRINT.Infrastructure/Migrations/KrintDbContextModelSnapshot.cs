@@ -184,6 +184,9 @@ namespace KRINT.Infrastructure.Migrations
                     b.Property<Guid?>("MigratedToInstanceId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("NodeId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Port")
                         .HasColumnType("integer");
 
@@ -208,6 +211,42 @@ namespace KRINT.Infrastructure.Migrations
                         .HasFilter("\"ContainerName\" IS NOT NULL");
 
                     b.ToTable("DatabaseInstances");
+                });
+
+            modelBuilder.Entity("KRINT.Domain.Node", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DockerVersion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MachineName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Os")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Nodes");
                 });
 
             modelBuilder.Entity("KRINT.Domain.Secret", b =>

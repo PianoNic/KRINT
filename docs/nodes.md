@@ -1,12 +1,21 @@
 # Nodes (experimental)
 
-> Phase 1 — connectivity foundation. A node connects, registers and answers pings, and shows up
-> on the **Nodes** page. Routing actual database provisioning to a node is not wired up yet.
+> A node is a stateless worker that runs database containers on a remote host. You can provision a
+> database onto a node and browse / query / manage it entirely through the control plane — **every
+> operation travels over the one SignalR connection**, and nodes expose no ports. Streaming features
+> (logs, interactive console, backups/restore, version upgrade) are not routed to nodes yet and are
+> blocked with a clear message for node-hosted instances.
 
 KRINT normally provisions database containers on its own Docker daemon. A **node** is the *same*
-KRINT image started in a stripped role that does nothing but execute Docker work on its own host. It
-dials **out** to the control plane over SignalR (so it works behind NAT/firewalls — only the control
-plane needs to be reachable) and authenticates with a pre-shared token.
+KRINT image started in a stripped role that does nothing but execute Docker (and database) work on
+its own host. It dials **out** to the control plane over SignalR (so it works behind NAT/firewalls —
+only the control plane needs to be reachable) and authenticates with a pre-shared token.
+
+The control plane keeps **all** state (the single KRINT database and the secrets vault); the node
+holds nothing. For a node-hosted instance, the control plane sends commands ("create this container",
+"list these tables", "run this query") and the node runs them locally — against the container on its
+own loopback — and returns the result. Nothing connects to a node directly, so the node's containers
+bind to localhost only and never publish a port.
 
 ## How it works
 
@@ -28,7 +37,12 @@ Set these on the node process (environment variables; `__` maps to nested config
 | `Krint__Role=node` | Boot in node role. |
 | `Node__ControlPlaneUrl` | Base URL of the control plane, e.g. `https://krint.example.com`. |
 | `Node__Token` | A token present in the control plane's `Node__Tokens` allow-list. |
+| `Node__Id` | A stable GUID identifying this node. Pin it so provisioned instances keep pointing at the node across restarts; if unset, one is generated per run (and logged). |
 | `Node__Name` | Display name for the node (defaults to the machine name). |
+
+Provision onto a node from the create wizard's **Target node** dropdown (it appears once a node is
+online), or pass `nodeId` in the provision request. The instance then shows a node badge on the
+instances list.
 
 On the **control plane**, list the accepted tokens:
 
@@ -49,6 +63,7 @@ services:
       Krint__Role: "node"
       Node__ControlPlaneUrl: "https://krint.example.com"
       Node__Token: "a-long-random-shared-secret"
+      Node__Id: "11111111-1111-1111-1111-111111111111"
       Node__Name: "node-eu-1"
     volumes:
       # The node drives this host's Docker daemon.

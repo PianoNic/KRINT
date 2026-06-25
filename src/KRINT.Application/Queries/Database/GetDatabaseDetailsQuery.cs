@@ -9,7 +9,7 @@ namespace KRINT.Application.Queries.Database
 {
     public record GetDatabaseDetailsQuery(Guid Id) : IQuery<ProvisionedDatabaseDto?>;
 
-    public class GetDatabaseDetailsQueryHandler(KrintDbContext db, ISecretsVaultService vault, IDockerService docker)
+    public class GetDatabaseDetailsQueryHandler(KrintDbContext db, ISecretsVaultService vault, IDockerServiceResolver dockerResolver)
         : IQueryHandler<GetDatabaseDetailsQuery, ProvisionedDatabaseDto?>
     {
         public async ValueTask<ProvisionedDatabaseDto?> Handle(GetDatabaseDetailsQuery query, CancellationToken cancellationToken)
@@ -29,7 +29,7 @@ namespace KRINT.Application.Queries.Database
             {
                 try
                 {
-                    var inspect = await docker.InspectContainerAsync(instance.ContainerId, cancellationToken);
+                    var inspect = await dockerResolver.Resolve(instance.NodeId).InspectContainerAsync(instance.ContainerId, cancellationToken);
                     state = inspect.State?.Status;
                 }
                 catch

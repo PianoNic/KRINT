@@ -14,9 +14,9 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command.Database
 {
-    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false, string? Password = null) : ICommand<ProvisionedDatabaseDto>;
+    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false, string? Password = null, Guid? NodeId = null) : ICommand<ProvisionedDatabaseDto>;
 
-    public class CreateDatabaseCommandHandler(IDockerService docker, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
+    public class CreateDatabaseCommandHandler(IDockerServiceResolver dockerResolver, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
         private const string Host = "localhost";
         // krint runs in its own container; localhost there is krint's loopback, not the Docker
@@ -35,10 +35,22 @@ namespace KRINT.Application.Command.Database
         /// </summary>
         public static string ResolveProbeHost(bool isPublic) => isPublic ? ProbeHost : "127.0.0.1";
 
+        /// <summary>Builds the readiness/operation target for an existing instance. Node-hosted
+        /// instances carry their NodeId and a loopback host so the inner-service resolver dispatches
+        /// the call to the node; local instances use the deployment-aware probe host.</summary>
+        public static InnerDatabaseTarget BuildProbeTarget(KRINT.Domain.DatabaseInstance instance, string password)
+        {
+            if (instance.NodeId is { } nodeId)
+                return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId);
+            var probeHost = instance.IsManaged && instance.Host == "localhost" ? ResolveProbeHost(instance.IsPublic) : instance.Host;
+            return new InnerDatabaseTarget(instance.Engine, probeHost, instance.Port, instance.Username, password, instance.DatabaseName);
+        }
+
         private readonly KrintOptions _options = options.Value;
 
         public async ValueTask<ProvisionedDatabaseDto> Handle(CreateDatabaseCommand command, CancellationToken cancellationToken)
         {
+            var docker = dockerResolver.Resolve(command.NodeId);
             var spec = ResolveEngineSpec(command.Engine, command.Version);
 
             var databaseName = ResolveDatabaseName(spec, command.DatabaseName);
@@ -46,6 +58,17 @@ namespace KRINT.Application.Command.Database
             // Resolve selected plugins. DockerImageSwap replaces the image; EnvFlag appends env;
             // PgExtension / ContainerExec are applied later after readiness.
             var selectedPlugins = ResolvePlugins(command.Plugins);
+
+            // Plugins/engines that need a direct SQL connection from the control plane to install
+            // (pgvector's CREATE EXTENSION, PgExtension plugins) can't run against a node-hosted DB
+            // yet - the control plane has no socket to it. Block them clearly rather than half-provision.
+            if (command.NodeId is not null &&
+                (string.Equals(command.Engine, "pgvector", StringComparison.OrdinalIgnoreCase) ||
+                 selectedPlugins.Any(p => p.InstallMode == PluginInstallMode.PgExtension)))
+            {
+                throw new NotSupportedException("pgvector and Postgres-extension plugins are not supported on remote nodes yet.");
+            }
+
             var imageOverride = selectedPlugins.FirstOrDefault(p => p.InstallMode == PluginInstallMode.DockerImageSwap)?.Payload;
             var extraEnv = selectedPlugins
                 .Where(p => p.InstallMode == PluginInstallMode.EnvFlag)
@@ -78,7 +101,7 @@ namespace KRINT.Application.Command.Database
                 : command.Version;
             await docker.PullImageAsync(imageName, imageTag, cancellationToken);
 
-            var hostPort = await AllocateHostPortAsync(command.Engine, cancellationToken);
+            var hostPort = await AllocateHostPortAsync(command.Engine, command.NodeId, docker, cancellationToken);
 
             var env = BuildEnv(command.Engine, password, databaseName, spec.DefaultDatabase);
             env.AddRange(extraEnv);
@@ -98,8 +121,9 @@ namespace KRINT.Application.Command.Database
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
                         // Leaving HostIP unset is Docker's default and binds to 0.0.0.0
-                        // (visible on the LAN). "127.0.0.1" restricts to loopback.
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = hostPort.ToString(), HostIP = command.IsPublic ? "" : "127.0.0.1" } },
+                        // (visible on the LAN). "127.0.0.1" restricts to loopback. Node-hosted
+                        // containers are always loopback-only - nothing connects to a node directly.
+                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = hostPort.ToString(), HostIP = command.NodeId is not null || !command.IsPublic ? "127.0.0.1" : "" } },
                     },
                     Binds = new List<string> { bindSpec },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
@@ -143,9 +167,12 @@ namespace KRINT.Application.Command.Database
                 // Wait for the engine inside the container to accept connections. The returned
                 // target carries whichever probe host actually responded - init steps below
                 // must use it so they reach the same address.
+                // Node-hosted: probe runs on the node against its loopback (carry NodeId so the inner
+                // resolver dispatches there); local: the deployment-aware probe host.
+                var probeHostInitial = command.NodeId is not null ? "127.0.0.1" : ResolveProbeHost(command.IsPublic);
                 var readinessTarget = await ReadinessProbe.WaitForReadyAsync(
                     innerDbs.Resolve(command.Engine),
-                    new InnerDatabaseTarget(command.Engine, ResolveProbeHost(command.IsPublic), hostPort, spec.DefaultUsername, password, probeDatabase),
+                    new InnerDatabaseTarget(command.Engine, probeHostInitial, hostPort, spec.DefaultUsername, password, probeDatabase, command.NodeId),
                     command.IsPublic,
                     cancellationToken);
 
@@ -188,6 +215,7 @@ namespace KRINT.Application.Command.Database
                     Username = spec.DefaultUsername,
                     DatabaseName = databaseName,
                     IsPublic = command.IsPublic,
+                    NodeId = command.NodeId,
                 };
                 db.DatabaseInstances.Add(instance);
                 await db.SaveChangesAsync(cancellationToken);
@@ -465,22 +493,22 @@ namespace KRINT.Application.Command.Database
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        private async Task<int> AllocateHostPortAsync(string engine, CancellationToken cancellationToken)
+        private async Task<int> AllocateHostPortAsync(string engine, Guid? nodeId, IDockerService docker, CancellationToken cancellationToken)
         {
             var range = _options.GetPortRange(engine);
 
-            // 1) Ports KRINT already recorded as in-use for this engine.
+            // 1) Ports KRINT already recorded as in-use for this engine on the same target (port
+            //    ranges are per-host, so two different nodes can reuse the same range independently).
             var usedInDb = await db.DatabaseInstances
-                .Where(d => d.Engine == engine && d.Port >= range.Start && d.Port <= range.End)
+                .Where(d => d.Engine == engine && d.NodeId == nodeId && d.Port >= range.Start && d.Port <= range.End)
                 .Select(d => d.Port)
                 .ToHashSetAsync(cancellationToken);
 
-            // 2) Ports actually published by any container on the Docker host - covers orphans
+            // 2) Ports actually published by any container on the target Docker host - covers orphans
             //    left over from a wiped krint DB, prior deploys, or anything else binding a port
-            //    in the configured range. Binding TcpListener on 127.0.0.1 from inside the krint
-            //    container would only check the container's own loopback, not the host, so this
-            //    Docker-level inspection is the only reliable signal.
-            var dockerPorts = await GetPublishedHostPortsAsync(cancellationToken);
+            //    in the configured range. The resolved docker service queries the local daemon or the
+            //    node's, matching where this instance will be created.
+            var dockerPorts = await GetPublishedHostPortsAsync(docker, cancellationToken);
 
             for (var port = range.Start; port <= range.End; port++)
             {
@@ -492,7 +520,7 @@ namespace KRINT.Application.Command.Database
             throw new InvalidOperationException($"No free host port in range {range.Start}-{range.End} for engine '{engine}'.");
         }
 
-        private async Task<HashSet<int>> GetPublishedHostPortsAsync(CancellationToken cancellationToken)
+        private static async Task<HashSet<int>> GetPublishedHostPortsAsync(IDockerService docker, CancellationToken cancellationToken)
         {
             var taken = new HashSet<int>();
             var containers = await docker.ListContainersAsync(all: true, cancellationToken);

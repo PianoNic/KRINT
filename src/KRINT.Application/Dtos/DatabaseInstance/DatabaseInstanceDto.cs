@@ -27,5 +27,9 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         public string? State { get; init; }
         /// <summary>True if owned by instances.yaml. The UI hides/disables mutation controls.</summary>
         public required bool IsConfigManaged { get; init; }
+        /// <summary>The node this instance runs on, or null for the control plane's local Docker.
+        /// The UI shows a node badge and hides the not-yet-supported controls (logs, console,
+        /// backups, upgrade, visibility) for node-hosted instances.</summary>
+        public Guid? NodeId { get; init; }
     }
 }

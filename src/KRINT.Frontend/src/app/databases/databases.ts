@@ -1,8 +1,36 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideArrowUpCircle, lucideBrain, lucideClipboardCopy, lucideDatabase, lucideEllipsisVertical, lucideEye, lucideGlobe, lucideLink, lucideLock, lucidePencil, lucidePlay, lucidePlus, lucideSquare, lucideTrash2 } from '@ng-icons/lucide';
-import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
+import {
+  lucideArrowUpCircle,
+  lucideBrain,
+  lucideClipboardCopy,
+  lucideDatabase,
+  lucideEllipsisVertical,
+  lucideEye,
+  lucideGlobe,
+  lucideLink,
+  lucideLock,
+  lucideNetwork,
+  lucidePencil,
+  lucidePlay,
+  lucidePlus,
+  lucideSquare,
+  lucideTrash2,
+} from '@ng-icons/lucide';
+import {
+  simpleApachecassandra,
+  simpleApachecouchdb,
+  simpleClickhouse,
+  simpleCockroachlabs,
+  simpleMariadb,
+  simpleMongodb,
+  simpleMysql,
+  simpleNeo4j,
+  simplePostgresql,
+  simpleRedis,
+  simpleTimescale,
+} from '@ng-icons/simple-icons';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -12,10 +40,17 @@ import { HlmTableImports } from '@spartan-ng/helm/table';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
-import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
+import {
+  customAzurite,
+  customMssql,
+  customQdrant,
+  customSeaweedfs,
+  customValkey,
+} from '../shared/icons/custom-icons';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { DatabaseService } from '../api/api/database.service';
+import { NodesService } from '../api/api/nodes.service';
 import { DatabaseDetailsDialog } from './database-details-dialog';
 import { DatabaseEditDialog } from './database-edit-dialog';
 import { DatabaseExportYamlDialog } from './database-export-yaml-dialog';
@@ -46,6 +81,7 @@ import { DatabaseUpgradeDialog } from './database-upgrade-dialog';
       lucideGlobe,
       lucideLink,
       lucideLock,
+      lucideNetwork,
       lucidePencil,
       lucidePlay,
       lucidePlus,
@@ -77,6 +113,21 @@ export class Databases {
   private readonly dialog = inject(HlmDialogService);
   private readonly confirmService = inject(ConfirmService);
   private readonly api = inject(DatabaseService);
+  private readonly nodesApi = inject(NodesService);
+
+  // Map of node id -> display name so node-hosted instances can show the node's name in a badge.
+  private readonly nodeNames = signal<Record<string, string>>({});
+
+  constructor() {
+    this.nodesApi.apiNodesGet().subscribe({
+      next: (nodes) => this.nodeNames.set(Object.fromEntries(nodes.map((n) => [n.id, n.name]))),
+      error: () => this.nodeNames.set({}),
+    });
+  }
+
+  protected nodeName(id: string): string {
+    return this.nodeNames()[id] ?? 'node';
+  }
 
   protected viewDetails(id: string): void {
     this.dialog.open(DatabaseDetailsDialog, {
@@ -87,7 +138,12 @@ export class Databases {
 
   protected editInstance(db: DatabaseInstanceDto): void {
     this.dialog.open(DatabaseEditDialog, {
-      context: { id: db.id, engine: db.engine, containerName: db.containerName ?? db.displayName, displayName: db.displayName },
+      context: {
+        id: db.id,
+        engine: db.engine,
+        containerName: db.containerName ?? db.displayName,
+        displayName: db.displayName,
+      },
       contentClass: 'sm:max-w-[640px]',
     });
   }
@@ -115,7 +171,12 @@ export class Databases {
     // declared state - so we gate it on IsManaged, not on container presence.
     if (!db.isManaged || !db.containerName) return;
     this.dialog.open(DatabaseUpgradeDialog, {
-      context: { id: db.id, engine: db.engine, containerName: db.containerName, currentVersion: db.version },
+      context: {
+        id: db.id,
+        engine: db.engine,
+        containerName: db.containerName,
+        currentVersion: db.version,
+      },
       contentClass: 'sm:max-w-[480px]',
     });
   }
@@ -170,24 +231,42 @@ export class Databases {
 
   protected engineIcon(engine: string): string {
     switch (engine) {
-      case 'postgres': return 'simplePostgresql';
-      case 'mysql':    return 'simpleMysql';
-      case 'mongo':    return 'simpleMongodb';
-      case 'mariadb':     return 'simpleMariadb';
-      case 'timescaledb': return 'simpleTimescale';
-      case 'redis':       return 'simpleRedis';
-      case 'cockroachdb': return 'simpleCockroachlabs';
-      case 'clickhouse':  return 'simpleClickhouse';
-      case 'cassandra':   return 'simpleApachecassandra';
-      case 'couchdb':     return 'simpleApachecouchdb';
-      case 'pgvector':    return 'simplePostgresql';
-      case 'neo4j':       return 'simpleNeo4j';
-      case 'qdrant':      return 'customQdrant';
-      case 'valkey':      return 'customValkey';
-      case 'mssql':       return 'customMssql';
-      case 'seaweedfs':       return 'customSeaweedfs';
-      case 'azurite':       return 'customAzurite';
-      default:         return 'lucideDatabase';
+      case 'postgres':
+        return 'simplePostgresql';
+      case 'mysql':
+        return 'simpleMysql';
+      case 'mongo':
+        return 'simpleMongodb';
+      case 'mariadb':
+        return 'simpleMariadb';
+      case 'timescaledb':
+        return 'simpleTimescale';
+      case 'redis':
+        return 'simpleRedis';
+      case 'cockroachdb':
+        return 'simpleCockroachlabs';
+      case 'clickhouse':
+        return 'simpleClickhouse';
+      case 'cassandra':
+        return 'simpleApachecassandra';
+      case 'couchdb':
+        return 'simpleApachecouchdb';
+      case 'pgvector':
+        return 'simplePostgresql';
+      case 'neo4j':
+        return 'simpleNeo4j';
+      case 'qdrant':
+        return 'customQdrant';
+      case 'valkey':
+        return 'customValkey';
+      case 'mssql':
+        return 'customMssql';
+      case 'seaweedfs':
+        return 'customSeaweedfs';
+      case 'azurite':
+        return 'customAzurite';
+      default:
+        return 'lucideDatabase';
     }
   }
 

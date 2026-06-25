@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -13,7 +20,19 @@ import {
   lucideRocket,
   lucideTrash2,
 } from '@ng-icons/lucide';
-import { simpleApachecassandra, simpleApachecouchdb, simpleClickhouse, simpleCockroachlabs, simpleMariadb, simpleMongodb, simpleMysql, simpleNeo4j, simplePostgresql, simpleRedis, simpleTimescale } from '@ng-icons/simple-icons';
+import {
+  simpleApachecassandra,
+  simpleApachecouchdb,
+  simpleClickhouse,
+  simpleCockroachlabs,
+  simpleMariadb,
+  simpleMongodb,
+  simpleMysql,
+  simpleNeo4j,
+  simplePostgresql,
+  simpleRedis,
+  simpleTimescale,
+} from '@ng-icons/simple-icons';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -23,8 +42,16 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
-import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
+import {
+  customAzurite,
+  customMssql,
+  customQdrant,
+  customSeaweedfs,
+  customValkey,
+} from '../shared/icons/custom-icons';
 import { DatabaseService } from '../api/api/database.service';
+import { NodesService } from '../api/api/nodes.service';
+import { NodeDto } from '../api/model/nodeDto';
 import { SupportedDatabaseDto } from '../api/model/supportedDatabaseDto';
 import { ProvisionResultDto } from '../api/model/provisionResultDto';
 
@@ -79,6 +106,7 @@ type WizardUser = { name: string; grantDatabases: string[] };
 })
 export class Create {
   private readonly api = inject(DatabaseService);
+  private readonly nodesApi = inject(NodesService);
   private readonly router = inject(Router);
 
   // ----- step state -----
@@ -93,6 +121,9 @@ export class Create {
   protected readonly users = signal<WizardUser[]>([]);
   protected readonly selectedPlugins = signal<ReadonlySet<string>>(new Set());
   protected readonly isPublic = signal(false);
+  // Target node for provisioning: null = the control plane's local Docker. Only online nodes are offered.
+  protected readonly onlineNodes = signal<ReadonlyArray<NodeDto>>([]);
+  protected readonly selectedNodeId = signal<string | null>(null);
   // Root password: empty string = auto-generate at provision time.
   protected readonly customRootPassword = signal('');
   // Per-user custom passwords - empty string at index n means auto-generate.
@@ -117,27 +148,31 @@ export class Create {
   // "collections" + "points"; Redis has "keys"; etc. The catalog already declares these
   // strings on EngineCapabilitiesDto - the wizard just plucks them.
   protected readonly databaseTerm = computed(() => this.capabilities()?.databaseTerm ?? 'database');
-  protected readonly tableTerm    = computed(() => this.capabilities()?.tableTerm ?? 'table');
+  protected readonly tableTerm = computed(() => this.capabilities()?.tableTerm ?? 'table');
   protected readonly databaseTermPlural = computed(() => pluralize(this.databaseTerm()));
-  protected readonly tableTermPlural    = computed(() => pluralize(this.tableTerm()));
+  protected readonly tableTermPlural = computed(() => pluralize(this.tableTerm()));
 
   // Whether the engine supports a user-named default database. Single-keyspace engines
   // (Qdrant, Redis) hide the Basics > Default DB input and the Databases
   // step entirely - there's nothing meaningful for the user to type.
-  protected readonly supportsDatabaseNaming = computed(() => this.capabilities()?.supportsCreateDatabase ?? true);
+  protected readonly supportsDatabaseNaming = computed(
+    () => this.capabilities()?.supportsCreateDatabase ?? true,
+  );
 
-  protected readonly steps = computed<ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5 | 6; label: string }>>(() => {
-    const term = capitalize(this.databaseTermPlural());
-    return [
-      { n: 1, label: 'Engine' },
-      { n: 2, label: 'Basics' },
-      { n: 3, label: 'Plugins' },
-      // Relabel to match the engine: "Databases" / "Collections" / "Indexes" / "Buckets".
-      { n: 4, label: term },
-      { n: 5, label: 'Users' },
-      { n: 6, label: 'Review' },
-    ];
-  });
+  protected readonly steps = computed<ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5 | 6; label: string }>>(
+    () => {
+      const term = capitalize(this.databaseTermPlural());
+      return [
+        { n: 1, label: 'Engine' },
+        { n: 2, label: 'Basics' },
+        { n: 3, label: 'Plugins' },
+        // Relabel to match the engine: "Databases" / "Collections" / "Indexes" / "Buckets".
+        { n: 4, label: term },
+        { n: 5, label: 'Users' },
+        { n: 6, label: 'Review' },
+      ];
+    },
+  );
 
   protected readonly availablePlugins = computed(
     () => this.supported().find((s) => s.key === this.engine())?.plugins ?? [],
@@ -149,10 +184,14 @@ export class Create {
 
   protected readonly defaultDbPlaceholder = computed(() => {
     switch (this.engine()) {
-      case 'postgres': return 'postgres';
-      case 'mysql':    return 'mysql';
-      case 'mongo':    return 'admin';
-      default:         return 'default';
+      case 'postgres':
+        return 'postgres';
+      case 'mysql':
+        return 'mysql';
+      case 'mongo':
+        return 'admin';
+      default:
+        return 'default';
     }
   });
 
@@ -202,19 +241,35 @@ export class Create {
   protected readonly userNameErrors = computed(() =>
     this.users().map((u) => this.nameError(u.name, { required: true })),
   );
-  protected readonly rootPasswordError = computed(() => this.passwordError(this.customRootPassword()));
+  protected readonly rootPasswordError = computed(() =>
+    this.passwordError(this.customRootPassword()),
+  );
   protected readonly userPasswordErrors = computed(() =>
     this.userPasswords().map((p) => this.passwordError(p)),
   );
 
   protected readonly canNext = computed(() => {
     switch (this.step()) {
-      case 1: return !!this.engine();
-      case 2: return !!this.version() && !this.displayNameError() && (!this.supportsDatabaseNaming() || !this.defaultDbError()) && !this.rootPasswordError();
-      case 3: return true;  // Plugins are always optional
-      case 4: return !this.supportsDatabaseNaming() || this.databaseErrors().every((e) => e === null);
-      case 5: return this.userNameErrors().every((e) => e === null) && this.userPasswordErrors().every((e) => e === null);
-      default: return true;
+      case 1:
+        return !!this.engine();
+      case 2:
+        return (
+          !!this.version() &&
+          !this.displayNameError() &&
+          (!this.supportsDatabaseNaming() || !this.defaultDbError()) &&
+          !this.rootPasswordError()
+        );
+      case 3:
+        return true; // Plugins are always optional
+      case 4:
+        return !this.supportsDatabaseNaming() || this.databaseErrors().every((e) => e === null);
+      case 5:
+        return (
+          this.userNameErrors().every((e) => e === null) &&
+          this.userPasswordErrors().every((e) => e === null)
+        );
+      default:
+        return true;
     }
   });
 
@@ -222,6 +277,12 @@ export class Create {
     this.api.apiDatabaseSupportedGet().subscribe({
       next: (s) => this.supported.set(s),
       error: (err) => this.error.set(messageOf(err)),
+    });
+
+    // Offer connected nodes as provisioning targets; the picker is hidden when none are online.
+    this.nodesApi.apiNodesGet().subscribe({
+      next: (nodes) => this.onlineNodes.set(nodes.filter((n) => n.online)),
+      error: () => this.onlineNodes.set([]),
     });
 
     effect(() => {
@@ -235,7 +296,8 @@ export class Create {
   protected togglePlugin(key: string): void {
     this.selectedPlugins.update((curr) => {
       const next = new Set(curr);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -246,24 +308,42 @@ export class Create {
 
   protected engineIcon(key: string): string {
     switch (key) {
-      case 'postgres': return 'simplePostgresql';
-      case 'mysql':    return 'simpleMysql';
-      case 'mongo':    return 'simpleMongodb';
-      case 'mariadb':     return 'simpleMariadb';
-      case 'timescaledb': return 'simpleTimescale';
-      case 'redis':       return 'simpleRedis';
-      case 'cockroachdb': return 'simpleCockroachlabs';
-      case 'clickhouse':  return 'simpleClickhouse';
-      case 'cassandra':   return 'simpleApachecassandra';
-      case 'couchdb':     return 'simpleApachecouchdb';
-      case 'pgvector':    return 'simplePostgresql';
-      case 'neo4j':       return 'simpleNeo4j';
-      case 'qdrant':      return 'customQdrant';
-      case 'valkey':      return 'customValkey';
-      case 'mssql':       return 'customMssql';
-      case 'seaweedfs':       return 'customSeaweedfs';
-      case 'azurite':       return 'customAzurite';
-      default:         return 'lucideDatabase';
+      case 'postgres':
+        return 'simplePostgresql';
+      case 'mysql':
+        return 'simpleMysql';
+      case 'mongo':
+        return 'simpleMongodb';
+      case 'mariadb':
+        return 'simpleMariadb';
+      case 'timescaledb':
+        return 'simpleTimescale';
+      case 'redis':
+        return 'simpleRedis';
+      case 'cockroachdb':
+        return 'simpleCockroachlabs';
+      case 'clickhouse':
+        return 'simpleClickhouse';
+      case 'cassandra':
+        return 'simpleApachecassandra';
+      case 'couchdb':
+        return 'simpleApachecouchdb';
+      case 'pgvector':
+        return 'simplePostgresql';
+      case 'neo4j':
+        return 'simpleNeo4j';
+      case 'qdrant':
+        return 'customQdrant';
+      case 'valkey':
+        return 'customValkey';
+      case 'mssql':
+        return 'customMssql';
+      case 'seaweedfs':
+        return 'customSeaweedfs';
+      case 'azurite':
+        return 'customAzurite';
+      default:
+        return 'lucideDatabase';
     }
   }
 
@@ -355,7 +435,9 @@ export class Create {
       version: this.version()!,
       displayName: this.displayName().trim(),
       defaultDatabaseName: this.defaultDbName().trim() || null,
-      databases: this.databases().map((d) => d.trim()).filter((d) => d !== ''),
+      databases: this.databases()
+        .map((d) => d.trim())
+        .filter((d) => d !== ''),
       users: this.users().map((u, i) => ({
         name: u.name.trim(),
         grantDatabases: u.grantDatabases,
@@ -364,6 +446,7 @@ export class Create {
       plugins: Array.from(this.selectedPlugins()),
       isPublic: this.isPublic(),
       password: this.customRootPassword().trim() || null,
+      nodeId: this.selectedNodeId(),
     };
 
     this.api.apiDatabaseProvisionPost(payload).subscribe({
@@ -388,7 +471,8 @@ export class Create {
 // a real i18n library here.
 function pluralize(term: string): string {
   if (term.endsWith('y')) return term.slice(0, -1) + 'ies';
-  if (term.endsWith('x') || term.endsWith('s') || term.endsWith('ch') || term.endsWith('sh')) return term + 'es';
+  if (term.endsWith('x') || term.endsWith('s') || term.endsWith('ch') || term.endsWith('sh'))
+    return term + 'es';
   return term + 's';
 }
 

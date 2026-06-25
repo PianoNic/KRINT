@@ -64,7 +64,7 @@ import { NodeDto } from '../api/model/nodeDto';
               </tr>
             </thead>
             <tbody hlmTableBody>
-              @for (n of nodes(); track n.connectionId) {
+              @for (n of nodes(); track n.id) {
                 <tr hlmTableRow>
                   <td hlmTableCell class="font-medium">{{ n.name }}</td>
                   <td hlmTableCell>
@@ -78,14 +78,14 @@ import { NodeDto } from '../api/model/nodeDto';
                   <td hlmTableCell class="max-w-xs truncate text-xs" [title]="n.os">{{ n.os }}</td>
                   <td hlmTableCell class="font-mono text-xs">{{ n.dockerVersion }}</td>
                   <td hlmTableCell class="font-mono text-xs">
-                    {{ n.connectedAt | date: 'HH:mm:ss' }}
+                    {{ n.firstSeenAt | date: 'HH:mm:ss' }}
                   </td>
                   <td hlmTableCell class="font-mono text-xs">
                     {{ n.lastSeenAt | date: 'HH:mm:ss' }}
                   </td>
                   <td hlmTableCell class="text-right">
                     <div class="flex items-center justify-end gap-2">
-                      @if (pingResults()[n.connectionId]; as result) {
+                      @if (pingResults()[n.id]; as result) {
                         <span class="text-muted-foreground text-xs">{{ result }}</span>
                       }
                       <button
@@ -93,10 +93,10 @@ import { NodeDto } from '../api/model/nodeDto';
                         variant="outline"
                         size="sm"
                         type="button"
-                        [disabled]="pinging()[n.connectionId]"
-                        (click)="ping(n.connectionId)"
+                        [disabled]="pinging()[n.id]"
+                        (click)="ping(n.id)"
                       >
-                        {{ pinging()[n.connectionId] ? '…' : 'Ping' }}
+                        {{ pinging()[n.id] ? '…' : 'Ping' }}
                       </button>
                     </div>
                   </td>
@@ -146,19 +146,19 @@ export class Nodes {
     });
   }
 
-  protected ping(connectionId: string): void {
-    this.pinging.update((p) => ({ ...p, [connectionId]: true }));
-    this.api.apiNodesConnectionIdPingPost(connectionId).subscribe({
+  protected ping(id: string): void {
+    this.pinging.update((p) => ({ ...p, [id]: true }));
+    this.api.apiNodesIdPingPost(id).subscribe({
       next: (result) => {
         // roundTripMs is an integer the generator types as an opaque interface (.NET emits every
         // numeric as integer|string); coerce it for display.
         const ms = Number(result.roundTripMs as unknown);
-        this.pingResults.update((r) => ({ ...r, [connectionId]: `${result.reply} · ${ms}ms` }));
-        this.pinging.update((p) => ({ ...p, [connectionId]: false }));
+        this.pingResults.update((r) => ({ ...r, [id]: `${result.reply} · ${ms}ms` }));
+        this.pinging.update((p) => ({ ...p, [id]: false }));
       },
       error: () => {
-        this.pingResults.update((r) => ({ ...r, [connectionId]: 'unreachable' }));
-        this.pinging.update((p) => ({ ...p, [connectionId]: false }));
+        this.pingResults.update((r) => ({ ...r, [id]: 'unreachable' }));
+        this.pinging.update((p) => ({ ...p, [id]: false }));
       },
     });
   }

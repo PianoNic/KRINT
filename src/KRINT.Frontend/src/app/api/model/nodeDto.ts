@@ -10,13 +10,13 @@
 
 
 export interface NodeDto { 
-    connectionId: string;
+    id: string;
     name: string;
     machineName: string;
     os: string;
     dockerVersion: string;
     online: boolean;
-    connectedAt: string;
+    firstSeenAt: string;
     lastSeenAt: string;
 }
 

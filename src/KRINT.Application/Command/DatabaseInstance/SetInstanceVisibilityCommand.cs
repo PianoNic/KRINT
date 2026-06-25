@@ -41,6 +41,11 @@ namespace KRINT.Application.Command.DatabaseInstance
             if (!instance.IsManaged || instance.ContainerName is null || instance.ContainerId is null)
                 throw new InvalidOperationException("Visibility can only be changed on KRINT-managed databases. External containers are owned by the orchestrator that created them.");
 
+            // Node-hosted databases are always loopback-only on the node - nothing connects to a node
+            // directly, so LAN visibility doesn't apply.
+            if (instance.NodeId is not null)
+                throw new NotSupportedException("Visibility can't be changed for node-hosted databases - they are reachable only through the control plane.");
+
             if (instance.IsPublic == command.IsPublic)
                 return instance.ToDto(); // no-op, already in desired state
 

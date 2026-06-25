@@ -38,6 +38,7 @@ namespace KRINT.Application.Command.Database
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
             guard.EnsureMutable(instance);
+            NodeFeatureGuard.EnsureLocal(instance, "Version upgrade");
 
             // Upgrade is dump-restore-swap: it destroys the old container and provisions a fresh
             // one with a new name + image. For externals (typically pinned in the user's

@@ -11,7 +11,8 @@
         </h2>
         <p hlmCardDescription>
           <code class="font-mono">{{ res.instance.containerName }}</code> is up on
-          <code class="font-mono">{{ res.instance.host }}:{{ res.instance.port }}</code>.
+          <code class="font-mono">{{ res.instance.host }}:{{ res.instance.port }}</code
+          >.
         </p>
       </div>
 
@@ -19,7 +20,9 @@
         <div class="flex flex-col gap-2">
           <span class="text-muted-foreground text-sm">Connection string (root)</span>
           <div class="flex items-start gap-2">
-            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{ res.instance.connectionString }}</code>
+            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+              res.instance.connectionString
+            }}</code>
             <app-copy-button [value]="res.instance.connectionString" />
           </div>
         </div>
@@ -37,7 +40,9 @@
 
         @if (res.users.length > 0) {
           <div class="flex flex-col gap-2">
-            <span class="text-muted-foreground text-sm">Users - save these passwords, they won't be shown again</span>
+            <span class="text-muted-foreground text-sm"
+              >Users - save these passwords, they won't be shown again</span
+            >
             <ul class="divide-border divide-y rounded-md border">
               @for (u of res.users; track u.name) {
                 <li class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm">
@@ -73,7 +78,11 @@
               {{ s.n }}
             }
           </span>
-          <span [class.font-medium]="step() === s.n" [class.text-muted-foreground]="step() !== s.n">{{ s.label }}</span>
+          <span
+            [class.font-medium]="step() === s.n"
+            [class.text-muted-foreground]="step() !== s.n"
+            >{{ s.label }}</span
+          >
           @if (!last) {
             <span class="bg-border h-px w-6"></span>
           }
@@ -87,7 +96,9 @@
         @if (step() === 1) {
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Pick an engine</h2>
-            <p class="text-muted-foreground text-sm">Choose the database engine you want to provision.</p>
+            <p class="text-muted-foreground text-sm">
+              Choose the database engine you want to provision.
+            </p>
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               @for (s of supported(); track s.key) {
                 <button
@@ -109,7 +120,9 @@
         @if (step() === 2) {
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Version &amp; default database</h2>
-            <p class="text-muted-foreground text-sm">Pick the engine version. Optionally rename the default database.</p>
+            <p class="text-muted-foreground text-sm">
+              Pick the engine version. Optionally rename the default database.
+            </p>
 
             <div class="flex flex-col gap-2">
               <label hlmLabel>Version</label>
@@ -140,15 +153,41 @@
                 <span class="text-destructive text-sm">{{ err }}</span>
               } @else {
                 <span class="text-muted-foreground text-xs">
-                  Friendly label shown next to the engine logo. Doesn't affect the connection string.
+                  Friendly label shown next to the engine logo. Doesn't affect the connection
+                  string.
                 </span>
               }
             </div>
 
+            @if (onlineNodes().length > 0) {
+              <div class="flex flex-col gap-2">
+                <label hlmLabel>Target node</label>
+                <hlm-select
+                  [value]="selectedNodeId() ?? ''"
+                  (valueChange)="selectedNodeId.set($event || null)"
+                >
+                  <hlm-select-trigger class="w-full">
+                    <hlm-select-value placeholder="Local (control plane)" />
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal>
+                    <hlm-select-item value="">Local (control plane)</hlm-select-item>
+                    @for (n of onlineNodes(); track n.id) {
+                      <hlm-select-item [value]="n.id">{{ n.name }}</hlm-select-item>
+                    }
+                  </hlm-select-content>
+                </hlm-select>
+                <span class="text-muted-foreground text-xs">
+                  Where the container runs. Node-hosted databases are managed through the control
+                  plane.
+                </span>
+              </div>
+            }
+
             @if (supportsDatabaseNaming()) {
               <div class="flex flex-col gap-2">
                 <label hlmLabel for="default-db">
-                  Default {{ databaseTerm() }} name <span class="text-muted-foreground">(optional)</span>
+                  Default {{ databaseTerm() }} name
+                  <span class="text-muted-foreground">(optional)</span>
                 </label>
                 <input
                   hlmInput
@@ -172,7 +211,8 @@
             <!-- Custom root password. Empty = let KRINT generate one. -->
             <div class="flex flex-col gap-2">
               <label hlmLabel for="root-password">
-                Root password <span class="text-muted-foreground">(optional - leave blank to auto-generate)</span>
+                Root password
+                <span class="text-muted-foreground">(optional - leave blank to auto-generate)</span>
               </label>
               <input
                 hlmInput
@@ -203,17 +243,13 @@
               [class.bg-muted]="isPublic()"
               (click)="isPublic.set(!isPublic())"
             >
-              <hlm-checkbox
-                aria-label="Expose on the LAN"
-                [checked]="isPublic()"
-                class="mt-0.5"
-              />
+              <hlm-checkbox aria-label="Expose on the LAN" [checked]="isPublic()" class="mt-0.5" />
               <span class="flex flex-1 flex-col gap-1">
                 <span class="text-sm font-medium">Expose on the LAN</span>
                 <span class="text-muted-foreground text-xs">
-                  Publishes the host port on 0.0.0.0 so other machines on this network can reach
-                  the database. Off by default - port is bound to 127.0.0.1 (this host only).
-                  You can flip this later from the instance menu.
+                  Publishes the host port on 0.0.0.0 so other machines on this network can reach the
+                  database. Off by default - port is bound to 127.0.0.1 (this host only). You can
+                  flip this later from the instance menu.
                 </span>
               </span>
             </button>
@@ -224,12 +260,12 @@
         @if (step() === 3) {
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Plugins &amp; extensions</h2>
-            <p class="text-muted-foreground text-sm">
-              Optional add-ons enabled on this instance.
-            </p>
+            <p class="text-muted-foreground text-sm">Optional add-ons enabled on this instance.</p>
 
             @if (availablePlugins().length === 0) {
-              <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+              <p
+                class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm"
+              >
                 No plugins available for this engine.
               </p>
             } @else {
@@ -263,17 +299,22 @@
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">{{ databaseTermPlural() | titlecase }}</h2>
             @if (!supportsDatabaseNaming()) {
-              <p class="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
-                The <code class="font-mono">{{ engine() }}</code> engine has a single virtual {{ databaseTerm() }};
-                there's nothing to configure on this step.
+              <p
+                class="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm"
+              >
+                The <code class="font-mono">{{ engine() }}</code> engine has a single virtual
+                {{ databaseTerm() }}; there's nothing to configure on this step.
               </p>
             } @else {
               <p class="text-muted-foreground text-sm">
-                Add more {{ databaseTermPlural() }} on top of the default. Skip if you only need one.
+                Add more {{ databaseTermPlural() }} on top of the default. Skip if you only need
+                one.
               </p>
 
               @if (databases().length === 0) {
-                <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+                <p
+                  class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm"
+                >
                   No extra {{ databaseTermPlural() }} yet.
                 </p>
               }
@@ -290,7 +331,15 @@
                       [attr.data-matches-spartan-invalid]="!!databaseErrors()[$index]"
                       [attr.aria-invalid]="!!databaseErrors()[$index] || null"
                     />
-                    <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeDatabase($index)" aria-label="Remove" [hlmTooltip]="'Remove ' + databaseTerm()">
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      (click)="removeDatabase($index)"
+                      aria-label="Remove"
+                      [hlmTooltip]="'Remove ' + databaseTerm()"
+                    >
                       <ng-icon name="lucideTrash2" size="16" />
                     </button>
                   </div>
@@ -300,7 +349,13 @@
                 </div>
               }
 
-              <button hlmBtn variant="outline" type="button" (click)="addDatabase()" class="self-start">
+              <button
+                hlmBtn
+                variant="outline"
+                type="button"
+                (click)="addDatabase()"
+                class="self-start"
+              >
                 <ng-icon name="lucidePlus" size="16" />
                 Add {{ databaseTerm() }}
               </button>
@@ -313,11 +368,14 @@
           <div class="flex flex-col gap-4">
             <h2 class="text-xl font-semibold">Users</h2>
             <p class="text-muted-foreground text-sm">
-              Define login users. Tick which databases each user can access - a fresh password is generated on launch.
+              Define login users. Tick which databases each user can access - a fresh password is
+              generated on launch.
             </p>
 
             @if (users().length === 0) {
-              <p class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+              <p
+                class="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm"
+              >
                 No users yet. The root account always exists.
               </p>
             }
@@ -335,7 +393,15 @@
                       [attr.data-matches-spartan-invalid]="!!userNameErrors()[userIdx]"
                       [attr.aria-invalid]="!!userNameErrors()[userIdx] || null"
                     />
-                    <button hlmBtn variant="ghost" size="icon" type="button" (click)="removeUser(userIdx)" aria-label="Remove user" hlmTooltip="Remove user">
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      (click)="removeUser(userIdx)"
+                      aria-label="Remove user"
+                      hlmTooltip="Remove user"
+                    >
                       <ng-icon name="lucideTrash2" size="16" />
                     </button>
                   </div>
@@ -368,7 +434,10 @@
                     <label
                       class="flex cursor-pointer items-center gap-2 text-sm"
                       [attr.data-testid]="'grant-' + userIdx + '-' + db"
-                      (click)="toggleUserGrant(userIdx, db, !userHasGrant(userIdx, db)); $event.preventDefault()"
+                      (click)="
+                        toggleUserGrant(userIdx, db, !userHasGrant(userIdx, db));
+                        $event.preventDefault()
+                      "
                     >
                       <hlm-checkbox
                         [attr.aria-label]="'Grant ' + db"
@@ -423,7 +492,12 @@
                       <li class="font-mono">
                         {{ u.name }}
                         <span class="text-muted-foreground">
-                          → {{ u.grantDatabases.length === 0 ? 'no grants' : u.grantDatabases.join(', ') }}
+                          →
+                          {{
+                            u.grantDatabases.length === 0
+                              ? 'no grants'
+                              : u.grantDatabases.join(', ')
+                          }}
                         </span>
                       </li>
                     }
@@ -440,7 +514,13 @@
       </div>
 
       <div hlmCardFooter class="justify-between">
-        <button hlmBtn variant="outline" type="button" (click)="back()" [disabled]="step() === 1 || submitting()">
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          (click)="back()"
+          [disabled]="step() === 1 || submitting()"
+        >
           <ng-icon name="lucideArrowLeft" size="16" />
           Back
         </button>

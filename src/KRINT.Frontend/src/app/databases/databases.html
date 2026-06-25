@@ -14,7 +14,14 @@
         <ng-icon name="lucideLink" size="16" />
         Register external
       </button>
-      <button hlmBtn variant="outline" size="sm" type="button" (click)="reload()" [disabled]="store.loading()">
+      <button
+        hlmBtn
+        variant="outline"
+        size="sm"
+        type="button"
+        (click)="reload()"
+        [disabled]="store.loading()"
+      >
         {{ store.loading() ? 'Loading…' : 'Refresh' }}
       </button>
     </div>
@@ -27,7 +34,9 @@
       </div>
     }
     @if (store.isEmpty()) {
-      <p class="text-muted-foreground p-4 text-sm">No instances yet. Click <strong>Create</strong> to provision one.</p>
+      <p class="text-muted-foreground p-4 text-sm">
+        No instances yet. Click <strong>Create</strong> to provision one.
+      </p>
     } @else {
       <table hlmTable>
         <thead hlmTableHeader>
@@ -52,23 +61,57 @@
                     <span class="text-sm font-medium inline-flex items-center gap-2">
                       {{ db.displayName }}
                       @if (!db.isManaged) {
-                        <span hlmBadge variant="outline" class="text-[10px] uppercase tracking-wide">External</span>
+                        <span hlmBadge variant="outline" class="text-[10px] uppercase tracking-wide"
+                          >External</span
+                        >
                       }
                       @if (db.isConfigManaged) {
-                        <span hlmBadge variant="outline" class="text-[10px] uppercase tracking-wide" hlmTooltip="Owned by instances.yaml. Edit the file and restart KRINT to change.">Config</span>
+                        <span
+                          hlmBadge
+                          variant="outline"
+                          class="text-[10px] uppercase tracking-wide"
+                          hlmTooltip="Owned by instances.yaml. Edit the file and restart KRINT to change."
+                          >Config</span
+                        >
+                      }
+                      @if (db.nodeId) {
+                        <span
+                          hlmBadge
+                          variant="secondary"
+                          class="text-[10px] normal-case"
+                          [hlmTooltip]="'Runs on node ' + nodeName(db.nodeId)"
+                        >
+                          <ng-icon name="lucideNetwork" size="11" class="mr-1" />{{
+                            nodeName(db.nodeId)
+                          }}
+                        </span>
                       }
                       @if (db.isManaged && db.containerName) {
                         @if (db.isPublic) {
-                          <ng-icon name="lucideGlobe" size="14" class="text-amber-500" [hlmTooltip]="'Published on 0.0.0.0 - visible on the LAN'" />
+                          <ng-icon
+                            name="lucideGlobe"
+                            size="14"
+                            class="text-amber-500"
+                            [hlmTooltip]="'Published on 0.0.0.0 - visible on the LAN'"
+                          />
                         } @else {
-                          <ng-icon name="lucideLock" size="14" class="text-muted-foreground" [hlmTooltip]="'Bound to 127.0.0.1 - localhost only'" />
+                          <ng-icon
+                            name="lucideLock"
+                            size="14"
+                            class="text-muted-foreground"
+                            [hlmTooltip]="'Bound to 127.0.0.1 - localhost only'"
+                          />
                         }
                       }
                       @if (db.containerName && db.state && db.state !== 'running') {
-                        <span hlmBadge variant="secondary" class="text-[10px] uppercase">{{ db.state }}</span>
+                        <span hlmBadge variant="secondary" class="text-[10px] uppercase">{{
+                          db.state
+                        }}</span>
                       }
                       @if (store.lifecycleBusy() === db.id) {
-                        <span hlmBadge variant="outline" class="text-[10px] normal-case">working...</span>
+                        <span hlmBadge variant="outline" class="text-[10px] normal-case"
+                          >working...</span
+                        >
                       }
                     </span>
                     <span class="text-muted-foreground text-[10px] uppercase">{{ db.engine }}</span>
@@ -119,11 +162,19 @@
                         <ng-icon name="lucideClipboardCopy" />
                         Copy as YAML
                       </button>
-                      <button hlmDropdownMenuItem (click)="upgradeInstance(db)" [disabled]="!db.isManaged || db.isConfigManaged">
+                      <button
+                        hlmDropdownMenuItem
+                        (click)="upgradeInstance(db)"
+                        [disabled]="!db.isManaged || db.isConfigManaged"
+                      >
                         <ng-icon name="lucideArrowUpCircle" />
                         Upgrade version
                       </button>
-                      <button hlmDropdownMenuItem (click)="toggleVisibility(db)" [disabled]="!db.isManaged || db.isConfigManaged">
+                      <button
+                        hlmDropdownMenuItem
+                        (click)="toggleVisibility(db)"
+                        [disabled]="!db.isManaged || db.isConfigManaged"
+                      >
                         @if (db.isPublic) {
                           <ng-icon name="lucideLock" />
                           Lock to localhost
@@ -133,18 +184,38 @@
                         }
                       </button>
                       @if (db.state === 'running') {
-                        <button hlmDropdownMenuItem (click)="stopInstance(db)" [disabled]="!db.containerName || db.isConfigManaged || store.lifecycleBusy() === db.id">
+                        <button
+                          hlmDropdownMenuItem
+                          (click)="stopInstance(db)"
+                          [disabled]="
+                            !db.containerName ||
+                            db.isConfigManaged ||
+                            store.lifecycleBusy() === db.id
+                          "
+                        >
                           <ng-icon name="lucideSquare" />
                           Stop
                         </button>
                       } @else {
-                        <button hlmDropdownMenuItem (click)="startInstance(db)" [disabled]="!db.containerName || db.isConfigManaged || store.lifecycleBusy() === db.id">
+                        <button
+                          hlmDropdownMenuItem
+                          (click)="startInstance(db)"
+                          [disabled]="
+                            !db.containerName ||
+                            db.isConfigManaged ||
+                            store.lifecycleBusy() === db.id
+                          "
+                        >
                           <ng-icon name="lucidePlay" />
                           Start
                         </button>
                       }
                       <hlm-dropdown-menu-separator />
-                      <button hlmDropdownMenuItem (click)="deleteInstance(db)" [disabled]="db.isConfigManaged">
+                      <button
+                        hlmDropdownMenuItem
+                        (click)="deleteInstance(db)"
+                        [disabled]="db.isConfigManaged"
+                      >
                         <ng-icon name="lucideTrash2" />
                         Delete
                       </button>

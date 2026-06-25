@@ -20,6 +20,7 @@ namespace KRINT.Application.Queries.Container
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == query.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(query.InstanceId);
+            NodeFeatureGuard.EnsureLocal(instance, "Container log streaming");
 
             var containerId = instance.ContainerId
                 ?? throw new InvalidOperationException("Container logs are not available for externally-registered databases.");

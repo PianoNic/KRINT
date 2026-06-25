@@ -22,9 +22,15 @@ namespace KRINT.Application
 
         public static async Task<InnerDatabaseTarget> WaitForReadyAsync(IInnerDatabaseService inner, InnerDatabaseTarget target, bool isPublic, CancellationToken cancellationToken)
         {
-            var preferred = Command.Database.CreateDatabaseCommandHandler.ResolveProbeHost(isPublic);
-            var fallback = preferred == "127.0.0.1" ? Command.Database.CreateDatabaseCommandHandler.ProbeHost : "127.0.0.1";
-            var candidates = new[] { target with { Host = preferred }, target with { Host = fallback } };
+            // Node-hosted: the probe runs ON the node against its own loopback (the inner service
+            // dispatches there), so there are no host candidates to try - use the target verbatim.
+            var candidates = target.NodeId is not null
+                ? [target]
+                : new[]
+                {
+                    target with { Host = Command.Database.CreateDatabaseCommandHandler.ResolveProbeHost(isPublic) },
+                    target with { Host = Command.Database.CreateDatabaseCommandHandler.ResolveProbeHost(isPublic) == "127.0.0.1" ? Command.Database.CreateDatabaseCommandHandler.ProbeHost : "127.0.0.1" },
+                };
 
             var ceilingSeconds = CeilingSecondsFor(target.Engine);
             var deadline = DateTime.UtcNow.AddSeconds(ceilingSeconds);
