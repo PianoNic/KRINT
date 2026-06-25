@@ -1,6 +1,7 @@
 using KRINT.API;
 using KRINT.API.Extensions;
 using KRINT.API.Hubs;
+using KRINT.API.Nodes;
 using KRINT.API.OpenApi;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
@@ -13,6 +14,20 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
+// KRINT runs in one of two roles from the same image. "node" is a stripped worker that does nothing
+// but execute Docker work on its own host and dial OUT to the control plane over SignalR; it skips the
+// UI, app database, auth and user-facing endpoints entirely. Anything else is the full control plane.
+if (string.Equals(builder.Configuration["Krint:Role"], "node", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddDocker(builder.Configuration);
+    builder.Services.AddHostedService<NodeAgentHostedService>();
+
+    var nodeApp = builder.Build();
+    nodeApp.MapGet("/health", () => Results.Ok(new { status = "ok", role = "node" }));
+    nodeApp.Run();
+    return;
+}
 
 builder.Services.AddKrintConfig(builder.Environment);
 
@@ -48,6 +63,9 @@ builder.Services.AddInnerDatabases();
 
 builder.Services.AddCatalog();
 
+// Live registry of nodes connected over /hubs/node (in-memory; phase 1 has no persisted node identity).
+builder.Services.AddSingleton<INodeRegistry, NodeRegistry>();
+
 builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
 builder.Services.AddHostedService<KRINT.API.InstanceReconciliationHostedService>();
 
@@ -73,7 +91,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
+                // /hubs/node carries a pre-shared node token, not an OIDC JWT - it authenticates inside
+                // the hub, so keep it out of JWT validation here.
+                if (!string.IsNullOrEmpty(accessToken)
+                    && context.Request.Path.StartsWithSegments("/hubs")
+                    && !context.Request.Path.StartsWithSegments("/hubs/node"))
                 {
                     context.Token = accessToken;
                 }
@@ -124,6 +146,8 @@ app.MapControllers();
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
 app.MapHub<DashboardHub>("/hubs/dashboard").RequireAuthorization();
 app.MapHub<MigrationHub>("/hubs/migration").RequireAuthorization();
+// Nodes authenticate with a pre-shared token inside the hub, so no OIDC authorization here.
+app.MapHub<NodeHub>("/hubs/node");
 
 if (app.Environment.IsProduction())
     app.MapFallbackToFile("index.html").AllowAnonymous();

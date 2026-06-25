@@ -8,6 +8,7 @@ api/app.service.ts
 api/backups.service.ts
 api/dashboard.service.ts
 api/database.service.ts
+api/nodes.service.ts
 api/settings.service.ts
 configuration.ts
 encoder.ts
@@ -43,6 +44,8 @@ model/grantInnerUserDto.ts
 model/innerUserPasswordDto.ts
 model/insertRowDto.ts
 model/models.ts
+model/nodeDto.ts
+model/nodePingResultDto.ts
 model/portRangeDto.ts
 model/problemDetails.ts
 model/problemDetailsStatus.ts
