@@ -17,7 +17,6 @@ namespace KRINT.Infrastructure.Services
             ["mongo"] = "mongodb",
             ["redis"] = "redis",
             ["cockroachdb"] = "cockroachdb",
-            ["clickhouse"] = "clickhouse",
             ["cassandra"] = "cassandra",
             ["neo4j"] = "neo4j",
             // mssql / cockroachdb intentionally omitted - endoflife.date's "latest" patch value
@@ -31,6 +30,10 @@ namespace KRINT.Infrastructure.Services
         {
             // timescale/timescaledb is published as `latest-pg<N>` per supported Postgres major.
             ["timescaledb"] = new[] { "latest-pg18", "latest-pg17", "latest-pg16", "latest-pg15" },
+            // ClickHouse: endoflife.date's `latest` patch (e.g. 26.4.4.38) isn't a published Docker
+            // tag - clickhouse/clickhouse-server ships floating `26.5`/`26.4` and specific build tags
+            // like `26.5.3.52`, not `26.4.4.38`. Curate verified tags (hub.docker.com 2026-06-25).
+            ["clickhouse"] = new[] { "26.5.3.52", "26.5", "26.4", "26.3" },
             // CouchDB - 3.5 is current; 3.4 is the previous line.
             ["couchdb"] = new[] { "3.5.1", "3.5", "3.4.3", "3.4", "3.3" },
             // pgvector/pgvector image tracks Postgres majors.
