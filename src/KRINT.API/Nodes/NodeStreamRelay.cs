@@ -19,11 +19,25 @@ namespace KRINT.API.Nodes
 
         /// <summary>The browser stopped reading - drop the channel (the caller also tells the node to stop).</summary>
         void CloseLog(string streamId);
+
+        // --- interactive console sessions ---
+
+        /// <summary>Remember which node runs an exec session and which browser connection to forward
+        /// its output to.</summary>
+        void RegisterExec(string sessionId, Guid nodeId, string browserConnectionId);
+
+        /// <summary>Resolve a session's node + browser connection, or false if unknown (local session).</summary>
+        bool TryGetExec(string sessionId, out Guid nodeId, out string browserConnectionId);
+
+        void RemoveExec(string sessionId);
     }
 
     public class NodeStreamRelay : INodeStreamRelay
     {
+        private sealed record ExecRoute(Guid NodeId, string BrowserConnectionId);
+
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Channel<string>> _logs = new();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, ExecRoute> _execs = new();
 
         public ChannelReader<string> OpenLog(string streamId)
         {
@@ -49,5 +63,23 @@ namespace KRINT.API.Nodes
             if (_logs.TryRemove(streamId, out var channel))
                 channel.Writer.TryComplete();
         }
+
+        public void RegisterExec(string sessionId, Guid nodeId, string browserConnectionId)
+            => _execs[sessionId] = new ExecRoute(nodeId, browserConnectionId);
+
+        public bool TryGetExec(string sessionId, out Guid nodeId, out string browserConnectionId)
+        {
+            if (_execs.TryGetValue(sessionId, out var route))
+            {
+                nodeId = route.NodeId;
+                browserConnectionId = route.BrowserConnectionId;
+                return true;
+            }
+            nodeId = default;
+            browserConnectionId = string.Empty;
+            return false;
+        }
+
+        public void RemoveExec(string sessionId) => _execs.TryRemove(sessionId, out _);
     }
 }
