@@ -73,6 +73,8 @@ builder.Services.AddSingleton<INodeRegistry, NodeRegistry>();
 builder.Services.AddScoped<KRINT.Infrastructure.Interfaces.IDockerServiceResolver, DockerServiceResolver>();
 // Dispatches inner-DB operations to a node when the target carries a NodeId (used by the routing resolvers).
 builder.Services.AddSingleton<KRINT.Infrastructure.Interfaces.INodeRpc, NodeRpc>();
+// Bridges node-originated streamed output (container logs) back to the browser hub.
+builder.Services.AddSingleton<INodeStreamRelay, NodeStreamRelay>();
 
 builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
 builder.Services.AddHostedService<KRINT.API.InstanceReconciliationHostedService>();

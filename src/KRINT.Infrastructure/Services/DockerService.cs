@@ -95,6 +95,37 @@ namespace KRINT.Infrastructure.Services
             return client.Volumes.RemoveAsync(name, force, cancellationToken);
         }
 
+        public async IAsyncEnumerable<string> StreamLogsAsync(string containerId, int tailLines, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var parameters = new ContainerLogsParameters
+            {
+                ShowStdout = true,
+                ShowStderr = true,
+                Follow = true,
+                Tail = tailLines.ToString(),
+                Timestamps = false,
+            };
+
+            using var stream = await client.Containers.GetContainerLogsAsync(containerId, tty: false, parameters, cancellationToken);
+
+            var buffer = new byte[16 * 1024];
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                MultiplexedStream.ReadResult read;
+                try
+                {
+                    read = await stream.ReadOutputAsync(buffer, 0, buffer.Length, cancellationToken);
+                }
+                catch (OperationCanceledException) { yield break; }
+                catch (IOException) { yield break; }
+
+                if (read.EOF) yield break;
+                if (read.Count == 0) continue;
+
+                yield return System.Text.Encoding.UTF8.GetString(buffer, 0, read.Count);
+            }
+        }
+
         public async Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default)
         {
             // Cap any single exec at 2 minutes. Without this a stuck pg_dump/mysqldump call would
