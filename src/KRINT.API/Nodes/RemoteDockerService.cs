@@ -58,8 +58,15 @@ namespace KRINT.API.Nodes
         public Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default)
             => Node().InvokeAsync<byte[]>("ExecCapture", containerId, command, cancellationToken);
 
-        public Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Streaming exec (backup/restore) is not supported on remote nodes yet.");
+        public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default)
+        {
+            // The local implementation already buffers stdin fully in memory (dumps are bounded), so
+            // sending the whole payload as one byte[] argument matches that and keeps the contract
+            // simple. The node reconstructs a stream and runs the command locally.
+            using var buffer = new MemoryStream();
+            await stdin.CopyToAsync(buffer, cancellationToken);
+            await Node().InvokeAsync<bool>("ExecWithStdin", containerId, command, buffer.ToArray(), cancellationToken);
+        }
 
         // Flatten the Docker.DotNet parameters KRINT sets into a transport-safe spec.
         private static CreateContainerSpec ToSpec(CreateContainerParameters p)

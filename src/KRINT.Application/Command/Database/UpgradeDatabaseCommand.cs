@@ -22,7 +22,7 @@ namespace KRINT.Application.Command.Database
     /// column carries the old version string so the UI can later offer a Rollback button.
     /// </summary>
     public class UpgradeDatabaseCommandHandler(
-        IDockerService docker,
+        IDockerServiceResolver dockerResolver,
         ISecretsVaultService vault,
         KrintDbContext db,
         IActivityLogger activity,
@@ -38,7 +38,8 @@ namespace KRINT.Application.Command.Database
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
             guard.EnsureMutable(instance);
-            NodeFeatureGuard.EnsureLocal(instance, "Version upgrade");
+
+            var docker = dockerResolver.Resolve(instance.NodeId);
 
             // Upgrade is dump-restore-swap: it destroys the old container and provisions a fresh
             // one with a new name + image. For externals (typically pinned in the user's
@@ -63,7 +64,7 @@ namespace KRINT.Application.Command.Database
 
             // 1. Auto-backup OLD so a future Rollback can restore from it.
             var dump = await backupResolver.Resolve(instance.Engine).DumpAsync(
-                new BackupTarget(oldContainerId, oldContainerName, instance.Engine, instance.Username, password, instance.DatabaseName),
+                new BackupTarget(oldContainerId, oldContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId),
                 cancellationToken);
             var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
             var backupFileName = $"pre-upgrade-{oldVersion}-to-{command.TargetVersion}-{stamp}.{dump.FileExtension}";
@@ -110,7 +111,7 @@ namespace KRINT.Application.Command.Database
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
                         // Preserve the old container's visibility setting across the swap.
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = instance.Port.ToString(), HostIP = instance.IsPublic ? "" : "127.0.0.1" } },
+                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = instance.Port.ToString(), HostIP = instance.NodeId is not null || !instance.IsPublic ? "127.0.0.1" : "" } },
                     },
                     Binds = new List<string> { newBindSpec },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
@@ -131,14 +132,15 @@ namespace KRINT.Application.Command.Database
 
                 // Wait for the engine inside the new container to accept connections.
                 // ReadinessProbe tries both probe hosts - see its doc comment.
-                var readinessTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ResolveProbeHost(instance.IsPublic), instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
+                var probeHost = instance.NodeId is not null ? "127.0.0.1" : CreateDatabaseCommandHandler.ResolveProbeHost(instance.IsPublic);
+                var readinessTarget = new InnerDatabaseTarget(instance.Engine, probeHost, instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase, instance.NodeId);
                 await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(instance.Engine), readinessTarget, instance.IsPublic, cancellationToken);
 
                 // 5. Restore the pre-upgrade dump into NEW.
                 await using (var stream = backupStorage.OpenRead(backupPath)
                     ?? throw new InvalidOperationException($"Pre-upgrade backup vanished: {backupPath}"))
                 {
-                    var restoreTarget = new BackupTarget(newCreateResult.ID, newContainerName, instance.Engine, instance.Username, password, instance.DatabaseName);
+                    var restoreTarget = new BackupTarget(newCreateResult.ID, newContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId);
                     await backupResolver.Resolve(instance.Engine).RestoreAsync(restoreTarget, stream, cancellationToken);
                 }
 

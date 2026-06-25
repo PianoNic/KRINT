@@ -19,7 +19,7 @@ namespace KRINT.Infrastructure.Services
         public override string Engine => "mariadb";
     }
 
-    public sealed class MariaDbBackupService(IDockerService docker) : MySqlBackupService(docker)
+    public sealed class MariaDbBackupService(IDockerServiceResolver dockerResolver) : MySqlBackupService(dockerResolver)
     {
         public override string Engine => "mariadb";
     }

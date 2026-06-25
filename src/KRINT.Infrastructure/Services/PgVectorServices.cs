@@ -20,7 +20,7 @@ namespace KRINT.Infrastructure.Services
         public override string Engine => "pgvector";
     }
 
-    public sealed class PgVectorBackupService(IDockerService docker) : PostgresBackupService(docker)
+    public sealed class PgVectorBackupService(IDockerServiceResolver dockerResolver) : PostgresBackupService(dockerResolver)
     {
         public override string Engine => "pgvector";
     }

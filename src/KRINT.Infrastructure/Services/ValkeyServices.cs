@@ -8,5 +8,5 @@ namespace KRINT.Infrastructure.Services
     public sealed class ValkeyInnerDatabaseService : RedisInnerDatabaseService { public override string Engine => "valkey"; }
     public sealed class ValkeyInnerUserService     : RedisInnerUserService     { public override string Engine => "valkey"; }
     public sealed class ValkeyInnerSchemaService   : RedisInnerSchemaService   { public override string Engine => "valkey"; }
-    public sealed class ValkeyBackupService(IDockerService docker) : RedisBackupService(docker) { public override string Engine => "valkey"; }
+    public sealed class ValkeyBackupService(IDockerServiceResolver dockerResolver) : RedisBackupService(dockerResolver) { public override string Engine => "valkey"; }
 }

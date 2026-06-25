@@ -17,17 +17,17 @@ namespace KRINT.Application.Command.Backup
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
-            NodeFeatureGuard.EnsureLocal(instance, "Backups");
 
             // Backups exec inside the container (pg_dump, mysqldump, mongodump). Available
-            // whenever there's a reachable container, including adopted externals.
+            // whenever there's a reachable container, including adopted externals and node-hosted ones
+            // (the exec is dispatched to the node, the dump comes back over the connection).
             if (instance.ContainerName is null || instance.ContainerId is null)
                 throw new InvalidOperationException("Backups require a Docker container - this database isn't reachable that way.");
 
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
-            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName);
+            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId);
 
             var dump = await resolver.Resolve(instance.Engine).DumpAsync(target, cancellationToken);
 

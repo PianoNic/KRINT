@@ -20,7 +20,7 @@ namespace KRINT.Infrastructure.Services
         public override string Engine => "timescaledb";
     }
 
-    public sealed class TimescaleDbBackupService(IDockerService docker) : PostgresBackupService(docker)
+    public sealed class TimescaleDbBackupService(IDockerServiceResolver dockerResolver) : PostgresBackupService(dockerResolver)
     {
         public override string Engine => "timescaledb";
     }

@@ -17,7 +17,6 @@ namespace KRINT.Application.Command.Backup
 
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == entry.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(entry.InstanceId);
-            NodeFeatureGuard.EnsureLocal(instance, "Restore");
 
             if (instance.ContainerName is null || instance.ContainerId is null)
                 throw new InvalidOperationException("Restore requires a Docker container - this database isn't reachable that way.");
@@ -25,7 +24,7 @@ namespace KRINT.Application.Command.Backup
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
-            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName);
+            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId);
 
             await using var stream = storage.OpenRead(entry.FilePath)
                 ?? throw new InvalidOperationException($"Backup file is missing on disk: {entry.FilePath}");

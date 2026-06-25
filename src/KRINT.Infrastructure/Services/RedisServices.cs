@@ -203,7 +203,7 @@ namespace KRINT.Infrastructure.Services
         }
     }
 
-    public class RedisBackupService(IDockerService docker) : IBackupService
+    public class RedisBackupService(IDockerServiceResolver dockerResolver) : IBackupService
     {
         public virtual string Engine => "redis";
 
@@ -216,7 +216,7 @@ namespace KRINT.Infrastructure.Services
                 "sh", "-c",
                 $"redis-cli {AuthFlag(target.Password)} save >/dev/null && cat /data/dump.rdb",
             };
-            var bytes = await docker.ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
+            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
             return new BackupOutput(bytes, "rdb");
         }
 
@@ -229,7 +229,7 @@ namespace KRINT.Infrastructure.Services
                 "sh", "-c",
                 $"cat > /data/dump.rdb && redis-cli {AuthFlag(target.Password)} DEBUG RELOAD >/dev/null",
             };
-            await docker.ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
+            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
         }
 
         private static string AuthFlag(string password)
