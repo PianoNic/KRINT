@@ -32,7 +32,7 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 - **Users & access**: create logins, reset passwords, grant per-database access.
 - **OIDC auth**: bring your own provider (Pocket ID, Authentik, Auth0, ...) or use the bundled Keycloak.
 - **Capability-aware UI**: engines without "users" or "rows" simply don't show those controls.
-- **Nodes** (experimental): run the same image in a stripped `node` role that dials into the control plane over SignalR to add remote Docker hosts. See [docs/nodes.md](docs/nodes.md).
+- **Nodes** (experimental): run the same image in a stripped `node` role that dials into the control plane over SignalR to add remote Docker hosts. Provision a database onto a node and browse, query, back up, upgrade, tail logs and open a shell on it — every operation tunnels over the one connection, so nodes expose no ports. See [docs/nodes.md](docs/nodes.md).
 
 ## Documentation
 
@@ -70,6 +70,7 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
   <img src="assets/screenshots/activity.png" width="49%" alt="Activity log" />
 </p>
 <p align="center">
+  <img src="assets/screenshots/nodes.png" width="49%" alt="Nodes: remote Docker workers" />
   <img src="assets/screenshots/settings.png" width="49%" alt="Settings" />
 </p>
 
