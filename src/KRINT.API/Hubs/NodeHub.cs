@@ -16,6 +16,7 @@ namespace KRINT.API.Hubs
     public class NodeHub(
         INodeRegistry registry,
         INodeStreamRelay streamRelay,
+        IHubContext<ContainerHub> containerHub,
         IConfiguration configuration,
         IServiceScopeFactory scopeFactory,
         ILogger<NodeHub> logger) : Hub
@@ -94,6 +95,23 @@ namespace KRINT.API.Hubs
         public Task LogStreamCompleted(string streamId)
         {
             streamRelay.CompleteLog(streamId);
+            return Task.CompletedTask;
+        }
+
+        /// <summary>Console output from a node-run exec session - forward to the browser that opened it.</summary>
+        public Task ExecOutput(string sessionId, string base64Data)
+        {
+            if (streamRelay.TryGetExec(sessionId, out _, out var browserConnectionId))
+                return containerHub.Clients.Client(browserConnectionId).SendAsync("ExecOutput", sessionId, base64Data);
+            return Task.CompletedTask;
+        }
+
+        /// <summary>A node-run exec session exited - forward the code to the browser and forget it.</summary>
+        public Task ExecExited(string sessionId, long? exitCode)
+        {
+            if (streamRelay.TryGetExec(sessionId, out _, out var browserConnectionId))
+                _ = containerHub.Clients.Client(browserConnectionId).SendAsync("ExecExited", sessionId, exitCode);
+            streamRelay.RemoveExec(sessionId);
             return Task.CompletedTask;
         }
 

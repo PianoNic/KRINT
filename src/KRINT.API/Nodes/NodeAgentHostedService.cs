@@ -20,6 +20,8 @@ namespace KRINT.API.Nodes
         private string _nodeId = "";
         // Active log follows started by the control plane, so StopLogStream can cancel them.
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource> _logStreams = new();
+        // Active interactive exec sessions keyed by the control-plane session id.
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IContainerExecSession> _execSessions = new();
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -55,6 +57,7 @@ namespace KRINT.API.Nodes
             _connection.On("Ping", () => "pong");
             RegisterDockerHandlers(_connection);
             RegisterInnerDbHandlers(_connection);
+            RegisterExecHandlers(_connection);
 
             // Re-register after every (re)connect, since the registry is keyed by connection id and a
             // reconnect yields a fresh one.
@@ -150,6 +153,49 @@ namespace KRINT.API.Nodes
             {
                 if (_logStreams.TryRemove(streamId, out var cts)) cts.Cancel();
                 return Task.FromResult(true);
+            });
+        }
+
+        // Interactive console: run the exec on this node's daemon and bridge its TTY over the
+        // connection. Output/Exited are pushed to the control plane keyed by the control-plane session
+        // id; the control plane relays them to the browser. Input/resize/end come back the same way.
+        private void RegisterExecHandlers(HubConnection c)
+        {
+            c.On<string, string, uint, uint, bool>("StartExec", async (sessionId, containerId, cols, rows) =>
+            {
+                var registry = services.GetRequiredService<IContainerExecRegistry>();
+                var session = await registry.StartAsync(containerId, cols, rows);
+                _execSessions[sessionId] = session;
+                session.Output += async data =>
+                {
+                    if (_connection is null) return;
+                    try { await _connection.SendAsync("ExecOutput", sessionId, Convert.ToBase64String(data.Span)); } catch { }
+                };
+                session.Exited += async code =>
+                {
+                    _execSessions.TryRemove(sessionId, out _);
+                    if (_connection is null) return;
+                    try { await _connection.SendAsync("ExecExited", sessionId, code); } catch { }
+                };
+                return true;
+            });
+            c.On<string, string, bool>("WriteExec", async (sessionId, base64) =>
+            {
+                if (_execSessions.TryGetValue(sessionId, out var session))
+                    await session.WriteAsync(Convert.FromBase64String(base64));
+                return true;
+            });
+            c.On<string, uint, uint, bool>("ResizeExec", async (sessionId, cols, rows) =>
+            {
+                if (_execSessions.TryGetValue(sessionId, out var session))
+                    await session.ResizeAsync(cols, rows);
+                return true;
+            });
+            c.On<string, bool>("EndExec", async (sessionId) =>
+            {
+                if (_execSessions.TryRemove(sessionId, out var session))
+                    await services.GetRequiredService<IContainerExecRegistry>().EndAsync(session.Id);
+                return true;
             });
         }
 

@@ -51,9 +51,23 @@ namespace KRINT.API.Hubs
 
         public async Task<string> StartExec(Guid instanceId, uint cols, uint rows)
         {
-            var containerId = await mediator.Send(new ResolveContainerIdQuery(instanceId), Context.ConnectionAborted);
+            var route = await mediator.Send(new GetContainerRouteQuery(instanceId), Context.ConnectionAborted);
 
-            var session = await registry.StartAsync(containerId, cols == 0 ? 120 : cols, rows == 0 ? 30 : rows, Context.ConnectionAborted);
+            // Node-hosted: the exec runs on the node. We mint the session id, remember which browser
+            // connection owns it (so the node's output can be forwarded back), and the node pushes
+            // ExecOutput/ExecExited which NodeHub relays to this caller.
+            if (route.NodeId is { } nodeId)
+            {
+                var sessionId = Guid.NewGuid().ToString("N");
+                streamRelay.RegisterExec(sessionId, nodeId, Context.ConnectionId);
+                var nodeSet = _sessionsByConnection.GetOrAdd(Context.ConnectionId, _ => new HashSet<string>());
+                lock (nodeSet) nodeSet.Add(sessionId);
+                await nodeRpc.InvokeAsync<bool>(nodeId, "StartExec",
+                    [sessionId, route.ContainerId, cols == 0 ? 120u : cols, rows == 0 ? 30u : rows], Context.ConnectionAborted);
+                return sessionId;
+            }
+
+            var session = await registry.StartAsync(route.ContainerId, cols == 0 ? 120 : cols, rows == 0 ? 30 : rows, Context.ConnectionAborted);
 
             // The Hub instance is disposed when this method returns, so Clients.Caller becomes
             // a dead proxy by the time bash echoes its first byte. Route via IHubContext +
@@ -81,24 +95,40 @@ namespace KRINT.API.Hubs
             return session.Id;
         }
 
-        public Task WriteExec(string sessionId, string base64Data)
+        public async Task WriteExec(string sessionId, string base64Data)
         {
+            if (streamRelay.TryGetExec(sessionId, out var nodeId, out _))
+            {
+                await nodeRpc.InvokeAsync<bool>(nodeId, "WriteExec", [sessionId, base64Data], Context.ConnectionAborted);
+                return;
+            }
             var data = Convert.FromBase64String(base64Data);
-            return mediator.Send(new WriteContainerExecInputCommand(sessionId, data), Context.ConnectionAborted).AsTask();
+            await mediator.Send(new WriteContainerExecInputCommand(sessionId, data), Context.ConnectionAborted);
         }
 
-        public Task ResizeExec(string sessionId, uint cols, uint rows)
+        public async Task ResizeExec(string sessionId, uint cols, uint rows)
         {
-            return mediator.Send(new ResizeContainerExecCommand(sessionId, cols, rows), Context.ConnectionAborted).AsTask();
+            if (streamRelay.TryGetExec(sessionId, out var nodeId, out _))
+            {
+                await nodeRpc.InvokeAsync<bool>(nodeId, "ResizeExec", [sessionId, cols, rows], Context.ConnectionAborted);
+                return;
+            }
+            await mediator.Send(new ResizeContainerExecCommand(sessionId, cols, rows), Context.ConnectionAborted);
         }
 
-        public Task EndExec(string sessionId)
+        public async Task EndExec(string sessionId)
         {
             if (_sessionsByConnection.TryGetValue(Context.ConnectionId, out var set))
             {
                 lock (set) set.Remove(sessionId);
             }
-            return mediator.Send(new EndContainerExecCommand(sessionId), Context.ConnectionAborted).AsTask();
+            if (streamRelay.TryGetExec(sessionId, out var nodeId, out _))
+            {
+                streamRelay.RemoveExec(sessionId);
+                try { await nodeRpc.InvokeAsync<bool>(nodeId, "EndExec", [sessionId], Context.ConnectionAborted); } catch { }
+                return;
+            }
+            await mediator.Send(new EndContainerExecCommand(sessionId), Context.ConnectionAborted);
         }
 
         public override async Task OnDisconnectedAsync(Exception? exception)
@@ -109,7 +139,16 @@ namespace KRINT.API.Hubs
                 lock (set) ids = set.ToArray();
                 foreach (var id in ids)
                 {
-                    try { await registry.EndAsync(id); } catch { }
+                    // Node sessions live on the node; tell it to end. Local sessions end here.
+                    if (streamRelay.TryGetExec(id, out var nodeId, out _))
+                    {
+                        streamRelay.RemoveExec(id);
+                        try { await nodeRpc.InvokeAsync<bool>(nodeId, "EndExec", [id], CancellationToken.None); } catch { }
+                    }
+                    else
+                    {
+                        try { await registry.EndAsync(id); } catch { }
+                    }
                 }
             }
             await base.OnDisconnectedAsync(exception);
