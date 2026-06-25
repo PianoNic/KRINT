@@ -8,6 +8,7 @@ import { Browser } from './browser/browser';
 import { Backups } from './backups/backups';
 import { Activity } from './activity/activity';
 import { Console } from './console/console';
+import { Nodes } from './nodes/nodes';
 import { Settings } from './settings/settings';
 
 export const routes: Routes = [
@@ -24,6 +25,7 @@ export const routes: Routes = [
       { path: 'query', redirectTo: 'browser' },
       { path: 'backups', component: Backups },
       { path: 'console', component: Console },
+      { path: 'nodes', component: Nodes },
       { path: 'activity', component: Activity },
       { path: 'settings', component: Settings },
       // legacy alias

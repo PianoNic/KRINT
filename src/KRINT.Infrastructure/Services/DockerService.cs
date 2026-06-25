@@ -20,6 +20,12 @@ namespace KRINT.Infrastructure.Services
             }
         }
 
+        public async Task<string> GetVersionAsync(CancellationToken cancellationToken = default)
+        {
+            var version = await client.System.GetVersionAsync(cancellationToken);
+            return version.Version;
+        }
+
         public Task<IList<ContainerListResponse>> ListContainersAsync(bool all = true, CancellationToken cancellationToken = default)
         {
             return client.Containers.ListContainersAsync(new ContainersListParameters { All = all }, cancellationToken);

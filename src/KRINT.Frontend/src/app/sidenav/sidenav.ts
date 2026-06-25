@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+} from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -12,6 +19,7 @@ import {
   lucideLogOut,
   lucideMonitor,
   lucideMoon,
+  lucideNetwork,
   lucidePlus,
   lucideServer,
   lucideSettings,
@@ -27,13 +35,7 @@ import { AppService } from '../api/api/app.service';
 
 @Component({
   selector: 'app-sidenav',
-  imports: [
-    HlmSidebarImports,
-    HlmDropdownMenuImports,
-    HlmAvatarImports,
-    NgIcon,
-    RouterLink,
-  ],
+  imports: [HlmSidebarImports, HlmDropdownMenuImports, HlmAvatarImports, NgIcon, RouterLink],
   providers: [
     provideIcons({
       lucideActivity,
@@ -47,6 +49,7 @@ import { AppService } from '../api/api/app.service';
       lucideSun,
       lucideMoon,
       lucideMonitor,
+      lucideNetwork,
       lucideTable,
       lucideTerminal,
     }),
@@ -67,13 +70,18 @@ export class Sidenav {
   private static readonly STORAGE_KEY = 'krint.sidebar.open';
 
   constructor() {
-    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(Sidenav.STORAGE_KEY) : null;
+    const saved =
+      typeof localStorage !== 'undefined' ? localStorage.getItem(Sidenav.STORAGE_KEY) : null;
     if (saved !== null) {
       this.sidebarService.setOpen(saved === 'true');
     }
     effect(() => {
       const open = this.sidebarService.open();
-      try { localStorage.setItem(Sidenav.STORAGE_KEY, String(open)); } catch { /* private mode */ }
+      try {
+        localStorage.setItem(Sidenav.STORAGE_KEY, String(open));
+      } catch {
+        /* private mode */
+      }
     });
   }
 
@@ -96,21 +104,21 @@ export class Sidenav {
   protected readonly themeMode = this.theme.mode;
   protected readonly navItems: ReadonlyArray<{ route: string; label: string; icon: string }> = [
     { route: '/instances', label: 'Instances', icon: 'lucideServer' },
-    { route: '/browser',   label: 'Browser',   icon: 'lucideTable' },
-    { route: '/backups',   label: 'Backups',   icon: 'lucideArchive' },
-    { route: '/console',   label: 'Console',   icon: 'lucideTerminal' },
-    { route: '/activity',  label: 'Activity',  icon: 'lucideActivity' },
-    { route: '/settings',  label: 'Settings',  icon: 'lucideSettings' },
+    { route: '/browser', label: 'Browser', icon: 'lucideTable' },
+    { route: '/backups', label: 'Backups', icon: 'lucideArchive' },
+    { route: '/console', label: 'Console', icon: 'lucideTerminal' },
+    { route: '/nodes', label: 'Nodes', icon: 'lucideNetwork' },
+    { route: '/activity', label: 'Activity', icon: 'lucideActivity' },
+    { route: '/settings', label: 'Settings', icon: 'lucideSettings' },
   ];
 
-  protected readonly themeOptions: ReadonlyArray<{ mode: ThemeMode; label: string; icon: string }> = [
-    { mode: 'light', label: 'Light', icon: 'lucideSun' },
-    { mode: 'dark', label: 'Dark', icon: 'lucideMoon' },
-    { mode: 'system', label: 'System', icon: 'lucideMonitor' },
-  ];
-  protected readonly menuSide = computed(() =>
-    this.sidebarService.isMobile() ? 'top' : 'right',
-  );
+  protected readonly themeOptions: ReadonlyArray<{ mode: ThemeMode; label: string; icon: string }> =
+    [
+      { mode: 'light', label: 'Light', icon: 'lucideSun' },
+      { mode: 'dark', label: 'Dark', icon: 'lucideMoon' },
+      { mode: 'system', label: 'System', icon: 'lucideMonitor' },
+    ];
+  protected readonly menuSide = computed(() => (this.sidebarService.isMobile() ? 'top' : 'right'));
 
   private readonly appService = inject(AppService);
   protected readonly version = toSignal(
