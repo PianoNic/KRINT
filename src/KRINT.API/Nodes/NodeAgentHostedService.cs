@@ -131,6 +131,7 @@ namespace KRINT.API.Nodes
             c.On("GetVersion", () => WithDocker(d => d.GetVersionAsync()));
             c.On<bool, IList<ContainerListResponse>>("ListContainers", all => WithDocker(d => d.ListContainersAsync(all)));
             c.On<string, ContainerInspectResponse>("InspectContainer", id => WithDocker(d => d.InspectContainerAsync(id)));
+            c.On<string, ContainerResourceSample?>("GetContainerResourceUsage", id => WithDocker(d => d.GetContainerResourceUsageAsync(id)));
             c.On<string, string, bool>("PullImage", (image, tag) => WithDocker(async d => { await d.PullImageAsync(image, tag); return true; }));
             c.On<CreateContainerSpec, CreateContainerResponse>("CreateContainer", spec => WithDocker(d => d.CreateContainerAsync(ToParameters(spec))));
             c.On<string, bool>("StartContainer", id => WithDocker(d => d.StartContainerAsync(id)));

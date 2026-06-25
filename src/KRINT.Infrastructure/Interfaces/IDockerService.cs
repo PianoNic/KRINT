@@ -2,6 +2,10 @@ using Docker.DotNet.Models;
 
 namespace KRINT.Infrastructure.Interfaces
 {
+    /// <summary>A container's instantaneous resource use: memory in bytes and CPU as a fraction of
+    /// total host CPU (0-100).</summary>
+    public record ContainerResourceSample(long MemoryBytes, double CpuPercent);
+
     public interface IDockerService
     {
         Task<bool> PingAsync(CancellationToken cancellationToken = default);
@@ -15,6 +19,10 @@ namespace KRINT.Infrastructure.Interfaces
 
         /// <summary>One-shot stats snapshot (Stream=false). Returns null if the container is stopped or unreachable.</summary>
         Task<ContainerStatsResponse?> GetContainerStatsOnceAsync(string id, CancellationToken cancellationToken = default);
+
+        /// <summary>Memory bytes + CPU% for a single container, computed from one stats snapshot. Returns
+        /// null if unavailable. Primitive-only so it round-trips when this runs on a remote node.</summary>
+        Task<ContainerResourceSample?> GetContainerResourceUsageAsync(string id, CancellationToken cancellationToken = default);
 
         Task PullImageAsync(string image, string tag = "latest", CancellationToken cancellationToken = default);
 

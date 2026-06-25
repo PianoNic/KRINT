@@ -33,9 +33,13 @@ namespace KRINT.API.Nodes
         public Task<ContainerInspectResponse> InspectContainerAsync(string id, CancellationToken cancellationToken = default)
             => Node().InvokeAsync<ContainerInspectResponse>("InspectContainer", id, cancellationToken);
 
-        // Per-container stats aren't proxied; node-hosted instances just report no live CPU/mem.
+        // The full stats response is a large Docker.DotNet type that doesn't round-trip over STJ;
+        // the dashboard uses the primitive GetContainerResourceUsageAsync instead, so this stays null.
         public Task<ContainerStatsResponse?> GetContainerStatsOnceAsync(string id, CancellationToken cancellationToken = default)
             => Task.FromResult<ContainerStatsResponse?>(null);
+
+        public Task<ContainerResourceSample?> GetContainerResourceUsageAsync(string id, CancellationToken cancellationToken = default)
+            => Node().InvokeAsync<ContainerResourceSample?>("GetContainerResourceUsage", id, cancellationToken);
 
         public Task PullImageAsync(string image, string tag = "latest", CancellationToken cancellationToken = default)
             => Node().InvokeAsync<bool>("PullImage", image, tag, cancellationToken);
