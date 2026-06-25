@@ -123,15 +123,21 @@ namespace KRINT.Application.Command.Database
                 await docker.StartContainerAsync(createResult.ID, cancellationToken);
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
-                // mssql and cockroachdb can't create the default database from an env var (unlike
-                // POSTGRES_DB / MYSQL_DATABASE / CLICKHOUSE_DB). For those, probe readiness against
-                // the engine's always-present system db (master / defaultdb) - otherwise the probe
+                // Some engines don't create the default database from a container env var (unlike
+                // POSTGRES_DB / MYSQL_DATABASE / CLICKHOUSE_DB): mssql/cockroachdb take no DB env,
+                // cassandra never auto-creates a keyspace, and couchdb never auto-creates a database -
+                // not even its fallback "default". For those, probe readiness against the engine's
+                // always-present system db (master / defaultdb / system) - otherwise the probe
                 // connects to a database that doesn't exist yet and the instance never comes ready -
                 // then CREATE the requested default database explicitly afterwards.
-                var needsExplicitDefaultDb =
-                    (string.Equals(command.Engine, "mssql", StringComparison.OrdinalIgnoreCase)
-                     || string.Equals(command.Engine, "cockroachdb", StringComparison.OrdinalIgnoreCase))
-                    && !string.Equals(databaseName, spec.DefaultDatabase, StringComparison.OrdinalIgnoreCase);
+                var needsExplicitDefaultDb = command.Engine.ToLowerInvariant() switch
+                {
+                    // CouchDB never auto-creates, so even a blank (fallback) default db must be made.
+                    "couchdb" => true,
+                    "mssql" or "cockroachdb" or "cassandra"
+                        => !string.Equals(databaseName, spec.DefaultDatabase, StringComparison.OrdinalIgnoreCase),
+                    _ => false,
+                };
                 var probeDatabase = needsExplicitDefaultDb ? spec.DefaultDatabase : databaseName;
 
                 // Wait for the engine inside the container to accept connections. The returned
