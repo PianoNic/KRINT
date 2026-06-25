@@ -28,6 +28,10 @@ namespace KRINT.Infrastructure.Interfaces
 
         Task RemoveVolumeAsync(string name, bool force = false, CancellationToken cancellationToken = default);
 
+        /// <summary>Follows a container's combined stdout/stderr, yielding decoded text chunks until
+        /// the stream ends or is cancelled. Used to stream logs (locally, or on a node).</summary>
+        IAsyncEnumerable<string> StreamLogsAsync(string containerId, int tailLines, CancellationToken cancellationToken = default);
+
         /// <summary>Runs a command inside a running container and returns its stdout as raw bytes.</summary>
         Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default);
 

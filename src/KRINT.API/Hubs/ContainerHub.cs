@@ -4,6 +4,7 @@ using System.Text;
 using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using KRINT.API.Nodes;
 using KRINT.Application;
 using KRINT.Application.Command.Container;
 using KRINT.Application.Queries.Container;
@@ -12,7 +13,7 @@ using KRINT.Infrastructure.Interfaces;
 namespace KRINT.API.Hubs
 {
     [Authorize]
-    public class ContainerHub(IMediator mediator, IContainerExecRegistry registry, IHubContext<ContainerHub> hubContext) : Hub
+    public class ContainerHub(IMediator mediator, IContainerExecRegistry registry, IHubContext<ContainerHub> hubContext, INodeRpc nodeRpc, INodeStreamRelay streamRelay) : Hub
     {
         // Tracks live exec sessions per connection so OnDisconnectedAsync can tear them down.
         // Without this a closed browser tab would leave a docker exec session running.
@@ -20,6 +21,28 @@ namespace KRINT.API.Hubs
 
         public async IAsyncEnumerable<string> StreamLogs(Guid instanceId, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            var route = await mediator.Send(new GetContainerRouteQuery(instanceId), cancellationToken);
+
+            if (route.NodeId is { } nodeId)
+            {
+                // Node-hosted: the node follows the logs and pushes frames to us via the relay.
+                var streamId = Guid.NewGuid().ToString("N");
+                var reader = streamRelay.OpenLog(streamId);
+                await nodeRpc.InvokeAsync<bool>(nodeId, "StartLogStream", [streamId, route.ContainerId, 200], cancellationToken);
+                try
+                {
+                    await foreach (var frame in reader.ReadAllAsync(cancellationToken))
+                        yield return frame;
+                }
+                finally
+                {
+                    streamRelay.CloseLog(streamId);
+                    // Best-effort tell the node to stop following (browser unsubscribed or connection gone).
+                    try { await nodeRpc.InvokeAsync<bool>(nodeId, "StopLogStream", [streamId], CancellationToken.None); } catch { }
+                }
+                yield break;
+            }
+
             await foreach (var chunk in mediator.CreateStream(new StreamContainerLogsQuery(instanceId), cancellationToken))
             {
                 yield return chunk;

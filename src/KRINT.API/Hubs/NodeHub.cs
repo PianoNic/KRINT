@@ -15,6 +15,7 @@ namespace KRINT.API.Hubs
     [AllowAnonymous]
     public class NodeHub(
         INodeRegistry registry,
+        INodeStreamRelay streamRelay,
         IConfiguration configuration,
         IServiceScopeFactory scopeFactory,
         ILogger<NodeHub> logger) : Hub
@@ -79,6 +80,20 @@ namespace KRINT.API.Hubs
         public Task Heartbeat()
         {
             registry.Touch(Context.ConnectionId);
+            return Task.CompletedTask;
+        }
+
+        /// <summary>A log frame the node read from a container it's following on our behalf.</summary>
+        public Task LogFrame(string streamId, string frame)
+        {
+            streamRelay.PushLog(streamId, frame);
+            return Task.CompletedTask;
+        }
+
+        /// <summary>The node's log follow ended (container stopped/removed) - close the browser stream.</summary>
+        public Task LogStreamCompleted(string streamId)
+        {
+            streamRelay.CompleteLog(streamId);
             return Task.CompletedTask;
         }
 

@@ -18,6 +18,8 @@ namespace KRINT.API.Nodes
     {
         private HubConnection? _connection;
         private string _nodeId = "";
+        // Active log follows started by the control plane, so StopLogStream can cancel them.
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource> _logStreams = new();
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -134,6 +136,43 @@ namespace KRINT.API.Nodes
             c.On<string, bool, bool>("RemoveVolume", (name, force) => WithDocker(async d => { await d.RemoveVolumeAsync(name, force); return true; }));
             c.On<string, IList<string>, byte[]>("ExecCapture", (id, cmd) => WithDocker(d => d.ExecCaptureAsync(id, cmd)));
             c.On<string, IList<string>, byte[], bool>("ExecWithStdin", (id, cmd, data) => WithDocker(async d => { await d.ExecWithStdinAsync(id, cmd, new MemoryStream(data)); return true; }));
+
+            // Log streaming: follow the container's logs locally and push each frame back; the control
+            // plane relays them to the browser. Returns immediately - the follow runs in the background.
+            c.On<string, string, int, bool>("StartLogStream", (streamId, containerId, tail) =>
+            {
+                var cts = new CancellationTokenSource();
+                _logStreams[streamId] = cts;
+                _ = Task.Run(() => PumpLogsAsync(streamId, containerId, tail, cts.Token));
+                return Task.FromResult(true);
+            });
+            c.On<string, bool>("StopLogStream", streamId =>
+            {
+                if (_logStreams.TryRemove(streamId, out var cts)) cts.Cancel();
+                return Task.FromResult(true);
+            });
+        }
+
+        private async Task PumpLogsAsync(string streamId, string containerId, int tail, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var scope = services.CreateScope();
+                var docker = scope.ServiceProvider.GetRequiredService<IDockerService>();
+                await foreach (var frame in docker.StreamLogsAsync(containerId, tail, cancellationToken))
+                {
+                    if (_connection is null) break;
+                    await _connection.SendAsync("LogFrame", streamId, frame, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) { /* StopLogStream */ }
+            catch (Exception ex) { logger.LogWarning("Log follow {StreamId} ended: {Message}", streamId, ex.Message); }
+            finally
+            {
+                _logStreams.TryRemove(streamId, out _);
+                if (_connection is not null)
+                    try { await _connection.SendAsync("LogStreamCompleted", streamId, CancellationToken.None); } catch { }
+            }
         }
 
         private async Task<T> WithDocker<T>(Func<IDockerService, Task<T>> work)

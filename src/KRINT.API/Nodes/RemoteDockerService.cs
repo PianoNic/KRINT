@@ -58,6 +58,11 @@ namespace KRINT.API.Nodes
         public Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default)
             => Node().InvokeAsync<byte[]>("ExecCapture", containerId, command, cancellationToken);
 
+        // Node log streaming is relayed frame-by-frame through INodeStreamRelay (the node pushes
+        // frames over its connection), not pulled through this per-call service.
+        public IAsyncEnumerable<string> StreamLogsAsync(string containerId, int tailLines, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Log streaming to a node is handled by the node stream relay.");
+
         public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default)
         {
             // The local implementation already buffers stdin fully in memory (dumps are bounded), so
