@@ -1,10 +1,10 @@
 # Nodes (experimental)
 
 > A node is a stateless worker that runs database containers on a remote host. You can provision a
-> database onto a node and browse / query / manage it entirely through the control plane — **every
-> operation travels over the one SignalR connection**, and nodes expose no ports. Streaming features
-> (logs, interactive console, backups/restore, version upgrade) are not routed to nodes yet and are
-> blocked with a clear message for node-hosted instances.
+> database onto a node and then do **everything** with it through the control plane — browse, query,
+> manage users, back up and restore, upgrade the engine version, tail container logs, and open an
+> interactive shell. **Every operation travels over the one SignalR connection**, and nodes expose no
+> ports.
 
 KRINT normally provisions database containers on its own Docker daemon. A **node** is the *same*
 KRINT image started in a stripped role that does nothing but execute Docker (and database) work on
@@ -21,9 +21,11 @@ bind to localhost only and never publish a port.
 
 - **Control plane** (default role): the full KRINT app — UI, API, database, the works. It keeps an
   allow-list of node tokens (`Node__Tokens`) and exposes the node hub at `/hubs/node`.
-- **Node** (`Krint__Role=node`): no UI, no app database, no auth — just the Docker client and an agent
-  that connects to the control plane, registers (name, machine, OS, Docker version) and stays
-  connected. Only a `/health` endpoint is served.
+- **Node** (`Krint__Role=node`): no UI, no app database, no auth. It bundles the Docker client and the
+  database drivers and runs an agent that connects to the control plane, registers (name, machine, OS,
+  Docker version) and stays connected, executing whatever the control plane sends — container
+  lifecycle, SQL/queries, dumps/restores, log follows and interactive shells — against its own daemon.
+  Only a `/health` endpoint is served.
 
 A connected node appears on the control plane's **Nodes** page, where you can see its details and
 **Ping** it to confirm the channel is live.

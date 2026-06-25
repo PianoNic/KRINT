@@ -9,53 +9,45 @@ namespace KRINT.Application.Queries.Dashboard
 {
     public record GetDashboardStatsQuery : IQuery<DashboardStatsDto>;
 
-    public class GetDashboardStatsQueryHandler(KrintDbContext db, IDockerService docker)
+    public class GetDashboardStatsQueryHandler(KrintDbContext db, IDockerServiceResolver dockerResolver)
         : IQueryHandler<GetDashboardStatsQuery, DashboardStatsDto>
     {
         public async ValueTask<DashboardStatsDto> Handle(GetDashboardStatsQuery query, CancellationToken cancellationToken)
         {
             var instances = await db.DatabaseInstances
-                .Select(d => new { d.Engine, d.ContainerName })
+                .Select(d => new { d.Engine, d.ContainerName, d.NodeId })
                 .ToListAsync(cancellationToken);
 
-            // One docker call gives us state for every container; cheaper than N inspects.
-            // Match by name (Docker prefixes names with '/' in the API response).
-            var containers = await docker.ListContainersAsync(all: true, cancellationToken);
-            var stateByName = containers
-                .SelectMany(c => (c.Names ?? new List<string>()).Select(n => (Name: n.TrimStart('/'), c.State, c.ID)))
-                .ToDictionary(x => x.Name, x => (x.State, x.ID), StringComparer.OrdinalIgnoreCase);
-
-            // Pull memory snapshots for running containers in parallel. Stopped or unknown ones
-            // contribute 0. A null snapshot (transient daemon error) also collapses to 0 instead
-            // of failing the whole dashboard.
-            var runningIds = instances
-                .Select(i => i.ContainerName is not null && stateByName.TryGetValue(i.ContainerName, out var s) && string.Equals(s.State, "running", StringComparison.OrdinalIgnoreCase) ? s.ID : null)
-                .Where(id => id is not null)
-                .Select(id => id!)
-                .ToArray();
-
-            var snapshots = await Task.WhenAll(runningIds.Select(id => docker.GetContainerStatsOnceAsync(id, cancellationToken)));
-            var totalMemoryBytes = snapshots
-                .Where(s => s?.MemoryStats is not null)
-                .Sum(s => (long)s!.MemoryStats.Usage);
-
-            // CPU% per container = (cpuDelta / systemDelta) * 100. systemDelta is host-wide CPU
-            // nanoseconds across the sample window, so the ratio is already "fraction of total
-            // host CPU consumed by this container". Summing across containers gives the share of
-            // host CPU eaten by managed containers only - excluding everything else on the host.
-            // Bounded to 100 because rounding + multi-core jitter can push the sum a hair over.
-            double totalCpuPercent = 0d;
-            foreach (var snap in snapshots)
+            // Containers live on whichever daemon owns the instance (local or a node), so query each
+            // distinct target once and collect the running containers' ids paired with their node, so
+            // the stats call below hits the right daemon. An offline node / dead daemon just drops out.
+            var runningContainers = new List<(Guid? NodeId, string Id)>();
+            foreach (var group in instances.Where(i => i.ContainerName is not null).GroupBy(i => i.NodeId))
             {
-                if (snap?.CPUStats is null || snap.PreCPUStats is null) continue;
-                var cpuDelta = (double)snap.CPUStats.CPUUsage.TotalUsage - (double)snap.PreCPUStats.CPUUsage.TotalUsage;
-                var systemDelta = (double)snap.CPUStats.SystemUsage - (double)snap.PreCPUStats.SystemUsage;
-                if (cpuDelta > 0 && systemDelta > 0)
+                IList<Docker.DotNet.Models.ContainerListResponse> containers;
+                try { containers = await dockerResolver.Resolve(group.Key).ListContainersAsync(all: true, cancellationToken); }
+                catch { continue; }
+
+                var stateByName = containers
+                    .SelectMany(c => (c.Names ?? new List<string>()).Select(n => (Name: n.TrimStart('/'), c.State, c.ID)))
+                    .ToDictionary(x => x.Name, x => (x.State, x.ID), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var inst in group)
                 {
-                    totalCpuPercent += cpuDelta / systemDelta * 100d;
+                    if (inst.ContainerName is not null && stateByName.TryGetValue(inst.ContainerName, out var s)
+                        && string.Equals(s.State, "running", StringComparison.OrdinalIgnoreCase))
+                        runningContainers.Add((group.Key, s.ID));
                 }
             }
-            totalCpuPercent = Math.Round(Math.Clamp(totalCpuPercent, 0, 100), 1);
+
+            // Per-container memory + CPU%, each computed on the daemon that owns it (the node computes
+            // its own so only primitives cross the wire). A null sample (transient error) contributes 0.
+            var samples = await Task.WhenAll(runningContainers.Select(rc => dockerResolver.Resolve(rc.NodeId).GetContainerResourceUsageAsync(rc.Id, cancellationToken)));
+            var totalMemoryBytes = samples.Where(s => s is not null).Sum(s => s!.MemoryBytes);
+
+            // Summing each container's share of host CPU gives the share eaten by managed containers.
+            // Bounded to 100 because rounding + multi-core jitter can push the sum a hair over.
+            var totalCpuPercent = Math.Round(Math.Clamp(samples.Where(s => s is not null).Sum(s => s!.CpuPercent), 0, 100), 1);
 
             var perEngine = instances
                 .GroupBy(i => i.Engine, StringComparer.OrdinalIgnoreCase)
@@ -73,7 +65,7 @@ namespace KRINT.Application.Queries.Dashboard
             return new DashboardStatsDto
             {
                 TotalInstances = instances.Count,
-                RunningInstances = runningIds.Length,
+                RunningInstances = runningContainers.Count,
                 TotalMemoryBytes = totalMemoryBytes,
                 TotalCpuPercent = totalCpuPercent,
                 PerEngine = perEngine,

@@ -61,6 +61,27 @@ namespace KRINT.Infrastructure.Services
             }
         }
 
+        public async Task<ContainerResourceSample?> GetContainerResourceUsageAsync(string id, CancellationToken cancellationToken = default)
+        {
+            var snap = await GetContainerStatsOnceAsync(id, cancellationToken);
+            if (snap is null) return null;
+
+            var memoryBytes = snap.MemoryStats is not null ? (long)snap.MemoryStats.Usage : 0L;
+
+            // CPU% = (cpuDelta / systemDelta) * 100, where systemDelta is host-wide CPU nanoseconds
+            // over the sample window - so the ratio is already this container's share of total host CPU.
+            double cpuPercent = 0d;
+            if (snap.CPUStats is not null && snap.PreCPUStats is not null)
+            {
+                var cpuDelta = (double)snap.CPUStats.CPUUsage.TotalUsage - (double)snap.PreCPUStats.CPUUsage.TotalUsage;
+                var systemDelta = (double)snap.CPUStats.SystemUsage - (double)snap.PreCPUStats.SystemUsage;
+                if (cpuDelta > 0 && systemDelta > 0)
+                    cpuPercent = cpuDelta / systemDelta * 100d;
+            }
+
+            return new ContainerResourceSample(memoryBytes, cpuPercent);
+        }
+
         public Task PullImageAsync(string image, string tag = "latest", CancellationToken cancellationToken = default)
         {
             return client.Images.CreateImageAsync(
