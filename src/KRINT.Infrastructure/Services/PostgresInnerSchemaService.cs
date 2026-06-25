@@ -69,8 +69,8 @@ namespace KRINT.Infrastructure.Services
                         c.udt_name,
                         c.is_nullable = 'YES'                    AS nullable,
                         COALESCE(pk.is_pk, FALSE)                AS is_pk,
-                        c.is_identity = 'YES' OR c.is_generated <> 'NEVER'
-                            OR c.column_default LIKE 'nextval(%'        AS is_generated
+                        COALESCE(c.is_identity = 'YES' OR c.is_generated <> 'NEVER'
+                            OR c.column_default LIKE 'nextval(%', FALSE)  AS is_generated
                 FROM    information_schema.columns c
                 LEFT JOIN (
                     SELECT a.attname AS column_name, TRUE AS is_pk
