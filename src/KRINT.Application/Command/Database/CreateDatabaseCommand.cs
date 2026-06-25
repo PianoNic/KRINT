@@ -41,7 +41,7 @@ namespace KRINT.Application.Command.Database
         {
             var spec = ResolveEngineSpec(command.Engine, command.Version);
 
-            var databaseName = ResolveDatabaseName(command.Engine, command.DatabaseName, spec.DefaultDatabase);
+            var databaseName = ResolveDatabaseName(spec, command.DatabaseName);
 
             // Resolve selected plugins. DockerImageSwap replaces the image; EnvFlag appends env;
             // PgExtension / ContainerExec are applied later after readiness.
@@ -225,7 +225,11 @@ namespace KRINT.Application.Command.Database
             string DataPath,
             // Optional CMD override. The Redis image's default ENTRYPOINT doesn't read REDIS_PASSWORD,
             // so we explicitly pass `--requirepass <pw>` as the container command.
-            Func<string, IList<string>?>? CmdFactory = null);
+            Func<string, IList<string>?>? CmdFactory = null,
+            // True for engines whose database name is fixed by the engine and can't be chosen at
+            // provision time (Neo4j Community's single "neo4j" db, Qdrant's virtual "_cluster").
+            // A requested custom name is ignored rather than recorded - see ResolveDatabaseName.
+            bool FixedDatabaseName = false);
 
         internal static EngineSpec ResolveEngineSpec(string engine, string version)
         {
@@ -276,10 +280,12 @@ namespace KRINT.Application.Command.Database
                     return new EngineSpec("pgvector/pgvector", "pgvec", 5432, "postgres", "postgres", "/var/lib/postgresql/data");
                 case "neo4j":
                     // NEO4J_AUTH is read as "user/password" - we pass it via env. Default DB is "neo4j".
-                    return new EngineSpec("neo4j", "neo4j", 7687, "neo4j", "neo4j", "/data");
+                    // Community Edition is single-database, so the name can't be customised.
+                    return new EngineSpec("neo4j", "neo4j", 7687, "neo4j", "neo4j", "/data", FixedDatabaseName: true);
                 case "qdrant":
                     // QDRANT__SERVICE__API_KEY is sent in the api-key header by our HTTP client.
-                    return new EngineSpec("qdrant/qdrant", "qdrant", 6333, "default", "_cluster", "/qdrant/storage");
+                    // The browse model exposes a single virtual "_cluster" database; not customisable.
+                    return new EngineSpec("qdrant/qdrant", "qdrant", 6333, "default", "_cluster", "/qdrant/storage", FixedDatabaseName: true);
                 case "valkey":
                     // Drop-in Redis fork - same CMD shape.
                     return new EngineSpec("valkey/valkey", "valkey", 6379, "default", "0", "/data",
@@ -322,9 +328,12 @@ namespace KRINT.Application.Command.Database
             return major is null ? postgresVersion : $"pg{major}";
         }
 
-        private static string ResolveDatabaseName(string engine, string? requested, string defaultName)
+        private static string ResolveDatabaseName(EngineSpec spec, string? requested)
         {
-            if (string.IsNullOrWhiteSpace(requested)) return defaultName;
+            // Single/virtual-database engines (Neo4j Community, Qdrant) impose a fixed database the
+            // engine creates itself; a typed name can't be honored, so ignore it instead of recording
+            // a name that won't exist when the instance is browsed.
+            if (spec.FixedDatabaseName || string.IsNullOrWhiteSpace(requested)) return spec.DefaultDatabase;
             KRINT.Infrastructure.Services.InnerDatabaseNameValidator.Require(requested);
             return requested;
         }
