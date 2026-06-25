@@ -2,8 +2,10 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Infrastructure.Services
 {
-    public class PostgresBackupService(IDockerService docker) : IBackupService
+    public class PostgresBackupService(IDockerServiceResolver dockerResolver) : IBackupService
     {
+        protected IDockerService Docker(BackupTarget target) => dockerResolver.Resolve(target.NodeId);
+
         public virtual string Engine => "postgres";
 
         public async Task<BackupOutput> DumpAsync(BackupTarget target, CancellationToken cancellationToken = default)
@@ -14,7 +16,7 @@ namespace KRINT.Infrastructure.Services
                 "bash", "-c",
                 $"PGPASSWORD='{target.Password}' pg_dump -h 127.0.0.1 -U {target.Username} -d {target.DefaultDatabase} -F c",
             };
-            var bytes = await docker.ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
+            var bytes = await Docker(target).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
             return new BackupOutput(bytes, "dump");
         }
 
@@ -28,7 +30,7 @@ namespace KRINT.Infrastructure.Services
                 "bash", "-c",
                 $"PGPASSWORD='{target.Password}' pg_restore -h 127.0.0.1 -U {target.Username} -d {target.DefaultDatabase} --clean --if-exists --no-owner",
             };
-            await docker.ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
+            await Docker(target).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
         }
     }
 }

@@ -41,9 +41,9 @@ builder.Services.AddControllers();
 builder.Services.AddSignalR(options =>
 {
     // Container output can burst over the default 32 KB cap when a server logs verbose startup
-    // or a user runs ls in a huge directory. Bumping this lets each Output/Logs frame land
-    // without the connection getting axed.
-    options.MaximumReceiveMessageSize = 1024 * 1024;
+    // or a user runs ls in a huge directory. Node RPC also returns whole backup dumps as one
+    // message. Lift the cap (dumps are already fully buffered in memory) so neither gets axed.
+    options.MaximumReceiveMessageSize = null;
 });
 
 builder.Services.AddHttpContextAccessor();

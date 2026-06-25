@@ -2,7 +2,7 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Infrastructure.Services
 {
-    public class MongoBackupService(IDockerService docker) : IBackupService
+    public class MongoBackupService(IDockerServiceResolver dockerResolver) : IBackupService
     {
         public string Engine => "mongo";
 
@@ -14,7 +14,7 @@ namespace KRINT.Infrastructure.Services
                 "bash", "-c",
                 $"mongodump --host 127.0.0.1 --username {target.Username} --password '{target.Password}' --authenticationDatabase admin --archive",
             };
-            var bytes = await docker.ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
+            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
             return new BackupOutput(bytes, "archive");
         }
 
@@ -26,7 +26,7 @@ namespace KRINT.Infrastructure.Services
                 "bash", "-c",
                 $"mongorestore --host 127.0.0.1 --username {target.Username} --password '{target.Password}' --authenticationDatabase admin --archive --drop",
             };
-            await docker.ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
+            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
         }
     }
 }

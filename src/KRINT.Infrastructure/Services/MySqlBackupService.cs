@@ -2,7 +2,7 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Infrastructure.Services
 {
-    public class MySqlBackupService(IDockerService docker) : IBackupService
+    public class MySqlBackupService(IDockerServiceResolver dockerResolver) : IBackupService
     {
         public virtual string Engine => "mysql";
 
@@ -24,7 +24,7 @@ namespace KRINT.Infrastructure.Services
                 "bash", "-c",
                 $"{bin} -h 127.0.0.1 -u {target.Username} -p'{target.Password}' --single-transaction --all-databases",
             };
-            var bytes = await docker.ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
+            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
             return new BackupOutput(bytes, "sql");
         }
 
@@ -37,7 +37,7 @@ namespace KRINT.Infrastructure.Services
                 "bash", "-c",
                 $"{bin} -h 127.0.0.1 -u {target.Username} -p'{target.Password}'",
             };
-            await docker.ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
+            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
         }
     }
 }

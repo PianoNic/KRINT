@@ -133,6 +133,7 @@ namespace KRINT.API.Nodes
             c.On<string, bool, bool>("RemoveContainer", (id, force) => WithDocker(async d => { await d.RemoveContainerAsync(id, force); return true; }));
             c.On<string, bool, bool>("RemoveVolume", (name, force) => WithDocker(async d => { await d.RemoveVolumeAsync(name, force); return true; }));
             c.On<string, IList<string>, byte[]>("ExecCapture", (id, cmd) => WithDocker(d => d.ExecCaptureAsync(id, cmd)));
+            c.On<string, IList<string>, byte[], bool>("ExecWithStdin", (id, cmd, data) => WithDocker(async d => { await d.ExecWithStdinAsync(id, cmd, new MemoryStream(data)); return true; }));
         }
 
         private async Task<T> WithDocker<T>(Func<IDockerService, Task<T>> work)

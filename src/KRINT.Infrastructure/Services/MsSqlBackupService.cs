@@ -22,7 +22,7 @@ namespace KRINT.Infrastructure.Services
     ///     Restoring an arbitrary .bak into a renamed database would need RESTORE FILELISTONLY +
     ///     dynamic MOVE clauses, which is out of scope for v1.
     /// </summary>
-    public sealed class MsSqlBackupService(IDockerService docker) : IBackupService
+    public sealed class MsSqlBackupService(IDockerServiceResolver dockerResolver) : IBackupService
     {
         public string Engine => "mssql";
 
@@ -43,7 +43,7 @@ namespace KRINT.Infrastructure.Services
             // ends up in our captured stdout.
             var script = $"{backup} 1>&2 && cat '{tmp}' && rm -f '{tmp}'";
 
-            var bytes = await docker.ExecCaptureAsync(target.ContainerId, new List<string> { "bash", "-c", script }, cancellationToken);
+            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, new List<string> { "bash", "-c", script }, cancellationToken);
             return new BackupOutput(bytes, "bak");
         }
 
@@ -56,7 +56,7 @@ namespace KRINT.Infrastructure.Services
             // would corrupt the operation.
             var script = $"cat > '{tmp}' && {restore} && rm -f '{tmp}'";
 
-            await docker.ExecWithStdinAsync(target.ContainerId, new List<string> { "bash", "-c", script }, dump, cancellationToken);
+            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, new List<string> { "bash", "-c", script }, dump, cancellationToken);
         }
 
         // sqlcmd's -P argument is passed inside single quotes in the bash script, so any single
