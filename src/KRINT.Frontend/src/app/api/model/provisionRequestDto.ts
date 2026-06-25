@@ -20,5 +20,6 @@ export interface ProvisionRequestDto {
     plugins?: Array<string>;
     isPublic?: boolean;
     password?: string | null;
+    nodeId?: string | null;
 }
 

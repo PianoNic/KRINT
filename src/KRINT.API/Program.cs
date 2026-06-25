@@ -21,6 +21,10 @@ builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 if (string.Equals(builder.Configuration["Krint:Role"], "node", StringComparison.OrdinalIgnoreCase))
 {
     builder.Services.AddDocker(builder.Configuration);
+    // The node executes Docker AND database operations locally; it needs the engine services. The
+    // inner-service resolvers depend on INodeRpc, which is a no-op stub here (a node never re-routes).
+    builder.Services.AddSingleton<KRINT.Infrastructure.Interfaces.INodeRpc, OfflineNodeRpc>();
+    builder.Services.AddInnerDatabases();
     builder.Services.AddHostedService<NodeAgentHostedService>();
 
     var nodeApp = builder.Build();
@@ -63,8 +67,12 @@ builder.Services.AddInnerDatabases();
 
 builder.Services.AddCatalog();
 
-// Live registry of nodes connected over /hubs/node (in-memory; phase 1 has no persisted node identity).
+// Live registry of nodes connected over /hubs/node (in-memory; node details are persisted in the DB).
 builder.Services.AddSingleton<INodeRegistry, NodeRegistry>();
+// Routes Docker operations to the local daemon or a node over SignalR, based on the instance's NodeId.
+builder.Services.AddScoped<KRINT.Infrastructure.Interfaces.IDockerServiceResolver, DockerServiceResolver>();
+// Dispatches inner-DB operations to a node when the target carries a NodeId (used by the routing resolvers).
+builder.Services.AddSingleton<KRINT.Infrastructure.Interfaces.INodeRpc, NodeRpc>();
 
 builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
 builder.Services.AddHostedService<KRINT.API.InstanceReconciliationHostedService>();
@@ -141,6 +149,24 @@ app.UseRouting();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Surface node-routing failures as clean 4xx instead of opaque 500s: an offline node is a transient
+// conflict; an unsupported-on-node operation is a bad request. Hubs handle their own errors, so this
+// only ever fires for controller calls (response not yet started).
+app.Use(async (context, next) =>
+{
+    try { await next(); }
+    catch (NodeOfflineException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status409Conflict;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    catch (NotSupportedException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+});
 
 app.MapControllers();
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();

@@ -17,6 +17,7 @@ namespace KRINT.Application.Command.Backup
         {
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.InstanceId);
+            NodeFeatureGuard.EnsureLocal(instance, "Backups");
 
             // Backups exec inside the container (pg_dump, mysqldump, mongodump). Available
             // whenever there's a reachable container, including adopted externals.

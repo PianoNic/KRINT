@@ -28,7 +28,7 @@ namespace KRINT.Application.Command.DatabaseInstance
     /// </summary>
     public class SetInstanceRootPasswordCommandHandler(
         KrintDbContext db,
-        IDockerService docker,
+        IDockerServiceResolver dockerResolver,
         ISecretsVaultService vault,
         IInnerDatabaseServiceResolver innerDbs,
         IInnerUserServiceResolver innerUsers,
@@ -45,6 +45,8 @@ namespace KRINT.Application.Command.DatabaseInstance
 
             if (!instance.IsManaged || instance.ContainerId is null)
                 throw new InvalidOperationException("Root password can only be changed on KRINT-managed databases.");
+
+            var docker = dockerResolver.Resolve(instance.NodeId);
 
             // Require the user to have stopped the DB first. This is the explicit safety gate
             // the user asked for - prevents accidental rotation while applications are connected.
@@ -71,8 +73,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             await docker.StartContainerAsync(instance.ContainerId, cancellationToken);
             try
             {
-                var probeHost = instance.Host == "localhost" ? CreateDatabaseCommandHandler.ResolveProbeHost(instance.IsPublic) : instance.Host;
-                var target = new InnerDatabaseTarget(instance.Engine, probeHost, instance.Port, instance.Username, oldPassword, instance.DatabaseName);
+                var target = CreateDatabaseCommandHandler.BuildProbeTarget(instance, oldPassword);
                 await WaitForReadyAsync(target, cancellationToken);
 
                 await innerUsers.Resolve(instance.Engine).ResetPasswordAsync(target, instance.Username, newPassword, cancellationToken);

@@ -21,6 +21,12 @@ namespace KRINT.Application
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instanceId}.");
 
+            // Node-hosted: the operation is dispatched to the node and runs against the container on
+            // the node's own loopback, so there's no host to probe from here - carry the NodeId so the
+            // inner-service resolver routes it.
+            if (instance.NodeId is { } nodeId)
+                return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId);
+
             var preferred = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
             var host = await PickReachableHostAsync(preferred, instance.Port, cancellationToken);
 

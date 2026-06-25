@@ -17,6 +17,7 @@ namespace KRINT.Application.Command.Backup
 
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == entry.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(entry.InstanceId);
+            NodeFeatureGuard.EnsureLocal(instance, "Restore");
 
             if (instance.ContainerName is null || instance.ContainerId is null)
                 throw new InvalidOperationException("Restore requires a Docker container - this database isn't reachable that way.");

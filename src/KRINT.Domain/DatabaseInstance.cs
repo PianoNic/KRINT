@@ -33,5 +33,9 @@ namespace KRINT.Domain
         /// new KRINT-managed instance that holds the migrated data. The UI uses this to badge
         /// the source row as "Migrated -&gt;" and to suppress re-offering it in discovery.</summary>
         public Guid? MigratedToInstanceId { get; set; }
+        /// <summary>The node this instance's container runs on, or null when it runs on the control
+        /// plane's local Docker daemon. When set, all container and DB operations are dispatched to
+        /// that node over SignalR (the node executes them locally and returns the result).</summary>
+        public Guid? NodeId { get; set; }
     }
 }

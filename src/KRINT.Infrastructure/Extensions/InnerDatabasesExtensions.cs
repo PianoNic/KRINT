@@ -115,10 +115,12 @@ namespace KRINT.Infrastructure.Extensions
         IInnerSchemaService Resolve(string engine);
     }
 
-    internal sealed class InnerSchemaServiceResolver(IEnumerable<IInnerSchemaService> services) : IInnerSchemaServiceResolver
+    internal sealed class InnerSchemaServiceResolver(IEnumerable<IInnerSchemaService> services, INodeRpc rpc) : IInnerSchemaServiceResolver
     {
+        // Each engine service is wrapped so node-hosted targets dispatch over SignalR; local targets
+        // run in-process unchanged.
         private readonly Dictionary<string, IInnerSchemaService> _byEngine =
-            services.ToDictionary(s => s.Engine, StringComparer.OrdinalIgnoreCase);
+            services.ToDictionary(s => s.Engine, s => (IInnerSchemaService)new RoutingInnerSchemaService(s, rpc), StringComparer.OrdinalIgnoreCase);
 
         public IInnerSchemaService Resolve(string engine) =>
             _byEngine.TryGetValue(engine, out var svc)
@@ -131,10 +133,10 @@ namespace KRINT.Infrastructure.Extensions
         IInnerDatabaseService Resolve(string engine);
     }
 
-    internal sealed class InnerDatabaseServiceResolver(IEnumerable<IInnerDatabaseService> services) : IInnerDatabaseServiceResolver
+    internal sealed class InnerDatabaseServiceResolver(IEnumerable<IInnerDatabaseService> services, INodeRpc rpc) : IInnerDatabaseServiceResolver
     {
         private readonly Dictionary<string, IInnerDatabaseService> _byEngine =
-            services.ToDictionary(s => s.Engine, StringComparer.OrdinalIgnoreCase);
+            services.ToDictionary(s => s.Engine, s => (IInnerDatabaseService)new RoutingInnerDatabaseService(s, rpc), StringComparer.OrdinalIgnoreCase);
 
         public IInnerDatabaseService Resolve(string engine) =>
             _byEngine.TryGetValue(engine, out var svc)
@@ -148,10 +150,10 @@ namespace KRINT.Infrastructure.Extensions
         bool IsSupported(string engine);
     }
 
-    internal sealed class InnerQueryServiceResolver(IEnumerable<IInnerQueryService> services) : IInnerQueryServiceResolver
+    internal sealed class InnerQueryServiceResolver(IEnumerable<IInnerQueryService> services, INodeRpc rpc) : IInnerQueryServiceResolver
     {
         private readonly Dictionary<string, IInnerQueryService> _byEngine =
-            services.ToDictionary(s => s.Engine, StringComparer.OrdinalIgnoreCase);
+            services.ToDictionary(s => s.Engine, s => (IInnerQueryService)new RoutingInnerQueryService(s, rpc), StringComparer.OrdinalIgnoreCase);
 
         // Soft resolve: query console is opt-in per engine. The API returns 400 with a clear
         // message when the engine has no console driver, rather than 500-ing.
@@ -165,10 +167,10 @@ namespace KRINT.Infrastructure.Extensions
         IInnerUserService Resolve(string engine);
     }
 
-    internal sealed class InnerUserServiceResolver(IEnumerable<IInnerUserService> services) : IInnerUserServiceResolver
+    internal sealed class InnerUserServiceResolver(IEnumerable<IInnerUserService> services, INodeRpc rpc) : IInnerUserServiceResolver
     {
         private readonly Dictionary<string, IInnerUserService> _byEngine =
-            services.ToDictionary(s => s.Engine, StringComparer.OrdinalIgnoreCase);
+            services.ToDictionary(s => s.Engine, s => (IInnerUserService)new RoutingInnerUserService(s, rpc), StringComparer.OrdinalIgnoreCase);
 
         public IInnerUserService Resolve(string engine) =>
             _byEngine.TryGetValue(engine, out var svc)

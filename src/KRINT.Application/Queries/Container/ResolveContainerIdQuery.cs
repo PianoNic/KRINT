@@ -15,6 +15,7 @@ namespace KRINT.Application.Queries.Container
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == query.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(query.InstanceId);
+            NodeFeatureGuard.EnsureLocal(instance, "The interactive console");
             return instance.ContainerId
                 ?? throw new InvalidOperationException("Container operations are not available for externally-registered databases.");
         }

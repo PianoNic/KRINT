@@ -9,7 +9,7 @@ namespace KRINT.Application.Queries.Database
 {
     public record ListDatabasesQuery : IQuery<IReadOnlyList<DatabaseInstanceDto>>;
 
-    public class ListDatabasesQueryHandler(KrintDbContext db, IDockerService docker)
+    public class ListDatabasesQueryHandler(KrintDbContext db, IDockerServiceResolver dockerResolver)
         : IQueryHandler<ListDatabasesQuery, IReadOnlyList<DatabaseInstanceDto>>
     {
         public async ValueTask<IReadOnlyList<DatabaseInstanceDto>> Handle(ListDatabasesQuery query, CancellationToken cancellationToken)
@@ -18,27 +18,26 @@ namespace KRINT.Application.Queries.Database
                 .OrderByDescending(d => d.CreatedAt)
                 .ToListAsync(cancellationToken);
 
-            // One Docker call covers every container, indexed by name. Matching by name (Docker
-            // prefixes with '/') is cheaper than N inspects and tolerates missing containers
-            // gracefully - if a row has no entry it just gets a null state.
+            // Container state lives on whichever daemon owns it: the local one for control-plane
+            // instances, the node's for node-hosted ones. Query each distinct target once (a name ->
+            // state map) so a row without a container - or an offline node - just gets a null state.
             var stateByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            try
+            foreach (var nodeId in rows.Select(d => d.NodeId).Distinct())
             {
-                var containers = await docker.ListContainersAsync(all: true, cancellationToken);
-                foreach (var c in containers)
+                try
                 {
-                    if (c.Names is null) continue;
-                    foreach (var raw in c.Names)
+                    var containers = await dockerResolver.Resolve(nodeId).ListContainersAsync(all: true, cancellationToken);
+                    foreach (var c in containers)
                     {
-                        var name = raw.TrimStart('/');
-                        stateByName[name] = c.State ?? "unknown";
+                        if (c.Names is null) continue;
+                        foreach (var raw in c.Names)
+                            stateByName[raw.TrimStart('/')] = c.State ?? "unknown";
                     }
                 }
-            }
-            catch
-            {
-                // Docker daemon unreachable - all rows return State=null and the UI falls back
-                // to its "unknown" pill rather than failing the whole list.
+                catch
+                {
+                    // Daemon/node unreachable - those rows return State=null and the UI shows "unknown".
+                }
             }
 
             return rows.Select(d =>

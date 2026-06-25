@@ -9,7 +9,7 @@ namespace KRINT.Application.Command.DatabaseInstance
 {
     public record DeleteDatabaseCommand(Guid Id) : ICommand;
 
-    public class DeleteDatabaseCommandHandler(KrintDbContext db, IDockerService docker, ISecretsVaultService vault, IActivityLogger activity, IOptions<KrintOptions> options, ConfigManagedGuard guard) : ICommandHandler<DeleteDatabaseCommand>
+    public class DeleteDatabaseCommandHandler(KrintDbContext db, IDockerServiceResolver dockerResolver, ISecretsVaultService vault, IActivityLogger activity, IOptions<KrintOptions> options, ConfigManagedGuard guard) : ICommandHandler<DeleteDatabaseCommand>
     {
         public async ValueTask<Unit> Handle(DeleteDatabaseCommand command, CancellationToken cancellationToken)
         {
@@ -21,6 +21,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             // destroy it. We drop the row + vault entry only and leave the remote engine untouched.
             if (instance.IsManaged && instance.ContainerName is not null && instance.ContainerId is not null)
             {
+                var docker = dockerResolver.Resolve(instance.NodeId);
                 var volumeName = $"{instance.ContainerName}-data";
 
                 try { await docker.RemoveContainerAsync(instance.ContainerId, force: true, cancellationToken); }
@@ -32,11 +33,16 @@ namespace KRINT.Application.Command.DatabaseInstance
                 try { await docker.RemoveVolumeAsync(volumeName, force: true, cancellationToken); }
                 catch { /* volume may already be gone */ }
 
-                var hostFolder = options.Value.Storage.TryResolveHostFolderForContainer(instance.ContainerName);
-                if (hostFolder is not null && Directory.Exists(hostFolder))
+                // Host-folder cleanup only makes sense for local instances - the folder lives on the
+                // node's filesystem otherwise, which this process can't see.
+                if (instance.NodeId is null)
                 {
-                    try { Directory.Delete(hostFolder, recursive: true); }
-                    catch { /* not accessible from this process; user can clean up manually */ }
+                    var hostFolder = options.Value.Storage.TryResolveHostFolderForContainer(instance.ContainerName);
+                    if (hostFolder is not null && Directory.Exists(hostFolder))
+                    {
+                        try { Directory.Delete(hostFolder, recursive: true); }
+                        catch { /* not accessible from this process; user can clean up manually */ }
+                    }
                 }
             }
 

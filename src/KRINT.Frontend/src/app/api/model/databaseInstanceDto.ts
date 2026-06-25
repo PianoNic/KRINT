@@ -26,5 +26,6 @@ export interface DatabaseInstanceDto {
     isPublic: boolean;
     state?: string | null;
     isConfigManaged: boolean;
+    nodeId?: string | null;
 }
 

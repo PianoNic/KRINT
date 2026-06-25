@@ -16,7 +16,7 @@ namespace KRINT.Application.Command.DatabaseInstance
     /// </summary>
     public class StartInstanceCommandHandler(
         KrintDbContext db,
-        IDockerService docker,
+        IDockerServiceResolver dockerResolver,
         ISecretsVaultService vault,
         IInnerDatabaseServiceResolver innerDbs,
         IActivityLogger activity,
@@ -32,15 +32,14 @@ namespace KRINT.Application.Command.DatabaseInstance
             if (instance.ContainerId is null)
                 throw new InvalidOperationException("This instance has no Docker container - nothing to start.");
 
-            await docker.StartContainerAsync(instance.ContainerId, cancellationToken);
+            await dockerResolver.Resolve(instance.NodeId).StartContainerAsync(instance.ContainerId, cancellationToken);
 
             // Block until the engine accepts a query. Same envelope as create/visibility:
             // JVM-heavy engines get 180s, the rest 60s. If the container starts but the
             // engine never comes ready, surface that as a failure - the user wants to know.
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
-            var probeHost = instance.IsManaged && instance.Host == "localhost" ? CreateDatabaseCommandHandler.ResolveProbeHost(instance.IsPublic) : instance.Host;
-            var target = new InnerDatabaseTarget(instance.Engine, probeHost, instance.Port, instance.Username, password, instance.DatabaseName);
+            var target = CreateDatabaseCommandHandler.BuildProbeTarget(instance, password);
             await WaitForReadyAsync(target, cancellationToken);
 
             await activity.LogAsync("instance.start", instance.ContainerName ?? instance.DisplayName, instance.Id, instance.Engine, null, cancellationToken);

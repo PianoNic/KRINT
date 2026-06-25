@@ -21,5 +21,8 @@ namespace KRINT.Application.Dtos.Provision
         /// the SafePasswordGuard alphabet ([A-Za-z0-9-_.~]) - those are the chars KRINT can
         /// safely inline into engine DDL across every supported backend.</summary>
         public string? Password { get; init; }
+        /// <summary>Target node to provision on. Null (default) provisions on the control plane's
+        /// local Docker daemon; otherwise the container runs on the chosen node.</summary>
+        public Guid? NodeId { get; init; }
     }
 }
