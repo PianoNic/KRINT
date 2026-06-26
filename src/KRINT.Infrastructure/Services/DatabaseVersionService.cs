@@ -51,31 +51,12 @@ namespace KRINT.Infrastructure.Services
             ["azurite"]     = new(Registry.Mcr,       "azure-storage/azurite",         Rx(@"^\d+\.\d+\.\d+$"),     LineDepth: 2, MaxGroups: 5),
         };
 
-        // Last-known-good lists, used only when the registry lookup fails (offline / rate-limited).
-        // "latest" exists for every image, so provisioning still works even without a curated entry.
-        private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> Fallback = new Dictionary<string, IReadOnlyList<string>>
-        {
-            ["postgres"]    = new[] { "18", "17", "16", "15", "14" },
-            ["mysql"]       = new[] { "9", "8.4", "8.0" },
-            ["mariadb"]     = new[] { "11.4", "10.11", "10.6" },
-            ["mongo"]       = new[] { "8.0", "7.0" },
-            ["redis"]       = new[] { "8", "7.4", "7.2" },
-            ["cassandra"]   = new[] { "5.0", "4.1", "4.0" },
-            ["neo4j"]       = new[] { "5.26", "5" },
-            ["couchdb"]     = new[] { "3.5", "3.4", "3.3" },
-            ["cockroachdb"] = new[] { "v26.2.0", "v25.4.10", "v24.1.29" },
-            ["timescaledb"] = new[] { "latest-pg18", "latest-pg17", "latest-pg16" },
-            ["clickhouse"]  = new[] { "26.5", "26.4", "26.3" },
-            ["pgvector"]    = new[] { "pg18", "pg17", "pg16" },
-            ["qdrant"]      = new[] { "v1.18", "v1" },
-            ["valkey"]      = new[] { "9.1", "8.1" },
-            ["seaweedfs"]   = new[] { "4.33", "4.32" },
-            ["mssql"]       = new[] { "2025-latest", "2022-latest", "2019-latest" },
-            ["azurite"]     = new[] { "latest" },
-        };
-
         private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
         private const int DockerHubPages = 3; // 300 most-recent tags; enough to cover every live major.
+
+        // Absolute last resort: a rolling tag that exists for (almost) every image, used only on a
+        // cold start where the very first lookup fails before we've ever cached a live result.
+        private static readonly IReadOnlyList<string> LastResort = new[] { "latest" };
 
         public async Task<IReadOnlyList<string>> GetSupportedVersionsAsync(string engineKey, CancellationToken cancellationToken = default)
         {
@@ -90,6 +71,10 @@ namespace KRINT.Infrastructure.Services
                 return cached;
             }
 
+            // Fallback is the last successful live result, kept under a separate long-lived key, so
+            // there are no hand-maintained version lists to drift. Only used when a fetch fails.
+            var lastGoodKey = $"versions:lastgood:{engineKey}";
+
             IReadOnlyList<string> versions;
             try
             {
@@ -101,21 +86,26 @@ namespace KRINT.Infrastructure.Services
 
                 if (versions.Count == 0)
                 {
-                    logger.LogWarning("No matching version tags for '{Engine}' ({Repo}); using fallback.", engineKey, source.Repository);
-                    return Fallback.TryGetValue(engineKey, out var fb) ? fb : new[] { "latest" };
+                    logger.LogWarning("No matching version tags for '{Engine}' ({Repo}); using last good.", engineKey, source.Repository);
+                    return LastGood(lastGoodKey);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // The registry is an optional convenience lookup, not a hard dependency. On failure
-                // return the last-known-good list (not cached, so it retries next time).
-                logger.LogWarning(ex, "Version lookup for '{Engine}' failed; using fallback.", engineKey);
-                return Fallback.TryGetValue(engineKey, out var fb) ? fb : new[] { "latest" };
+                // return the last live result we saw (not cached fresh, so it retries next time).
+                logger.LogWarning(ex, "Version lookup for '{Engine}' failed; using last good.", engineKey);
+                return LastGood(lastGoodKey);
             }
 
             cache.Set(cacheKey, versions, CacheDuration);
+            // Mirror into the long-lived fallback slot (effectively permanent) for the next outage.
+            cache.Set(lastGoodKey, versions, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
             return versions;
         }
+
+        private IReadOnlyList<string> LastGood(string lastGoodKey) =>
+            cache.TryGetValue(lastGoodKey, out IReadOnlyList<string>? good) && good is not null ? good : LastResort;
 
         // Keep the newest specific tag + the bare line tag for each of the newest MaxGroups release
         // lines. e.g. Postgres (depth 1): line 18 -> "18.4" (newest) + "18" (bare); line 17 -> "17.10" + "17".
