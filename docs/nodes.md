@@ -50,7 +50,7 @@ Node__Tokens__1=another-node-secret
 ```yaml
 services:
   krint-node:
-    image: ghcr.io/pianonic/krint:latest
+    image: ghcr.io/pianonic/krint:latest   # or pianonic/krint:latest (Docker Hub)
     container_name: krint-node
     restart: unless-stopped
     environment:

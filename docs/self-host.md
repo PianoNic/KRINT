@@ -1,6 +1,11 @@
 # Self-host KRINT
 
-Run KRINT from the pre-built image: `ghcr.io/pianonic/krint:latest`.
+Run KRINT from the pre-built image, on either registry:
+
+- **GitHub Container Registry** — `ghcr.io/pianonic/krint:latest`
+- **Docker Hub** — `pianonic/krint:latest`
+
+The two are identical; use whichever you prefer. Examples below use the GHCR tag.
 
 You need a Linux/Windows host with **Docker + Compose v2**, and a directory to keep state in.
 
@@ -21,7 +26,7 @@ Drop these two files in an empty folder and run `docker compose up -d`. Open <ht
 ```yaml
 services:
   krint:
-    image: ghcr.io/pianonic/krint:latest
+    image: ghcr.io/pianonic/krint:latest   # or pianonic/krint:latest (Docker Hub)
     container_name: krint
     restart: unless-stopped
     extra_hosts:
