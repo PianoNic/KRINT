@@ -46,12 +46,13 @@ import { SettingsDto } from '../api/model/settingsDto';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-content-header />
-    <!-- Fills the viewport. The two big cards (Port ranges + Supported engines) split the
-         available height; Vault stays auto-sized at the bottom. Each big card scrolls its
-         own body so the page itself never scrolls. -->
+    <!-- Fills the viewport. The two big cards (Port ranges + Supported engines) sit side by side
+         and split the available height; Vault stays auto-sized at the bottom. Each big card scrolls
+         its own body so the page itself never scrolls. On narrow screens the two cards stack. -->
     <section class="flex flex-1 min-h-0 flex-col gap-4 border-t p-4">
       @if (settings(); as s) {
-        <section hlmCard class="flex min-h-0 flex-1 flex-col">
+        <div class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
+        <section hlmCard class="flex min-h-0 flex-col">
           <div hlmCardHeader>
             <h2 hlmCardTitle>Port ranges</h2>
             <p hlmCardDescription>
@@ -102,6 +103,7 @@ import { SettingsDto } from '../api/model/settingsDto';
             </ul>
           </div>
         </section>
+        </div>
 
         @if (!s.vaultMasterKeyConfigured) {
           <!-- Only surface the vault card when the master key is missing, since that's the
