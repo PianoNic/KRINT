@@ -9,7 +9,7 @@ KRINT ships two ways from one codebase:
 
 The desktop build is a [Tauri v2](https://v2.tauri.app) window wrapped around the **same
 `KRINT.API` binary** the Docker image runs. The API serves the SPA + its OIDC config itself
-(Production `MapFallbackToFile`), so the webview just points at the local backend — no separate
+(Production `MapFallbackToFile`), so the webview just points at the local backend - no separate
 frontend build, no API changes.
 
 ## How it works
@@ -18,7 +18,7 @@ On launch the desktop shell (`src-tauri/src/lib.rs`):
 
 1. Creates an app-data dir and a stable `vault.key` (AES-256, generated once, reused).
 2. Starts a tiny **in-process OIDC issuer** (`src-tauri/src/oidc.rs`) that auto-issues tokens
-   (no login screen) — zero-config local sign-in, no Docker or Java needed.
+   (no login screen) - zero-config local sign-in, no Docker or Java needed.
 3. Spawns `KRINT.API` as a **sidecar** with `Database__Provider=Sqlite` and the SQLite file in
    the app-data dir.
 4. Waits for the API to log `Application started`, then navigates the window to
@@ -27,8 +27,8 @@ On launch the desktop shell (`src-tauri/src/lib.rs`):
 
 ### Why Docker is still required
 
-KRINT provisions database instances as **sibling Docker containers**, so the desktop app — like
-the server — needs a Docker engine (Docker Desktop on Windows/macOS) running on the host. Auth,
+KRINT provisions database instances as **sibling Docker containers**, so the desktop app - like
+the server - needs a Docker engine (Docker Desktop on Windows/macOS) running on the host. Auth,
 however, no longer needs Docker: it's the in-process issuer above.
 
 ## Prerequisites
@@ -68,7 +68,7 @@ bun run desktop:build            # installers under src-tauri/target/release/bun
 
 For a no-install build, compile with the `portable` Cargo feature. It embeds the API sidecar +
 resources into `krint-desktop.exe` and self-extracts them to
-`%APPDATA%/app.krint.desktop/runtime-<version>/` on first launch — one ~150 MB double-clickable file:
+`%APPDATA%/app.krint.desktop/runtime-<version>/` on first launch - one ~150 MB double-clickable file:
 
 ```bash
 bun run publish:sidecar                                            # produce the sidecar + wwwroot to embed
@@ -95,7 +95,7 @@ Find the host triple with `rustc --print host-tuple`.
 ## Auto-updates
 
 The app checks for updates on launch (`tauri-plugin-updater`). If a newer signed release is
-available it downloads, installs, and restarts — replacing the whole bundle (API sidecar +
+available it downloads, installs, and restarts - replacing the whole bundle (API sidecar +
 resources included), so one update covers everything.
 
 How it fits together:
@@ -107,7 +107,7 @@ How it fits together:
 - Windows ships the **NSIS `.exe`** installer only (per-user, x64 + arm64, best updater support);
   MSI is intentionally not built.
 - Updatable formats: **AppImage** (Linux), **NSIS `.exe`** (Windows), **.app** (macOS). `.deb`/`.rpm`
-  are install-only (no self-update) — that's a Tauri limitation, not ours.
+  are install-only (no self-update) - that's a Tauri limitation, not ours.
 
 ### One-time setup (required before releases self-update)
 
@@ -122,14 +122,14 @@ How it fits together:
    - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
 
 Until the real pubkey + secrets are in place, signed builds (`tauri build`) and auto-update won't
-work — the rest of the desktop build still does.
+work - the rest of the desktop build still does.
 
 ## Notes / TODO
 
 - **Keep ICU**: the sidecar is published *without* `InvariantGlobalization` because the MSSQL
   client needs ICU. Single-file self-contained bundles ICU by default.
 - **Ports** (`5111` API, `18080` OIDC) are currently fixed in `src-tauri/src/lib.rs`. Binding the
-  API to port `0` and parsing the chosen port from stdout would avoid collisions — a good
+  API to port `0` and parsing the chosen port from stdout would avoid collisions - a good
   follow-up.
 - The desktop SQLite database lives in the OS app-data dir (e.g. `%APPDATA%/app.krint.desktop`,
   `~/Library/Application Support/app.krint.desktop`, `~/.local/share/app.krint.desktop`).
