@@ -92,15 +92,27 @@ import { SettingsDto } from '../api/model/settingsDto';
             <p hlmCardDescription>Engines this instance of KRINT can provision, plus available versions.</p>
           </div>
           <div hlmCardContent class="min-h-0 flex-1 overflow-auto">
-            <ul class="divide-border divide-y rounded-md border">
-              @for (e of s.supportedEngines; track e.key) {
-                <li class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm">
-                  <ng-icon [name]="engineIcon(e.key)" size="18" />
-                  <span class="font-medium">{{ e.displayName }}</span>
-                  <span class="text-muted-foreground font-mono text-xs">{{ e.versions.join(' · ') }}</span>
-                </li>
-              }
-            </ul>
+            <table hlmTable>
+              <thead hlmTableHeader>
+                <tr hlmTableRow>
+                  <th hlmTableHead>Engine</th>
+                  <th hlmTableHead>Versions</th>
+                </tr>
+              </thead>
+              <tbody hlmTableBody>
+                @for (e of s.supportedEngines; track e.key) {
+                  <tr hlmTableRow>
+                    <td hlmTableCell>
+                      <span class="inline-flex items-center gap-3 leading-none">
+                        <ng-icon [name]="engineIcon(e.key)" size="18" class="shrink-0" />
+                        <span class="text-sm">{{ e.displayName }}</span>
+                      </span>
+                    </td>
+                    <td hlmTableCell class="text-muted-foreground font-mono text-xs">{{ e.versions.join(' · ') }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
           </div>
         </section>
         </div>
