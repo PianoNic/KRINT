@@ -68,7 +68,10 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          export VERSION="${TAG#v}"
+          # Strip any leading non-digit prefix (v, V, etc.) so the version is valid semver no matter
+          # how the release tag is cased - tags have shipped as both "v2.6.0" and "V2.6.2", and tauri
+          # rejects a non-semver version.
+          export VERSION="$(printf '%s' "$TAG" | sed -E 's/^[^0-9]*//')"
           node -e "
             const fs = require('fs');
             const conf = 'src-tauri/tauri.conf.json';
