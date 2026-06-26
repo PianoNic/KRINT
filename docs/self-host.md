@@ -10,6 +10,113 @@ The image: `ghcr.io/pianonic/krint:latest` (also `pianonic/krint:latest` on Dock
 
 ---
 
+## Quickstart (copy-paste)
+
+If you already run an OIDC provider (Pocket ID, Authentik, Auth0, Keycloak, ...), this is the whole
+thing: drop these two files into an empty directory and run `docker compose up -d`. No clone needed.
+Nothing stateful lives outside `./db/` and `./backups/`.
+
+`compose.yml`:
+
+```yaml
+services:
+  krint:
+    image: ghcr.io/pianonic/krint:latest
+    container_name: krint
+    restart: unless-stopped
+    # localhost inside this container is its own loopback, not the Docker host. The readiness
+    # probe for provisioned DB containers reaches them via host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:8080"
+    environment:
+      ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      Vault__MasterKey: ${KRINT_VAULT_KEY}
+      Oidc__Authority: ${KRINT_OIDC_AUTHORITY}
+      Oidc__ClientId: ${KRINT_OIDC_CLIENT_ID}
+      Oidc__RedirectUri: ${KRINT_OIDC_REDIRECT_URI}
+      Oidc__PostLogoutRedirectUri: ${KRINT_OIDC_REDIRECT_URI}
+      Oidc__Scope: "openid profile email roles"
+      Oidc__RequireHttpsMetadata: "true"
+      Cors__AllowedOrigins__0: ${KRINT_CORS_ORIGIN}
+    volumes:
+      # KRINT provisions DB containers as siblings on this host.
+      # On Windows / Docker Desktop prefix the host side with a slash: //var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./backups:/app/backups
+
+  db:
+    image: postgres:18.4
+    container_name: krint-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: krint
+    volumes:
+      - ./db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d krint"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+```
+
+`.env` (replace the placeholders, keep the keys):
+
+```env
+# Password for KRINT's own app database (the `db` Postgres container above). Only used inside the
+# compose network, but pick something real — it's set on first init and baked into the volume.
+POSTGRES_PASSWORD=change-me
+
+# AES-256 key for the secrets vault: 32 random bytes, base64-encoded. Generate with:
+#   openssl rand -base64 32
+# Every provisioned-instance password is encrypted under this key. Back it up and NEVER rotate it
+# once you have data — there's no recovery and no key-rotation flow yet.
+KRINT_VAULT_KEY=GENERATE_ME
+
+# Public discovery URL of your IdP realm/tenant. Must match the `issuer` in
+# <authority>/.well-known/openid-configuration byte-for-byte (scheme, port, trailing slash).
+KRINT_OIDC_AUTHORITY=https://auth.example.com/realms/krint
+
+# The client ID you registered for KRINT on your IdP (a public/PKCE client, no secret).
+KRINT_OIDC_CLIENT_ID=krint
+
+# Where the IdP sends users back after login. Must be a registered redirect URI on the IdP and
+# match KRINT's public URL (keep the trailing slash). Also used as the post-logout redirect.
+KRINT_OIDC_REDIRECT_URI=http://localhost:5000/
+
+# Browser origin allowed to call the API — the KRINT URL WITHOUT a trailing slash.
+KRINT_CORS_ORIGIN=http://localhost:5000
+```
+
+What each maps to inside the container (the `compose.yml` wires these via `${VAR}`):
+
+| `.env` key | KRINT setting | What it controls |
+| ---------- | ------------- | ---------------- |
+| `POSTGRES_PASSWORD` | `ConnectionStrings__KrintDatabase` | Credentials KRINT uses to reach its own metadata DB. |
+| `KRINT_VAULT_KEY` | `Vault__MasterKey` | Master key encrypting all stored instance secrets. |
+| `KRINT_OIDC_AUTHORITY` | `Oidc__Authority` | Which IdP issues and validates login tokens. |
+| `KRINT_OIDC_CLIENT_ID` | `Oidc__ClientId` | Which client registration on that IdP KRINT logs in as. |
+| `KRINT_OIDC_REDIRECT_URI` | `Oidc__RedirectUri` / `Oidc__PostLogoutRedirectUri` | Return URL after login and logout. |
+| `KRINT_CORS_ORIGIN` | `Cors__AllowedOrigins__0` | Browser origin the API accepts requests from. |
+
+The two `compose.yml` values not pulled from `.env` are fixed on purpose: `Oidc__Scope`
+(`openid profile email roles`) is what KRINT always requests, and `Oidc__RequireHttpsMetadata: "true"`
+enforces HTTPS to the IdP — set it to `"false"` only if your IdP is plain HTTP.
+
+Then open `http://localhost:5000`. Register KRINT as a **public client** (PKCE, no secret) on your
+IdP with redirect URI `http://localhost:5000/*` — full details under
+[Using your own OIDC provider](#using-your-own-oidc-provider-skip-the-bundled-keycloak).
+
+> **No OIDC provider yet?** Use the bundled-Keycloak clone path in the TL;DR below — it ships a
+> ready-to-import realm so you get zero-config auth without standing up your own IdP.
+
+---
+
 ## TL;DR
 
 There are two flavours of self-host:
