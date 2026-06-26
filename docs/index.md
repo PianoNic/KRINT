@@ -21,11 +21,11 @@ hero:
 
 features:
   - title: 16 engines, one click
-    details: PostgreSQL, MariaDB, MongoDB, MySQL, SQL Server, CockroachDB, TimescaleDB, ClickHouse, Cassandra, CouchDB, Neo4j, Redis, Valkey, Qdrant, plus SeaweedFS (S3) and Azurite (Azure Blob).
-  - title: Browse, query, manage
-    details: Spreadsheet-style row editing, an ad-hoc SQL console, live log tailing and an interactive shell — all from the browser.
+    details: Postgres, MySQL, Mongo, Redis, and 12 more.
+  - title: Browse & query
+    details: In-cell row editing and a SQL console in the browser.
   - title: Backups & upgrades
-    details: Manual or cron-scheduled backups, restore in place, and dump-restore-swap version upgrades that keep the host port.
+    details: Scheduled backups and in-place version upgrades.
   - title: Distributed nodes
-    details: Run the same image as a stripped node that dials into the control plane over SignalR to add remote Docker hosts — every operation tunnels over one connection.
+    details: Run databases on remote Docker hosts over one connection.
 ---
