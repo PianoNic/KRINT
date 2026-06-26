@@ -1,6 +1,7 @@
 # Declarative instances (`instances.yaml`)
 
-KRINT can read a YAML file at startup and ensure the database instances it declares actually exist - provisioning anything missing and reconciling passwords / databases / users on entries that already exist. Useful when you want infrastructure-as-code semantics instead of clicking around the UI.
+Infrastructure-as-code for your databases: declare instances in a YAML file and KRINT provisions
+anything missing and reconciles passwords, databases, and users on startup — no clicking around the UI.
 
 ## Wiring it up
 
