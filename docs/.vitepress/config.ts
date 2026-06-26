@@ -19,20 +19,26 @@ export default defineConfig({
       { text: 'Developer setup', link: '/dev-setup' },
       { text: 'Nodes', link: '/nodes' },
     ],
+    // Grouped Diátaxis-style: get-it-running first, task guides next, concepts last.
     sidebar: [
       {
-        text: 'Getting started',
+        text: 'Get started',
         items: [
           { text: 'Self-hosting', link: '/self-host' },
           { text: 'Desktop app', link: '/desktop' },
+        ],
+      },
+      {
+        text: 'Guides',
+        items: [
+          { text: 'Declarative instances', link: '/declarative-instances' },
           { text: 'Developer setup', link: '/dev-setup' },
         ],
       },
       {
-        text: 'Features',
+        text: 'Concepts',
         items: [
-          { text: 'Nodes (remote Docker workers)', link: '/nodes' },
-          { text: 'Declarative instances', link: '/declarative-instances' },
+          { text: 'Nodes', link: '/nodes' },
         ],
       },
     ],
