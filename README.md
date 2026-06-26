@@ -7,7 +7,7 @@
 </p>
 <p align="center">
   <a href="https://github.com/PianoNic/KRINT"><img src="https://badgetrack.pianonic.ch/badge?tag=krint&label=visits&color=0d1117&style=flat" alt="visits" /></a>
-  <a href="docs/self-host.md"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
+  <a href="https://docs.krint.pianonic.ch/self-host"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
   <img src="https://img.shields.io/badge/.NET-10-0d1117.svg" alt=".NET 10" />
   <img src="https://img.shields.io/badge/Angular-21-0d1117.svg" alt="Angular 21" />
 </p>
@@ -73,8 +73,10 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 
 ## Get started
 
-- 📦 **[Self-hosting guide](docs/self-host.md)** - run the image with `docker compose`.
-- 🛠️ **[Developer setup](docs/dev-setup.md)** - local dev with `dotnet run` + Bun, migrations, tests.
+- 📦 **[Self-hosting guide](https://docs.krint.pianonic.ch/self-host)** - run the image with `docker compose`.
+- 🛠️ **[Developer setup](https://docs.krint.pianonic.ch/dev-setup)** - local dev with `dotnet run` + Bun, migrations, tests.
+
+Full documentation: **[docs.krint.pianonic.ch](https://docs.krint.pianonic.ch)**
 
 <details>
 <summary><strong>Tech stack</strong></summary>
