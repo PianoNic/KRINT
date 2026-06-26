@@ -1,21 +1,13 @@
 # Nodes (experimental)
 
-> A node is a stateless worker that runs database containers on a remote host. You can provision a
-> database onto a node and then do **everything** with it through the control plane — browse, query,
-> manage users, back up and restore, upgrade the engine version, tail container logs, and open an
-> interactive shell. **Every operation travels over the one SignalR connection**, and nodes expose no
-> ports.
+A **node** runs database containers on a remote host. Provision a database onto it, then do
+**everything** through the control plane — browse, query, manage users, back up, upgrade, tail logs,
+open a shell. Every operation rides one SignalR connection, and nodes expose no ports.
 
-KRINT normally provisions database containers on its own Docker daemon. A **node** is the *same*
-KRINT image started in a stripped role that does nothing but execute Docker (and database) work on
-its own host. It dials **out** to the control plane over SignalR (so it works behind NAT/firewalls —
-only the control plane needs to be reachable) and authenticates with a pre-shared token.
-
-The control plane keeps **all** state (the single KRINT database and the secrets vault); the node
-holds nothing. For a node-hosted instance, the control plane sends commands ("create this container",
-"list these tables", "run this query") and the node runs them locally — against the container on its
-own loopback — and returns the result. Nothing connects to a node directly, so the node's containers
-bind to localhost only and never publish a port.
+A node is the *same* KRINT image in a stripped role. It dials **out** to the control plane (so it
+works behind NAT/firewalls) and authenticates with a pre-shared token. The control plane keeps all
+state; the node holds nothing — it just runs the commands it's sent against its own loopback and
+returns the result.
 
 ## How it works
 
