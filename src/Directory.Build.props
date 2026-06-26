@@ -11,7 +11,10 @@
       <Output TaskParameter="Result" ItemName="_VersionFromFile" />
     </XmlPeek>
     <PropertyGroup>
-      <Version>@(_VersionFromFile)</Version>
+      <!-- Release tags ship inconsistently cased (e.g. "V2.6.2"); a stray leading v/V makes an
+           invalid NuGet/assembly version (NETSDK1018). Strip it so the build never breaks on casing. -->
+      <_RawVersion>@(_VersionFromFile)</_RawVersion>
+      <Version>$(_RawVersion.TrimStart('v').TrimStart('V'))</Version>
     </PropertyGroup>
   </Target>
 
