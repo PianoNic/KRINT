@@ -128,12 +128,7 @@ namespace KRINT.Application.Command.Database
                     Binds = new List<string> { bindSpec },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
                 },
-                Labels = new Dictionary<string, string>
-                {
-                    ["krint.managed"] = "true",
-                    ["krint.engine"] = command.Engine,
-                    ["krint.instance-id"] = instanceId.ToString(),
-                },
+                Labels = Containers.KrintContainerLabels.For(command.Engine, instanceId, command.DisplayName),
             };
 
             var createResult = await docker.CreateContainerAsync(createParams, cancellationToken);

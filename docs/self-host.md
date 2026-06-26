@@ -205,6 +205,8 @@ Migrations run on startup; the vault, metadata, and provisioned containers are p
 
 **Schedule dumps** from the Backups page - they land in `./backups/`.
 
+**Provisioned containers** are labelled as a Compose project named `krint-databases`, so Docker Desktop (and `docker compose ls`) groups them into their own cluster - separate from KRINT's own stack - instead of listing them as loose containers.
+
 ---
 
 ## Troubleshooting
