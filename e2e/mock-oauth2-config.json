@@ -9,14 +9,13 @@
           "requestParam": "client_id",
           "match": "krint",
           "claims": {
-            "sub": "niclas-erismann",
-            "name": "Niclas Erismann",
-            "given_name": "Niclas",
-            "family_name": "Erismann",
-            "preferred_username": "niclas.erismann",
-            "email": "niclas.erismann@gmail.com",
+            "sub": "krint-admin",
+            "name": "Demo Admin",
+            "given_name": "Demo",
+            "family_name": "Admin",
+            "preferred_username": "admin",
+            "email": "admin@krint.local",
             "email_verified": true,
-            "picture": "https://avatars.githubusercontent.com/u/79938743?v=4",
             "roles": ["admin"]
           }
         }

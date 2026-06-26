@@ -46,13 +46,13 @@ export const SCHEDULE_TEMPLATES: ReadonlyArray<Template> = [
 
     <div class="flex flex-col gap-2">
       <label hlmLabel for="schedule-instance">Instance</label>
-      <hlm-select id="schedule-instance" [value]="instanceId()" (valueChange)="instanceId.set($event)">
+      <hlm-select id="schedule-instance" [value]="instanceId()" (valueChange)="instanceId.set($event)" [itemToString]="instanceLabel">
         <hlm-select-trigger class="w-full">
           <hlm-select-value placeholder="Select an instance" />
         </hlm-select-trigger>
         <hlm-select-content *hlmSelectPortal>
           @for (i of ctx.instances; track i.id) {
-            <hlm-select-item [value]="i.id">{{ i.engine }} - {{ i.containerName }}</hlm-select-item>
+            <hlm-select-item [value]="i.id">{{ instanceLabel(i.id) }}</hlm-select-item>
           }
         </hlm-select-content>
       </hlm-select>
@@ -131,6 +131,14 @@ export class BackupScheduleDialog {
   constructor() {
     this.instanceId.set(this.ctx.preselectedInstanceId);
   }
+
+  // Maps an instance id to a friendly label so the select trigger shows the name, not the GUID
+  // (the brain select stringifies the raw value otherwise, and the options live in a lazy portal).
+  // Arrow property so it can be passed straight to [itemToString].
+  protected readonly instanceLabel = (id: string): string => {
+    const i = this.ctx.instances.find((x) => x.id === id);
+    return i ? i.displayName : id;
+  };
 
   protected pickTemplate(t: Template): void {
     this.selectedTemplate.set(t.key);

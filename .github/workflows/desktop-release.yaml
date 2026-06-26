@@ -93,6 +93,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ github.event.release.id }}
+          # macOS: build only the .app bundle. The .dmg target's bundle_dmg.sh is flaky on headless
+          # CI runners (hdiutil/AppleScript), and we already ship the .app zipped (step below), so the
+          # DMG just makes releases fail. Other OSes use the targets from tauri.conf.json; local
+          # `tauri build` still produces a .dmg.
+          args: ${{ runner.os == 'macOS' && '--bundles app' || '' }}
 
       # Linux: the AppImage produced above is already the portable build, so nothing more to do.
 
