@@ -420,3 +420,7 @@ FodyWeavers.xsd
 /src-tauri/icons/Square*.png
 /src-tauri/icons/StoreLogo.png
 /src-tauri/resources/wwwroot/
+
+# VitePress docs build
+docs/.vitepress/dist/
+docs/.vitepress/cache/
