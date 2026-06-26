@@ -63,7 +63,7 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 
 ## Features
 
-- **16 engines** + opt-in plugins (pgvector, PostGIS, Redis Stack, APOC, and more).
+- **[16 engines](https://docs.krint.pianonic.ch/engines)** + opt-in plugins (pgvector, PostGIS, Redis Stack, APOC, and more).
 - **Browse & query**: in-cell row editing and an ad-hoc SQL console.
 - **Container console**: live log tailing and an interactive shell, in the browser.
 - **Backups**: manual, scheduled, or upload your own; restore or upgrade in place.

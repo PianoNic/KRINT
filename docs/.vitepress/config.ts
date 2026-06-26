@@ -16,6 +16,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Self-host', link: '/self-host' },
+      { text: 'Engines', link: '/engines' },
       { text: 'Developer setup', link: '/dev-setup' },
       { text: 'Nodes', link: '/nodes' },
     ],
@@ -26,6 +27,7 @@ export default defineConfig({
         items: [
           { text: 'Self-hosting', link: '/self-host' },
           { text: 'Desktop app', link: '/desktop' },
+          { text: 'Supported engines', link: '/engines' },
         ],
       },
       {
