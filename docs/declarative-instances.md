@@ -1,7 +1,7 @@
 # Declarative instances (`instances.yaml`)
 
 Infrastructure-as-code for your databases: declare instances in a YAML file and KRINT provisions
-anything missing and reconciles passwords, databases, and users on startup — no clicking around the UI.
+anything missing and reconciles passwords, databases, and users on startup - no clicking around the UI.
 
 ## Wiring it up
 

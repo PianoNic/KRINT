@@ -2,8 +2,8 @@
 
 Run KRINT from the pre-built image, on either registry:
 
-- **GitHub Container Registry** — `ghcr.io/pianonic/krint:latest`
-- **Docker Hub** — `pianonic/krint:latest`
+- **GitHub Container Registry** - `ghcr.io/pianonic/krint:latest`
+- **Docker Hub** - `pianonic/krint:latest`
 
 The two are identical; use whichever you prefer. Examples below use the GHCR tag.
 
@@ -13,9 +13,9 @@ You need a Linux/Windows host with **Docker + Compose v2**, and a directory to k
 
 | You have… | Do this |
 | --- | --- |
-| Your own OIDC provider (Pocket ID, Authentik, Auth0, Keycloak…) | [Quickstart](#quickstart) below — two files, no clone. |
-| Nothing yet, want zero-config auth | [Bundled Keycloak](#no-oidc-provider-bundled-keycloak) — clone the repo. |
-| A single machine, just you | The [desktop app](./desktop.md) — SQLite, built-in login, no Docker auth setup. |
+| Your own OIDC provider (Pocket ID, Authentik, Auth0, Keycloak…) | [Quickstart](#quickstart) below - two files, no clone. |
+| Nothing yet, want zero-config auth | [Bundled Keycloak](#no-oidc-provider-bundled-keycloak) - clone the repo. |
+| A single machine, just you | The [desktop app](./desktop.md) - SQLite, built-in login, no Docker auth setup. |
 
 ## Quickstart
 
@@ -78,7 +78,7 @@ KRINT_OIDC_REDIRECT_URI=http://localhost:5000/
 KRINT_CORS_ORIGIN=http://localhost:5000
 ```
 
-On your IdP, register KRINT as a **public client** (PKCE, no secret) with redirect URI `http://localhost:5000/*`. That's it — the rest is reference below.
+On your IdP, register KRINT as a **public client** (PKCE, no secret) with redirect URI `http://localhost:5000/*`. That's it - the rest is reference below.
 
 ## No OIDC provider? Bundled Keycloak
 
@@ -90,7 +90,7 @@ cp .env.example .env     # edit before first start
 docker compose up -d     # postgres + keycloak + krint
 ```
 
-First boot imports the `krint` realm (~30–60s). Then open Keycloak at <http://localhost:8080>, log in as the bootstrap admin from `.env`, switch to the **krint** realm, and add a user under **Users → Add user**. Log in to KRINT at <http://localhost:5000>.
+First boot imports the `krint` realm (~30-60s). Then open Keycloak at <http://localhost:8080>, log in as the bootstrap admin from `.env`, switch to the **krint** realm, and add a user under **Users → Add user**. Log in to KRINT at <http://localhost:5000>.
 
 ---
 
@@ -111,7 +111,7 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Oidc__RedirectUri` / `…PostLogoutRedirectUri` | Return URL after login/logout. Must be registered on the IdP, keep the trailing slash. |
 | `Oidc__Scope` | `openid profile email roles` (`roles` optional). |
 | `Oidc__RequireHttpsMetadata` | `true` (set `false` only for a plain-HTTP IdP). |
-| `Cors__AllowedOrigins__0` | Browser origin allowed to call the API — KRINT URL **without** trailing slash. Add more as `__1`, `__2`. |
+| `Cors__AllowedOrigins__0` | Browser origin allowed to call the API - KRINT URL **without** trailing slash. Add more as `__1`, `__2`. |
 
 > ⚠️ **Never lose or rotate `Vault__MasterKey` once you have data.** There's no recovery and no key-rotation flow.
 
@@ -162,10 +162,10 @@ KRINT's SPA uses Authorization Code Flow + **PKCE**, so register a **public clie
 | Web origins / CORS | KRINT origin, no trailing slash |
 | Scopes | `openid profile email` (`roles` optional) |
 
-- **Pocket ID** — toggle **Public Client**; allow your user/group. `*` wildcards work.
-- **Authentik** — use the *Provider*'s issuer (`/application/o/<slug>/`) as the authority, not the Application URL.
-- **Auth0** — authority is `https://<tenant>.auth0.com/` (trailing slash); app type **SPA**.
-- **External Keycloak** — authority is `https://<host>/realms/<realm>`.
+- **Pocket ID** - toggle **Public Client**; allow your user/group. `*` wildcards work.
+- **Authentik** - use the *Provider*'s issuer (`/application/o/<slug>/`) as the authority, not the Application URL.
+- **Auth0** - authority is `https://<tenant>.auth0.com/` (trailing slash); app type **SPA**.
+- **External Keycloak** - authority is `https://<host>/realms/<realm>`.
 
 </details>
 
@@ -203,7 +203,7 @@ Migrations run on startup; the vault, metadata, and provisioned containers are p
 
 **Back up** the `./db/` (or `postgres-data` volume) and `./backups/` directories before major upgrades. Provisioned-instance volumes are independent and survive `docker compose down`.
 
-**Schedule dumps** from the Backups page — they land in `./backups/`.
+**Schedule dumps** from the Backups page - they land in `./backups/`.
 
 ---
 
@@ -216,14 +216,14 @@ Migrations run on startup; the vault, metadata, and provisioned containers are p
 | --- | --- |
 | `Vault:MasterKey must decode to 32 bytes` | Regenerate with `openssl rand -base64 32`. |
 | `401 invalid_token: issuer is invalid` | `Oidc__Authority` must match the IdP's `issuer` byte-for-byte. |
-| `401: signature key was not found` | API can't reach JWKS — check `Oidc__InternalAuthority` / `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`. |
-| "You're not allowed to access this service" | IdP authenticated the user but the client policy denies them — allow the user/group. |
+| `401: signature key was not found` | API can't reach JWKS - check `Oidc__InternalAuthority` / `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`. |
+| "You're not allowed to access this service" | IdP authenticated the user but the client policy denies them - allow the user/group. |
 | CORS error on `/api/*` | `Cors__AllowedOrigins__0` must match the SPA origin (no trailing slash). |
 | `Cannot connect to the Docker daemon` | The `/var/run/docker.sock` bind is missing from the `krint` service. |
 | `Failed to connect to 127.0.0.1:<port>` on provision | Add `extra_hosts: ["host.docker.internal:host-gateway"]`. |
-| `SocketException (13): Permission denied` | Running as non-root without socket access — keep the default root user or `group_add` the docker GID. |
-| `No free host port in range` | `krint.yaml` `port_ranges` exhausted — delete an instance or widen the range. |
-| DB auth fails after changing the password | `POSTGRES_PASSWORD` only applies on first init — reset in-DB or wipe the volume. |
+| `SocketException (13): Permission denied` | Running as non-root without socket access - keep the default root user or `group_add` the docker GID. |
+| `No free host port in range` | `krint.yaml` `port_ranges` exhausted - delete an instance or widen the range. |
+| DB auth fails after changing the password | `POSTGRES_PASSWORD` only applies on first init - reset in-DB or wipe the volume. |
 
 </details>
 
