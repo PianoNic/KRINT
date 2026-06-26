@@ -28,7 +28,8 @@ jobs:
           GH_TOKEN: ${{ secrets.MAIN_PUSH_TOKEN }}
         run: |
           TAG_VERSION="${{ github.event.release.tag_name }}"
-          TAG_VERSION="${TAG_VERSION#v}"
+          # Tags ship inconsistently cased (e.g. "V2.6.2"); strip any non-digit prefix.
+          TAG_VERSION="$(printf '%s' "$TAG_VERSION" | sed -E 's/^[^0-9]*//')"
           FILE_VERSION=$(grep -oP '(?<=<version>)[^<]+' application.properties)
 
           echo "Release tag version: $TAG_VERSION"
@@ -45,7 +46,9 @@ jobs:
           git checkout -b "$BRANCH"
           git add application.properties
           git commit -m "Bumped application.properties to $TAG_VERSION for release"
-          git push origin "$BRANCH"
+          # The release-sync branch is ephemeral (deleted on merge); a leftover from a
+          # re-run would make a plain push fail with "fetch first", so force-push it.
+          git push -f origin "$BRANCH"
 
           PR_URL=$(gh pr create \
             --base main \
