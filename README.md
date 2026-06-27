@@ -35,6 +35,10 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 <summary><strong>Show more screenshots</strong></summary>
 
 <p align="center">
+  <img src="assets/screenshots/add-node-modal.png" width="49%" alt="Add a node: copy-paste compose with URL + token" />
+  <img src="assets/screenshots/nodes-list.png" width="49%" alt="Nodes list with a pending node" />
+</p>
+<p align="center">
   <img src="assets/screenshots/query.png" width="49%" alt="Query console" />
   <img src="assets/screenshots/create-plugins.png" width="49%" alt="Create wizard - plugins step" />
 </p>
