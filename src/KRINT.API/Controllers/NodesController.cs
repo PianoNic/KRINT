@@ -1,16 +1,25 @@
 using System.Diagnostics;
 using KRINT.API.Hubs;
 using KRINT.API.Nodes;
+using KRINT.Application.Options;
+using KRINT.Domain;
 using KRINT.Infrastructure;
+using KRINT.Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace KRINT.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class NodesController(KrintDbContext db, INodeRegistry registry, IHubContext<NodeHub> hub) : ControllerBase
+    public class NodesController(
+        KrintDbContext db,
+        INodeRegistry registry,
+        IHubContext<NodeHub> hub,
+        IConfiguration configuration,
+        IOptions<KrintOptions> options) : ControllerBase
     {
         [HttpGet]
         [ProducesResponseType(typeof(IReadOnlyList<NodeDto>), StatusCodes.Status200OK)]
@@ -25,9 +34,63 @@ namespace KRINT.API.Controllers
                 n.Os,
                 n.DockerVersion,
                 Online: online.ContainsKey(n.Id),
+                // "Pending" until the node first connects and reports its machine details.
+                Pending: !online.ContainsKey(n.Id) && string.IsNullOrEmpty(n.MachineName),
+                n.IsConfigManaged,
                 FirstSeenAt: n.CreatedAt,
                 LastSeenAt: online.TryGetValue(n.Id, out var seen) ? seen.UtcDateTime : n.LastSeenAt));
             return Ok(result);
+        }
+
+        /// <summary>Generates a fresh node token + the URL the node should dial, WITHOUT persisting
+        /// anything. The UI builds the copy-paste compose from this and only saves on demand.</summary>
+        [HttpGet("draft")]
+        [ProducesResponseType(typeof(NodeDraftDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Draft(CancellationToken cancellationToken)
+        {
+            var count = await db.Nodes.CountAsync(cancellationToken);
+            var controlPlaneUrl = configuration["Krint:PublicUrl"] ?? options.Value.PublicUrl;
+            return Ok(new NodeDraftDto(
+                SuggestedName: $"node-{count + 1}",
+                Token: NodeTokenHasher.Generate(),
+                ControlPlaneUrl: string.IsNullOrWhiteSpace(controlPlaneUrl) ? null : controlPlaneUrl.TrimEnd('/')));
+        }
+
+        /// <summary>Persists a node from the Add-node modal (stores only the token hash). The node
+        /// shows as pending until it dials in with this token.</summary>
+        [HttpPost]
+        [ProducesResponseType(typeof(NodeDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> Create([FromBody] CreateNodeRequest request, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(request.Token))
+                return BadRequest("A token is required.");
+
+            var name = string.IsNullOrWhiteSpace(request.Name) ? "node" : request.Name.Trim();
+            var node = new Node { Name = name, TokenHash = NodeTokenHasher.Hash(request.Token) };
+            db.Nodes.Add(node);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var dto = new NodeDto(node.Id, node.Name, node.MachineName, node.Os, node.DockerVersion,
+                Online: false, Pending: true, node.IsConfigManaged, node.CreatedAt, node.LastSeenAt);
+            return CreatedAtAction(nameof(List), dto);
+        }
+
+        /// <summary>Removes a node and revokes its token. Config-managed nodes can't be deleted here
+        /// (they'd reappear on the next restart) - remove them from krint.yaml instead.</summary>
+        [HttpDelete("{id:guid}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+        {
+            var node = await db.Nodes.FirstOrDefaultAsync(n => n.Id == id, cancellationToken);
+            if (node is null) return NotFound();
+            if (node.IsConfigManaged) return Conflict("This node is managed by krint.yaml; remove it there.");
+
+            db.Nodes.Remove(node);
+            await db.SaveChangesAsync(cancellationToken);
+            return NoContent();
         }
 
         /// <summary>Round-trips a ping to the node to prove the channel is live. Returns the node's

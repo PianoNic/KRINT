@@ -78,6 +78,7 @@ builder.Services.AddSingleton<INodeStreamRelay, NodeStreamRelay>();
 
 builder.Services.AddHostedService<KRINT.API.BackupSchedulerHostedService>();
 builder.Services.AddHostedService<KRINT.API.InstanceReconciliationHostedService>();
+builder.Services.AddHostedService<KRINT.API.NodeReconciliationHostedService>();
 
 // Defaults to no cross-origin allowlist when unset. The desktop build serves the SPA
 // same-origin from the sidecar, so it needs none; server deployments set it explicitly.

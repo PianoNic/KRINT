@@ -16,6 +16,8 @@ export interface NodeDto {
     os: string;
     dockerVersion: string;
     online: boolean;
+    pending: boolean;
+    isConfigManaged: boolean;
     firstSeenAt: string;
     lastSeenAt: string;
 }
