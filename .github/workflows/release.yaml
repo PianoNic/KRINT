@@ -1,0 +1,262 @@
+name: Release
+
+# One pipeline for a published GitHub Release, in order:
+#   1. sync-version  - bump application.properties to the release tag, commit it to main.
+#   2. docker        - build + push the multi-arch image from the bumped main.
+#   3. desktop       - build the Tauri desktop apps from the bumped main, attach to the release.
+#
+# Both build jobs depend on sync-version and check out main *after* the bump, so every artifact is
+# built from the version-bumped tree (the .NET sidecar reads application.properties; the desktop
+# stamp reads the same file) - no separate stamping from the tag, no version drift.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sync-version:
+    name: Bump version to the release tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.sync.outputs.version }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.MAIN_PUSH_TOKEN }}
+
+      - name: Configure git as the maintainer
+        run: |
+          git config user.name "PianoNic"
+          git config user.email "79938743+PianoNic@users.noreply.github.com"
+
+      - name: Bump application.properties and merge to main
+        id: sync
+        env:
+          GH_TOKEN: ${{ secrets.MAIN_PUSH_TOKEN }}
+        run: |
+          TAG_VERSION="${{ github.event.release.tag_name }}"
+          # Tags ship inconsistently cased (e.g. "V2.6.2"); strip any non-digit prefix.
+          TAG_VERSION="$(printf '%s' "$TAG_VERSION" | sed -E 's/^[^0-9]*//')"
+          FILE_VERSION=$(grep -oP '(?<=<version>)[^<]+' application.properties)
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo "Release tag version: $TAG_VERSION"
+          echo "File version:        $FILE_VERSION"
+
+          if [ "$TAG_VERSION" = "$FILE_VERSION" ]; then
+            echo "Already in sync, nothing to commit."
+            exit 0
+          fi
+
+          sed -i "s|<version>$FILE_VERSION</version>|<version>$TAG_VERSION</version>|" application.properties
+
+          # main is protected, so land the bump through an admin-merged PR rather than a direct push.
+          BRANCH="release-sync/$TAG_VERSION"
+          git checkout -b "$BRANCH"
+          git add application.properties
+          git commit -m "Bumped application.properties to $TAG_VERSION for release"
+          # The release-sync branch is ephemeral (deleted on merge); a leftover from a re-run would
+          # make a plain push fail with "fetch first", so force-push it.
+          git push -f origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Bumped application.properties to $TAG_VERSION for release" \
+            --body "Bumped application.properties to $TAG_VERSION for release" \
+            --label CI/CD)
+          gh pr merge "$PR_URL" --admin --squash --delete-branch
+
+  docker:
+    name: Build and push multi-arch image
+    needs: sync-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # main now carries the version bump from sync-version.
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Prepare repository name
+        id: prep
+        run: |
+          echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ github.event.release.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
+            type=semver,pattern={{major}},value=${{ github.event.release.tag_name }}
+            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+
+      - name: Build and push Multi-Arch Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./src/KRINT.API/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ steps.prep.outputs.repository_lowercase }}:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=ghcr.io/${{ steps.prep.outputs.repository_lowercase }}:buildcache,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          provenance: false
+          sbom: false
+
+  desktop:
+    name: Desktop ${{ matrix.label }}
+    needs: sync-version
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    # crates.io downloads flake intermittently on CI (curl [55] SSL_ERROR_SYSCALL, usually from
+    # HTTP/2 multiplexing). Retry hard and disable multiplexing so a single bad chunk doesn't fail
+    # the whole release build.
+    env:
+      CARGO_NET_RETRY: "10"
+      CARGO_HTTP_MULTIPLEXING: "false"
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04,   label: Linux x64,   rid: linux-x64, portable: appimage }
+          - { os: windows-latest, label: Windows x64,  rid: win-x64,   portable: zip }
+          - { os: macos-14,       label: macOS arm64,  rid: osx-arm64, portable: zip }
+    steps:
+      # main now carries the version bump from sync-version, so the build uses the released version.
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev patchelf
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Bun (frontend)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Tauri CLI
+        run: bun install
+
+      # tauri.conf.json / Cargo.toml aren't driven by application.properties, so stamp them with the
+      # version we just bumped. Read it straight from application.properties (the single source of
+      # truth) via node, which is portable across all three runners.
+      - name: Stamp desktop version from application.properties
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const props = fs.readFileSync('application.properties', 'utf8');
+            const m = props.match(/<version>([^<]+)<\/version>/);
+            const version = (m ? m[1] : '').replace(/^[^0-9]*/, '');
+            if (!version) { console.error('No <version> found in application.properties'); process.exit(1); }
+            const conf = 'src-tauri/tauri.conf.json';
+            const c = JSON.parse(fs.readFileSync(conf, 'utf8'));
+            c.version = version;
+            fs.writeFileSync(conf, JSON.stringify(c, null, 2) + '\n');
+            const cargo = 'src-tauri/Cargo.toml';
+            fs.writeFileSync(cargo, fs.readFileSync(cargo, 'utf8').replace(/^version = \".*\"/m, 'version = \"' + version + '\"'));
+            console.log('Stamped desktop version: ' + version);
+          "
+
+      # tauri-action runs the beforeBuildCommand (scripts/publish-sidecar.mjs), which builds the SPA
+      # and publishes KRINT.API self-contained for this runner's RID, then builds the installers and
+      # uploads them to the release. Auto-update is off (no updater signing key set up).
+      - name: Build desktop app and upload installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ github.event.release.id }}
+          # macOS: build only the .app bundle. The .dmg target's bundle_dmg.sh is flaky on headless
+          # CI runners (hdiutil/AppleScript), and we already ship the .app zipped (step below).
+          args: ${{ runner.os == 'macOS' && '--bundles app' || '' }}
+
+      # Single no-install exe: rebuild with the `portable` feature, which embeds the API sidecar +
+      # resources into krint-desktop.exe and self-extracts them on launch.
+      - name: Build & upload portable single exe (Windows)
+        if: matrix.portable == 'zip' && runner.os == 'Windows'
+        shell: pwsh
+        working-directory: src-tauri
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo build --release --features portable
+          $out = "KRINT-portable-${{ matrix.rid }}.exe"
+          Copy-Item target/release/krint-desktop.exe $out
+          gh release upload "${{ github.event.release.tag_name }}" $out --clobber
+
+      - name: Package portable archive (macOS)
+        if: matrix.portable == 'zip' && runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APP=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name "*.app" | head -1)
+          OUT="KRINT-portable-${{ matrix.rid }}.zip"
+          ditto -c -k --keepParent "$APP" "$OUT"
+          gh release upload "${{ github.event.release.tag_name }}" "$OUT" --clobber
