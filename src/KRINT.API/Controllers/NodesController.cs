@@ -46,15 +46,21 @@ namespace KRINT.API.Controllers
         /// anything. The UI builds the copy-paste compose from this and only saves on demand.</summary>
         [HttpGet("draft")]
         [ProducesResponseType(typeof(NodeDraftDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Draft(CancellationToken cancellationToken)
+        public IActionResult Draft()
         {
-            var count = await db.Nodes.CountAsync(cancellationToken);
             var controlPlaneUrl = configuration["Krint:PublicUrl"] ?? options.Value.PublicUrl;
             return Ok(new NodeDraftDto(
-                SuggestedName: $"node-{count + 1}",
+                SuggestedName: GenerateNodeName(),
                 Token: NodeTokenHasher.Generate(),
                 ControlPlaneUrl: string.IsNullOrWhiteSpace(controlPlaneUrl) ? null : controlPlaneUrl.TrimEnd('/')));
         }
+
+        // A fun, docker-style adjective-animal name (e.g. "brave-otter") via RandomFriendlyNameGenerator,
+        // just a suggestion the user can rename in the modal before saving.
+        private static string GenerateNodeName() =>
+            RandomFriendlyNameGenerator.NameGenerator.Identifiers
+                .Get(RandomFriendlyNameGenerator.IdentifierComponents.Adjective | RandomFriendlyNameGenerator.IdentifierComponents.Animal, separator: "-")
+                .ToLowerInvariant();
 
         /// <summary>Persists a node from the Add-node modal (stores only the token hash). The node
         /// shows as pending until it dials in with this token.</summary>
