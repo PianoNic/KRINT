@@ -23,6 +23,21 @@ public sealed class KrintOptions
     /// </summary>
     public string? InstancesFile { get; set; }
 
+    /// <summary>
+    /// Public URL this control plane is served on (e.g. https://krint.example.com). Used to build
+    /// the copy-paste node compose so it points back here. Usually set via the env file
+    /// (Krint__PublicUrl); the controller checks IConfiguration too - this is the krint.yaml fallback.
+    /// </summary>
+    public string? PublicUrl { get; set; }
+
+    /// <summary>
+    /// Worker nodes declared up front. Each entry is just a name and a pre-shared secret; on startup
+    /// the reconcile service ensures a matching Node row exists (token hashed) and flags it
+    /// IsConfigManaged. Deploy the node with that secret as Node__Token - identity is derived from
+    /// the token, so no Node__Id is needed.
+    /// </summary>
+    public List<NodeConfig> Nodes { get; set; } = new();
+
     public PortRange GetPortRange(string engine)
     {
         if (!PortRanges.TryGetValue(engine, out var raw))
@@ -30,6 +45,12 @@ public sealed class KrintOptions
 
         return PortRange.Parse(engine, raw);
     }
+}
+
+public sealed class NodeConfig
+{
+    public string Name { get; set; } = "";
+    public string Secret { get; set; } = "";
 }
 
 public enum StorageMode

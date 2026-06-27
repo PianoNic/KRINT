@@ -17,6 +17,7 @@ namespace KRINT.API.Nodes
         ILogger<NodeAgentHostedService> logger) : IHostedService, IAsyncDisposable
     {
         private HubConnection? _connection;
+        private readonly CancellationTokenSource _shutdown = new();
         private string _nodeId = "";
         // Active log follows started by the control plane, so StopLogStream can cancel them.
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource> _logStreams = new();
@@ -65,7 +66,28 @@ namespace KRINT.API.Nodes
 
             // Kick off the connect loop in the background so app startup isn't blocked on the control plane.
             _ = ConnectLoopAsync(name, hubUrl);
+            _ = HeartbeatLoopAsync(_shutdown.Token);
             return Task.CompletedTask;
+        }
+
+        // Liveness: every 5s the node pings the control plane (which refreshes its "last seen" in the
+        // registry). SignalR has its own transport keep-alive, but this explicit heartbeat keeps the
+        // UI's last-seen current and lets the control plane notice a half-open connection promptly.
+        private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            try
+            {
+                while (await timer.WaitForNextTickAsync(cancellationToken))
+                {
+                    if (_connection is { State: HubConnectionState.Connected } connection)
+                    {
+                        try { await connection.SendAsync("Heartbeat", cancellationToken); }
+                        catch (Exception ex) { logger.LogDebug("Node heartbeat failed: {Message}", ex.Message); }
+                    }
+                }
+            }
+            catch (OperationCanceledException) { /* shutting down */ }
         }
 
         private async Task ConnectLoopAsync(string name, string hubUrl)
@@ -294,12 +316,15 @@ namespace KRINT.API.Nodes
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
+            await _shutdown.CancelAsync();
             if (_connection is not null)
                 await _connection.StopAsync(cancellationToken);
         }
 
         public async ValueTask DisposeAsync()
         {
+            _shutdown.Cancel();
+            _shutdown.Dispose();
             if (_connection is not null)
             {
                 await _connection.DisposeAsync();

@@ -3,18 +3,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { interval } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideNetwork, lucideRefreshCw } from '@ng-icons/lucide';
+import { lucideNetwork, lucideRefreshCw, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { NodesService } from '../api/api/nodes.service';
 import { NodeDto } from '../api/model/nodeDto';
+import { AddNodeDialogService } from './add-node-dialog';
 
 @Component({
   selector: 'app-nodes',
   imports: [ContentHeader, DatePipe, NgIcon, HlmBadgeImports, HlmButtonImports, HlmTableImports],
-  providers: [provideIcons({ lucideNetwork, lucideRefreshCw })],
+  providers: [provideIcons({ lucideNetwork, lucideRefreshCw, lucidePlus, lucideTrash2 })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-content-header />
@@ -22,17 +23,23 @@ import { NodeDto } from '../api/model/nodeDto';
     <section class="flex flex-1 min-h-0 flex-col border-t">
       <header class="mx-4 flex items-center justify-between gap-2 border-b py-2">
         <h2 class="text-sm font-medium">Nodes</h2>
-        <button
-          hlmBtn
-          variant="outline"
-          size="sm"
-          type="button"
-          (click)="reload()"
-          [disabled]="loading()"
-        >
-          <ng-icon name="lucideRefreshCw" size="14" />
-          {{ loading() ? 'Loading…' : 'Refresh' }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            hlmBtn
+            variant="outline"
+            size="sm"
+            type="button"
+            (click)="reload()"
+            [disabled]="loading()"
+          >
+            <ng-icon name="lucideRefreshCw" size="14" />
+            {{ loading() ? 'Loading…' : 'Refresh' }}
+          </button>
+          <button hlmBtn size="sm" type="button" (click)="addNode()">
+            <ng-icon name="lucidePlus" size="14" />
+            Add node
+          </button>
+        </div>
       </header>
 
       <div class="min-h-0 flex-1 overflow-auto px-4">
@@ -41,12 +48,10 @@ import { NodeDto } from '../api/model/nodeDto';
             class="text-muted-foreground flex flex-col items-center gap-2 p-10 text-center text-sm"
           >
             <ng-icon name="lucideNetwork" size="28" class="opacity-60" />
-            <p>No nodes connected.</p>
+            <p>No nodes yet.</p>
             <p class="max-w-md text-xs">
-              Run KRINT from the same image with <code class="font-mono">Krint__Role=node</code>,
-              pointing <code class="font-mono">Node__ControlPlaneUrl</code> at this control plane
-              and presenting a token from its
-              <code class="font-mono">Node__Tokens</code> allow-list.
+              Press <strong>Add node</strong> to get a ready-to-deploy compose with a connection URL
+              and a fresh token, then run it on the host you want to add.
             </p>
           </div>
         } @else {
@@ -66,10 +71,19 @@ import { NodeDto } from '../api/model/nodeDto';
             <tbody hlmTableBody>
               @for (n of nodes(); track n.id) {
                 <tr hlmTableRow>
-                  <td hlmTableCell class="font-medium">{{ n.name }}</td>
+                  <td hlmTableCell class="font-medium">
+                    <span class="inline-flex items-center gap-2">
+                      {{ n.name }}
+                      @if (n.isConfigManaged) {
+                        <span hlmBadge variant="outline" class="text-xs">config</span>
+                      }
+                    </span>
+                  </td>
                   <td hlmTableCell>
                     @if (n.online) {
                       <span hlmBadge variant="default" class="text-xs">online</span>
+                    } @else if (n.pending) {
+                      <span hlmBadge variant="outline" class="text-xs">pending</span>
                     } @else {
                       <span hlmBadge variant="secondary" class="text-xs">offline</span>
                     }
@@ -93,10 +107,21 @@ import { NodeDto } from '../api/model/nodeDto';
                         variant="outline"
                         size="sm"
                         type="button"
-                        [disabled]="pinging()[n.id]"
+                        [disabled]="pinging()[n.id] || !n.online"
                         (click)="ping(n.id)"
                       >
                         {{ pinging()[n.id] ? '…' : 'Ping' }}
+                      </button>
+                      <button
+                        hlmBtn
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        [disabled]="n.isConfigManaged || deleting()[n.id]"
+                        [title]="n.isConfigManaged ? 'Managed by krint.yaml' : 'Remove node'"
+                        (click)="remove(n)"
+                      >
+                        <ng-icon name="lucideTrash2" size="14" />
                       </button>
                     </div>
                   </td>
@@ -115,6 +140,7 @@ import { NodeDto } from '../api/model/nodeDto';
 })
 export class Nodes {
   private readonly api = inject(NodesService);
+  private readonly addNodeDialog = inject(AddNodeDialogService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly nodes = signal<ReadonlyArray<NodeDto>>([]);
@@ -122,6 +148,7 @@ export class Nodes {
   protected readonly error = signal<string | null>(null);
   protected readonly pinging = signal<Record<string, boolean>>({});
   protected readonly pingResults = signal<Record<string, string>>({});
+  protected readonly deleting = signal<Record<string, boolean>>({});
 
   constructor() {
     this.reload();
@@ -142,6 +169,26 @@ export class Nodes {
       error: (err) => {
         this.error.set(err instanceof Error ? err.message : 'Failed to load nodes');
         this.loading.set(false);
+      },
+    });
+  }
+
+  protected async addNode(): Promise<void> {
+    const created = await this.addNodeDialog.open();
+    if (created) this.reload(true);
+  }
+
+  protected remove(node: NodeDto): void {
+    if (!confirm(`Remove node "${node.name}"? Its token will stop working.`)) return;
+    this.deleting.update((d) => ({ ...d, [node.id]: true }));
+    this.api.apiNodesIdDelete(node.id).subscribe({
+      next: () => {
+        this.deleting.update((d) => ({ ...d, [node.id]: false }));
+        this.reload(true);
+      },
+      error: (err) => {
+        this.error.set(err instanceof Error ? err.message : 'Failed to remove the node');
+        this.deleting.update((d) => ({ ...d, [node.id]: false }));
       },
     });
   }
