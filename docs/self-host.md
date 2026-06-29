@@ -114,7 +114,9 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Cors__AllowedOrigins__0` | Browser origin allowed to call the API - KRINT URL **without** trailing slash. Add more as `__1`, `__2`. |
 | `Krint__PublicUrl` | Public URL this control plane is served on (e.g. `https://krint.example.com`). Used to pre-fill the [Add-node](./nodes#add-a-node-recommended) compose. Optional. |
 
-> ⚠️ **Never lose or rotate `Vault__MasterKey` once you have data.** There's no recovery and no key-rotation flow.
+::: danger
+**Never lose or rotate `Vault__MasterKey` once you have data.** There's no recovery and no key-rotation flow.
+:::
 
 </details>
 

@@ -29,6 +29,8 @@ logs + an interactive shell). The table below shows the capabilities that differ
 - **Plugins** - opt-in extensions at provision time: pgvector, PostGIS, pg_trgm and more (Postgres),
   Redis Stack (Redis), APOC and Graph Data Science (Neo4j).
 
-> Engines use their own terms in the UI - Mongo shows collections/documents, Redis shows DB
-> numbers/keys, Neo4j shows labels/nodes, object stores show buckets/objects - and controls that
-> don't apply to an engine simply don't appear.
+::: info
+Engines use their own terms in the UI - Mongo shows collections/documents, Redis shows DB
+numbers/keys, Neo4j shows labels/nodes, object stores show buckets/objects - and controls that
+don't apply to an engine simply don't appear.
+:::
