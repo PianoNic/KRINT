@@ -8,7 +8,7 @@ namespace KRINT.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AppController(IMediator mediator) : ControllerBase
+    public class AppController(IMediator mediator, IConfiguration configuration) : ControllerBase
     {
         [AllowAnonymous]
         [HttpGet]
@@ -17,21 +17,24 @@ namespace KRINT.API.Controllers
         {
             var result = await mediator.Send(new AppQuery(), cancellationToken);
 
-            // The redirect target must match whatever URL the browser is currently on  - 
-            // important when the bundled image is reached via a host-assigned random port
-            // (Testcontainers) or behind a proxy. Prefer the caller's Origin header so a
-            // split-origin dev setup (SPA on :4200, API on :5165) still points back at the
-            // SPA; fall back to the request host for same-origin / bundled deployments.
-            var request = HttpContext.Request;
-            var browserOrigin = request.Headers.Origin.ToString();
-            var origin = !string.IsNullOrWhiteSpace(browserOrigin)
-                ? browserOrigin.TrimEnd('/') + "/"
-                : $"{request.Scheme}://{request.Host.Value}/";
-            result = result with
+            // Respect an explicitly configured Oidc:RedirectUri (e.g. a fixed public HTTPS URL behind
+            // a reverse proxy). Only DERIVE it from the current request when it isn't configured - the
+            // bundled image reached via a host-assigned random port (Testcontainers), or a split-origin
+            // dev setup. The old code always overrode it, which behind a TLS-terminating proxy produced
+            // an http:// URL the IdP rejects even when the admin set the right https URL.
+            if (string.IsNullOrWhiteSpace(configuration["Oidc:RedirectUri"]))
             {
-                RedirectUri = origin,
-                PostLogoutRedirectUri = origin,
-            };
+                var request = HttpContext.Request;
+                var browserOrigin = request.Headers.Origin.ToString();
+                var origin = !string.IsNullOrWhiteSpace(browserOrigin)
+                    ? browserOrigin.TrimEnd('/') + "/"
+                    : $"{request.Scheme}://{request.Host.Value}/";
+                result = result with
+                {
+                    RedirectUri = origin,
+                    PostLogoutRedirectUri = origin,
+                };
+            }
 
             return Ok(result);
         }
