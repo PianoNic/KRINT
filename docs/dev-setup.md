@@ -38,9 +38,13 @@ dotnet user-secrets --project src/KRINT.API set "Vault:MasterKey" "$(openssl ran
 
 Verify with `dotnet user-secrets list --project src/KRINT.API`.
 
-> `appsettings.json` and `appsettings.Development.json` only carry ASP.NET framework defaults (logging, allowed hosts). Application config goes in user-secrets.
+::: info
+`appsettings.json` and `appsettings.Development.json` only carry ASP.NET framework defaults (logging, allowed hosts). Application config goes in user-secrets.
+:::
 
-> **Don't rotate `Vault:MasterKey` while you have encrypted secrets in the DB**: anything written with the old key becomes unreadable. There's no key-rotation flow yet.
+::: warning
+**Don't rotate `Vault:MasterKey` while you have encrypted secrets in the DB**: anything written with the old key becomes unreadable. There's no key-rotation flow yet.
+:::
 
 ## 2. Application config: `krint.yaml`
 

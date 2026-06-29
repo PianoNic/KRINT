@@ -78,8 +78,10 @@ cargo build --release --features portable --manifest-path src-tauri/Cargo.toml
 
 The release workflow builds and uploads this as `KRINT-portable-win-x64.exe` alongside the NSIS installer.
 
-> First run also needs app icons. Generate them once with `bun run tauri icon path/to/icon.png`
-> (writes into `src-tauri/icons/`, which is gitignored).
+::: tip
+First run also needs app icons. Generate them once with `bun run tauri icon path/to/icon.png`
+(writes into `src-tauri/icons/`, which is gitignored).
+:::
 
 ### .NET RID ↔ Tauri target triple
 
