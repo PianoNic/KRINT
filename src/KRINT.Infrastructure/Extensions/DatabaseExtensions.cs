@@ -20,7 +20,7 @@ namespace KRINT.Infrastructure.Extensions
         private const string DefaultSqliteConnectionString = "Data Source=krint.db";
 
         public static DatabaseProvider GetDatabaseProvider(this IConfiguration configuration) =>
-            ParseProvider(configuration["Database:Provider"]);
+            ResolveProvider(configuration["Database:Provider"], configuration.GetConnectionString("KrintDatabase"));
 
         public static DatabaseProvider ParseProvider(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant() switch
         {
@@ -30,10 +30,27 @@ namespace KRINT.Infrastructure.Extensions
                 $"Unknown Database:Provider '{value}'. Supported values are 'Sqlite' and 'Postgres'.")
         };
 
+        /// <summary>
+        /// Picks the provider. An explicit <c>Database:Provider</c> wins; when it's unset we infer
+        /// from the connection string, so a Postgres string (e.g. <c>Host=db;…</c>) isn't fed to the
+        /// SQLite provider - which otherwise crashes with "Connection string keyword 'host' is not
+        /// supported". Falls back to SQLite when there's nothing to go on.
+        /// </summary>
+        public static DatabaseProvider ResolveProvider(string? providerValue, string? connectionString)
+        {
+            if (!string.IsNullOrWhiteSpace(providerValue))
+                return ParseProvider(providerValue);
+
+            var cs = (connectionString ?? string.Empty).ToLowerInvariant();
+            var looksPostgres = cs.Contains("host=") || cs.Contains("server=")
+                || cs.Contains("username=") || cs.Contains("user id=");
+            return looksPostgres ? DatabaseProvider.Postgres : DatabaseProvider.Sqlite;
+        }
+
         public static IServiceCollection AddKrintDatabase(this IServiceCollection services, IConfiguration configuration)
         {
-            var provider = configuration.GetDatabaseProvider();
             var connectionString = configuration.GetConnectionString("KrintDatabase");
+            var provider = ResolveProvider(configuration["Database:Provider"], connectionString);
 
             services.AddDbContext<KrintDbContext>(options => options.ConfigureKrintProvider(provider, connectionString));
             return services;

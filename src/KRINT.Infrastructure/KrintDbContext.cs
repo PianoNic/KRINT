@@ -49,8 +49,8 @@ namespace KRINT.Infrastructure
         {
             // Used by the EF Core CLI. Provider and connection string are read straight from
             // the environment so `dotnet ef` targets the same database the app would at runtime.
-            var provider = DatabaseExtensions.ParseProvider(Environment.GetEnvironmentVariable("Database__Provider"));
             var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__KrintDatabase");
+            var provider = DatabaseExtensions.ResolveProvider(Environment.GetEnvironmentVariable("Database__Provider"), connectionString);
 
             var optionsBuilder = new DbContextOptionsBuilder<KrintDbContext>();
             optionsBuilder.ConfigureKrintProvider(provider, connectionString);

@@ -50,6 +50,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock   # Windows: //var/run/docker.sock
       - ./backups:/app/backups
+      # Optional: mount a krint.yaml to set port ranges, storage, declarative instances, or nodes.
+      # Without it KRINT logs "No krint.yaml found" and runs with sensible defaults - that's fine.
+      # - ./krint.yaml:/app/krint.yaml:ro
 
   db:
     image: postgres:18.4
