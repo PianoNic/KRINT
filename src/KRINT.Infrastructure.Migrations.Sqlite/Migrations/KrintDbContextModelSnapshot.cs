@@ -221,6 +221,9 @@ namespace KRINT.Infrastructure.Migrations.Sqlite.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsConfigManaged")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("LastSeenAt")
                         .HasColumnType("TEXT");
 
@@ -234,6 +237,9 @@ namespace KRINT.Infrastructure.Migrations.Sqlite.Migrations
 
                     b.Property<string>("Os")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenHash")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")

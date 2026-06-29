@@ -22,6 +22,39 @@ returns the result.
 A connected node appears on the control plane's **Nodes** page, where you can see its details and
 **Ping** it to confirm the channel is live.
 
+## Add a node (recommended)
+
+The easiest way: on the **Nodes** page press **Add node**. KRINT shows a ready-to-deploy compose with
+a freshly generated token and the control-plane URL baked in. Edit the node name if you like, then
+**Add node** to save it (nothing is stored until you do). Deploy the compose on the target host and
+it dials in - showing as *pending* until it first connects, then *online*.
+
+For the URL to be filled in automatically, set the public URL this control plane is served on in the
+**env file**:
+
+```env
+Krint__PublicUrl=https://krint.example.com
+```
+
+The node's identity is derived from its token, so the generated compose needs no `Node__Id`.
+
+## Declare nodes in config
+
+Nodes can also be declared up front in `krint.yaml`, just like instances - each is a name and a
+secret. On startup KRINT ensures a matching node exists (token stored hashed):
+
+```yaml
+krint:
+  nodes:
+    - name: node-eu-1
+      secret: a-long-random-shared-secret
+    - name: node-us-1
+      secret: another-long-random-secret
+```
+
+Deploy each node with its secret as `Node__Token` (see below). Removing a node from the config stops
+re-asserting it; delete it from the UI to revoke access.
+
 ## Running a node
 
 Set these on the node process (environment variables; `__` maps to nested config):
@@ -30,20 +63,15 @@ Set these on the node process (environment variables; `__` maps to nested config
 | --- | --- |
 | `Krint__Role=node` | Boot in node role. |
 | `Node__ControlPlaneUrl` | Base URL of the control plane, e.g. `https://krint.example.com`. |
-| `Node__Token` | A token present in the control plane's `Node__Tokens` allow-list. |
-| `Node__Id` | A stable GUID identifying this node. Pin it so provisioned instances keep pointing at the node across restarts; if unset, one is generated per run (and logged). |
-| `Node__Name` | Display name for the node (defaults to the machine name). |
+| `Node__Token` | The token from the Add-node modal or the secret you declared in `krint.yaml`. |
+| `Node__Name` | Optional display name (defaults to the machine name). Ignored if the node was named in the UI/config. |
+
+> Legacy: a static `Node__Tokens` allow-list on the control plane still works; those nodes self-report
+> a `Node__Id` (a stable GUID) instead of having their identity derived from the token.
 
 Provision onto a node from the create wizard's **Target node** dropdown (it appears once a node is
 online), or pass `nodeId` in the provision request. The instance then shows a node badge on the
 instances list.
-
-On the **control plane**, list the accepted tokens:
-
-```
-Node__Tokens__0=a-long-random-shared-secret
-Node__Tokens__1=another-node-secret
-```
 
 ### Compose snippet (node)
 
@@ -57,12 +85,11 @@ services:
       Krint__Role: "node"
       Node__ControlPlaneUrl: "https://krint.example.com"
       Node__Token: "a-long-random-shared-secret"
-      Node__Id: "11111111-1111-1111-1111-111111111111"
       Node__Name: "node-eu-1"
     volumes:
       # The node drives this host's Docker daemon.
       - /var/run/docker.sock:/var/run/docker.sock
 ```
 
-The node retries on its own if the control plane is unreachable at boot, and re-registers
-automatically after a reconnect.
+The node pings the control plane every 5 seconds so its *last seen* stays current, retries on its own
+if the control plane is unreachable at boot, and re-registers automatically after a reconnect.
