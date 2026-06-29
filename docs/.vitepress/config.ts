@@ -15,32 +15,43 @@ export default defineConfig({
   ],
   themeConfig: {
     nav: [
-      { text: 'Self-host', link: '/self-host' },
-      { text: 'Engines', link: '/engines' },
-      { text: 'Developer setup', link: '/dev-setup' },
+      { text: 'Intro', link: '/intro' },
+      { text: 'Setup', link: '/self-host' },
+      { text: 'Databases', link: '/engines' },
       { text: 'Nodes', link: '/nodes' },
+      { text: 'Development', link: '/dev-setup' },
     ],
-    // Grouped Diátaxis-style: get-it-running first, task guides next, concepts last.
+    // Komodo-style chapters: a flat intro first, then topic categories.
     sidebar: [
+      { text: 'What is KRINT?', link: '/intro' },
       {
-        text: 'Get started',
+        text: 'Setup',
+        collapsed: false,
         items: [
           { text: 'Self-hosting', link: '/self-host' },
           { text: 'Desktop app', link: '/desktop' },
+        ],
+      },
+      {
+        text: 'Databases',
+        collapsed: false,
+        items: [
           { text: 'Supported engines', link: '/engines' },
-        ],
-      },
-      {
-        text: 'Guides',
-        items: [
           { text: 'Declarative instances', link: '/declarative-instances' },
-          { text: 'Developer setup', link: '/dev-setup' },
         ],
       },
       {
-        text: 'Concepts',
+        text: 'Nodes',
+        collapsed: false,
         items: [
-          { text: 'Nodes', link: '/nodes' },
+          { text: 'Overview', link: '/nodes' },
+        ],
+      },
+      {
+        text: 'Development',
+        collapsed: false,
+        items: [
+          { text: 'Developer setup', link: '/dev-setup' },
         ],
       },
     ],

@@ -112,6 +112,7 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Oidc__Scope` | `openid profile email roles` (`roles` optional). |
 | `Oidc__RequireHttpsMetadata` | `true` (set `false` only for a plain-HTTP IdP). |
 | `Cors__AllowedOrigins__0` | Browser origin allowed to call the API - KRINT URL **without** trailing slash. Add more as `__1`, `__2`. |
+| `Krint__PublicUrl` | Public URL this control plane is served on (e.g. `https://krint.example.com`). Used to pre-fill the [Add-node](./nodes#add-a-node-recommended) compose. Optional. |
 
 > ⚠️ **Never lose or rotate `Vault__MasterKey` once you have data.** There's no recovery and no key-rotation flow.
 
