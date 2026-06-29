@@ -23,6 +23,10 @@ RUN dotnet restore "KRINT.API/KRINT.API.csproj"
 FROM backend-deps AS backend-build
 ARG BUILD_CONFIGURATION=Release
 COPY src .
+# Directory.Build.props (at /src/backend) reads ..\application.properties to stamp the version - i.e.
+# /src/application.properties. It lives at the repo root, not under src/, so copy it explicitly;
+# without it the assembly version falls back to .NET's default 1.0.0 and the UI shows "v1.0.0".
+COPY application.properties /src/application.properties
 RUN dotnet publish "KRINT.API/KRINT.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 # ---------- Stage 4: runtime (distroless Azure Linux) ----------
