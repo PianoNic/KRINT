@@ -19,7 +19,7 @@ You need a Linux/Windows host with **Docker + Compose v2**, and a directory to k
 
 ## Quickstart
 
-Drop these two files in an empty folder and run `docker compose up -d`. Open <http://localhost:5000>. State lives in `./db/` and `./backups/`.
+Drop these three files in an empty folder and run `docker compose up -d`. Open <http://localhost:5000>. State lives in `./db/` and `./backups/`.
 
 **`compose.yml`**
 
@@ -50,9 +50,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock   # Windows: //var/run/docker.sock
       - ./backups:/app/backups
-      # Optional: mount a krint.yaml to set port ranges, storage, declarative instances, or nodes.
-      # Without it KRINT logs "No krint.yaml found" and runs with sensible defaults - that's fine.
-      # - ./krint.yaml:/app/krint.yaml:ro
+      - ./krint.yaml:/app/krint.yaml:ro             # port ranges, storage, nodes, declarative instances
 
   db:
     image: postgres:18.4
@@ -80,6 +78,32 @@ KRINT_OIDC_AUTHORITY=https://auth.example.com/realms/krint
 KRINT_OIDC_CLIENT_ID=krint
 KRINT_OIDC_REDIRECT_URI=http://localhost:5000/
 KRINT_CORS_ORIGIN=http://localhost:5000
+```
+
+**`krint.yaml`** - the host-port ranges KRINT allocates from per engine. Copy as-is:
+
+```yaml
+krint:
+  storage:
+    mode: Volume        # or HostFolder + host_path: /data/krint
+  port_ranges:
+    postgres:     30000-30099
+    timescaledb:  30100-30199
+    mysql:        30200-30399
+    mariadb:      30400-30599
+    mssql:        30600-30799
+    mongo:        30800-30999
+    redis:        31000-31199
+    cockroachdb:  31200-31399
+    clickhouse:   31400-31599
+    cassandra:    31600-31799
+    couchdb:      32000-32199
+    neo4j:        33200-33399
+    qdrant:       34000-34199
+    valkey:       34200-34399
+    seaweedfs:    34400-34599
+    pgvector:     34600-34799
+    azurite:      34800-34999
 ```
 
 On your IdP, register KRINT as a **public client** (PKCE, no secret) with redirect URI `http://localhost:5000/*`. That's it - the rest is reference below.
