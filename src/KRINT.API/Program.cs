@@ -25,6 +25,9 @@ if (string.Equals(builder.Configuration["Krint:Role"], "node", StringComparison.
     // inner-service resolvers depend on INodeRpc, which is a no-op stub here (a node never re-routes).
     builder.Services.AddSingleton<KRINT.Infrastructure.Interfaces.INodeRpc, OfflineNodeRpc>();
     builder.Services.AddInnerDatabases();
+    // A node always uses its own daemon, so the backup/lifecycle services resolve Docker locally
+    // (the control-plane DockerServiceResolver needs the hub + registry, which a node doesn't have).
+    builder.Services.AddScoped<KRINT.Infrastructure.Interfaces.IDockerServiceResolver, LocalDockerServiceResolver>();
     builder.Services.AddHostedService<NodeAgentHostedService>();
 
     var nodeApp = builder.Build();
