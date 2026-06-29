@@ -37,6 +37,7 @@ services:
     ports:
       - "5000:8080"
     environment:
+      Database__Provider: "Postgres"
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=${POSTGRES_PASSWORD}"
       Vault__MasterKey: ${KRINT_VAULT_KEY}
       Oidc__Authority: ${KRINT_OIDC_AUTHORITY}
