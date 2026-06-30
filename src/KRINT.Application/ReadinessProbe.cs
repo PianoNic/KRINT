@@ -22,12 +22,19 @@ namespace KRINT.Application
 
         public static async Task<InnerDatabaseTarget> WaitForReadyAsync(IInnerDatabaseService inner, InnerDatabaseTarget target, bool isPublic, CancellationToken cancellationToken, string? containerName = null, int internalPort = 0)
         {
-            // Node-hosted: the probe runs ON the node against its own loopback (the inner service
-            // dispatches there), so there are no host candidates to try - use the target verbatim.
+            // Node-hosted: the probe runs ON the node (the inner service dispatches there). The node
+            // reaches its container either over its own Docker network (containerName:internalPort -
+            // a containerized node) or via the host-published port on its loopback (a host-run node),
+            // so try both as explicit candidates and let whichever responds win. These carry no
+            // ContainerName, so the node connects to Host:Port verbatim - it must not re-probe a
+            // not-yet-listening container here and cache a negative for the rest of its lifetime.
             List<InnerDatabaseTarget> candidates;
             if (target.NodeId is not null)
             {
-                candidates = [target];
+                candidates = [];
+                if (!string.IsNullOrEmpty(containerName) && internalPort > 0)
+                    candidates.Add(target with { Host = containerName, Port = internalPort });
+                candidates.Add(target);
             }
             else
             {
