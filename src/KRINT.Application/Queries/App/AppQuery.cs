@@ -21,12 +21,18 @@ namespace KRINT.Application.Queries.App
 
         public ValueTask<AppDto> Handle(AppQuery query, CancellationToken cancellationToken)
         {
+            // The login redirect is just the app's public URL, so derive it from Krint:PublicUrl when
+            // Oidc:RedirectUri isn't set explicitly - one less thing to configure (and to get wrong).
+            var publicUrl = configuration["Krint:PublicUrl"];
+            var fromPublicUrl = string.IsNullOrWhiteSpace(publicUrl) ? null : publicUrl.TrimEnd('/') + "/";
+            var redirectUri = configuration["Oidc:RedirectUri"] ?? fromPublicUrl ?? "http://localhost:4200/";
+
             return ValueTask.FromResult(new AppDto
             {
                 Authority = configuration["Oidc:Authority"] ?? string.Empty,
                 ClientId = configuration["Oidc:ClientId"] ?? string.Empty,
-                RedirectUri = configuration["Oidc:RedirectUri"] ?? "http://localhost:4200/",
-                PostLogoutRedirectUri = configuration["Oidc:PostLogoutRedirectUri"] ?? "http://localhost:4200/",
+                RedirectUri = redirectUri,
+                PostLogoutRedirectUri = configuration["Oidc:PostLogoutRedirectUri"] ?? redirectUri,
                 Scope = configuration["Oidc:Scope"] ?? "openid profile email roles",
                 Version = AppVersion,
             });

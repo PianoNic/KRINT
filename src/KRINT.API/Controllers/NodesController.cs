@@ -4,6 +4,7 @@ using KRINT.API.Nodes;
 using KRINT.Application.Options;
 using KRINT.Domain;
 using KRINT.Infrastructure;
+using KRINT.Infrastructure.Interfaces;
 using KRINT.Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -19,7 +20,8 @@ namespace KRINT.API.Controllers
         INodeRegistry registry,
         IHubContext<NodeHub> hub,
         IConfiguration configuration,
-        IOptions<KrintOptions> options) : ControllerBase
+        IOptions<KrintOptions> options,
+        IActivityLogger activity) : ControllerBase
     {
         [HttpGet]
         [ProducesResponseType(typeof(IReadOnlyList<NodeDto>), StatusCodes.Status200OK)]
@@ -48,11 +50,13 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(typeof(NodeDraftDto), StatusCodes.Status200OK)]
         public IActionResult Draft()
         {
-            var controlPlaneUrl = configuration["Krint:PublicUrl"] ?? options.Value.PublicUrl;
+            // Krint:PublicUrl is required for self-hosting (it also drives the OIDC redirect + CORS),
+            // so it's always present here.
+            var controlPlaneUrl = (configuration["Krint:PublicUrl"] ?? options.Value.PublicUrl ?? "").TrimEnd('/');
             return Ok(new NodeDraftDto(
                 SuggestedName: GenerateNodeName(),
                 Token: NodeTokenHasher.Generate(),
-                ControlPlaneUrl: string.IsNullOrWhiteSpace(controlPlaneUrl) ? null : controlPlaneUrl.TrimEnd('/')));
+                ControlPlaneUrl: controlPlaneUrl));
         }
 
         // A fun, docker-style adjective-animal name (e.g. "brave-otter") via RandomFriendlyNameGenerator,
@@ -76,6 +80,7 @@ namespace KRINT.API.Controllers
             var node = new Node { Name = name, TokenHash = NodeTokenHasher.Hash(request.Token) };
             db.Nodes.Add(node);
             await db.SaveChangesAsync(cancellationToken);
+            await activity.LogAsync("node.create", node.Name, cancellationToken: cancellationToken);
 
             var dto = new NodeDto(node.Id, node.Name, node.MachineName, node.Os, node.DockerVersion,
                 Online: false, Pending: true, node.IsConfigManaged, node.CreatedAt, node.LastSeenAt);
@@ -96,6 +101,7 @@ namespace KRINT.API.Controllers
 
             db.Nodes.Remove(node);
             await db.SaveChangesAsync(cancellationToken);
+            await activity.LogAsync("node.delete", node.Name, cancellationToken: cancellationToken);
             return NoContent();
         }
 

@@ -40,14 +40,12 @@ services:
       Database__Provider: "Postgres"
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=${POSTGRES_PASSWORD}"
       Vault__MasterKey: ${KRINT_VAULT_KEY}
+      Krint__PublicUrl: ${KRINT_PUBLIC_URL}              # login redirect + CORS are derived from this
+      Cors__AllowedOrigins__0: ${KRINT_PUBLIC_URL}
       Oidc__Authority: ${KRINT_OIDC_AUTHORITY}
       Oidc__ClientId: ${KRINT_OIDC_CLIENT_ID}
-      Oidc__RedirectUri: ${KRINT_OIDC_REDIRECT_URI}
-      Oidc__PostLogoutRedirectUri: ${KRINT_OIDC_REDIRECT_URI}
       Oidc__Scope: "openid profile email roles"
       Oidc__RequireHttpsMetadata: "true"
-      Cors__AllowedOrigins__0: ${KRINT_CORS_ORIGIN}
-      Krint__PublicUrl: ${KRINT_PUBLIC_URL}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock   # Windows: //var/run/docker.sock
       - ./backups:/app/backups
@@ -76,13 +74,12 @@ services:
 POSTGRES_PASSWORD=change-me
 KRINT_VAULT_KEY=GENERATE_ME          # openssl rand -base64 32
 
+# The public URL KRINT is served on. The login redirect URI and CORS origin are derived from it.
+KRINT_PUBLIC_URL=http://localhost:5000
+
+# Your OIDC provider:
 KRINT_OIDC_AUTHORITY=https://auth.example.com/realms/krint
 KRINT_OIDC_CLIENT_ID=krint
-KRINT_OIDC_REDIRECT_URI=http://localhost:5000/
-KRINT_CORS_ORIGIN=http://localhost:5000
-
-# The public URL KRINT is served on - used to pre-fill the Add-node compose.
-KRINT_PUBLIC_URL=http://localhost:5000
 ```
 
 **`krint.yaml`** - the host-port ranges KRINT allocates from per engine. Copy as-is:
@@ -265,7 +262,7 @@ Migrations run on startup; the vault, metadata, and provisioned containers are p
 | "You're not allowed to access this service" | IdP authenticated the user but the client policy denies them - allow the user/group. |
 | CORS error on `/api/*` | `Cors__AllowedOrigins__0` must match the SPA origin (no trailing slash). |
 | `Cannot connect to the Docker daemon` | The `/var/run/docker.sock` bind is missing from the `krint` service. |
-| `Failed to connect to 127.0.0.1:<port>` on provision | Add `extra_hosts: ["host.docker.internal:host-gateway"]`. |
+| `<engine> container did not become ready` on provision | KRINT reaches provisioned DBs over its own Docker network (the default compose network) and falls back to the host port - keep `extra_hosts: ["host.docker.internal:host-gateway"]` on the krint service for that fallback. |
 | `SocketException (13): Permission denied` | Running as non-root without socket access - keep the default root user or `group_add` the docker GID. |
 | `No free host port in range` | `krint.yaml` `port_ranges` exhausted - delete an instance or widen the range. |
 | DB auth fails after changing the password | `POSTGRES_PASSWORD` only applies on first init - reset in-DB or wipe the volume. |

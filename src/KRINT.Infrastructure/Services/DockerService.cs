@@ -91,9 +91,50 @@ namespace KRINT.Infrastructure.Services
                 cancellationToken: cancellationToken);
         }
 
-        public Task<CreateContainerResponse> CreateContainerAsync(CreateContainerParameters parameters, CancellationToken cancellationToken = default)
+        public async Task<CreateContainerResponse> CreateContainerAsync(CreateContainerParameters parameters, CancellationToken cancellationToken = default)
         {
-            return client.Containers.CreateContainerAsync(parameters, cancellationToken);
+            var result = await client.Containers.CreateContainerAsync(parameters, cancellationToken);
+            // Join the new container to KRINT's own Docker network(s) so KRINT can reach it by name on
+            // its internal port. A containerized KRINT can't reach a private (127.0.0.1-bound) host
+            // port, but it CAN reach the container directly over a shared user-defined network.
+            await AttachToOwnNetworksAsync(result.ID, cancellationToken);
+            return result;
+        }
+
+        // KRINT's user-defined networks, detected once. Empty when KRINT runs on the host (desktop /
+        // dev) or only on the default bridge - those cases keep using host-published ports.
+        private IReadOnlyList<string>? _ownNetworks;
+        private readonly SemaphoreSlim _ownNetworksLock = new(1, 1);
+
+        private async Task AttachToOwnNetworksAsync(string containerId, CancellationToken ct)
+        {
+            foreach (var network in await GetOwnNetworksAsync(ct))
+            {
+                try { await client.Networks.ConnectNetworkAsync(network, new NetworkConnectParameters { Container = containerId }, ct); }
+                catch { /* already connected / network gone - non-fatal; the host-port path still works */ }
+            }
+        }
+
+        private async Task<IReadOnlyList<string>> GetOwnNetworksAsync(CancellationToken ct)
+        {
+            if (_ownNetworks is not null) return _ownNetworks;
+            await _ownNetworksLock.WaitAsync(ct);
+            try
+            {
+                if (_ownNetworks is not null) return _ownNetworks;
+                try
+                {
+                    // KRINT's container hostname defaults to its short id; inspecting it finds our
+                    // networks. Off the default bridge (no name-based DNS) and the loopback nets.
+                    var self = await client.Containers.InspectContainerAsync(System.Net.Dns.GetHostName(), ct);
+                    _ownNetworks = self.NetworkSettings?.Networks?.Keys
+                        .Where(n => n is not ("bridge" or "host" or "none"))
+                        .ToList() ?? [];
+                }
+                catch { _ownNetworks = []; }   // not in a container (host-run KRINT) - use host ports
+                return _ownNetworks;
+            }
+            finally { _ownNetworksLock.Release(); }
         }
 
         public Task<bool> StartContainerAsync(string id, CancellationToken cancellationToken = default)

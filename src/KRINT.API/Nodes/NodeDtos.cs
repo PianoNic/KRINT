@@ -26,7 +26,7 @@ namespace KRINT.API.Nodes
     /// <summary>A not-yet-saved node: a freshly generated token + the control-plane URL the node
     /// should dial. The UI builds the compose from these and only persists on save. ControlPlaneUrl
     /// is null when Krint:PublicUrl isn't configured (the UI warns and uses a placeholder).</summary>
-    public record NodeDraftDto(string SuggestedName, string Token, string? ControlPlaneUrl);
+    public record NodeDraftDto(string SuggestedName, string Token, string ControlPlaneUrl);
 
     /// <summary>Persist a node from the Add-node modal. The token is the one shown in the draft;
     /// only its hash is stored.</summary>

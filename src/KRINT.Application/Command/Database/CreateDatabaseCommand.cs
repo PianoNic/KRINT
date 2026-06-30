@@ -169,7 +169,9 @@ namespace KRINT.Application.Command.Database
                     innerDbs.Resolve(command.Engine),
                     new InnerDatabaseTarget(command.Engine, probeHostInitial, hostPort, spec.DefaultUsername, password, probeDatabase, command.NodeId),
                     command.IsPublic,
-                    cancellationToken);
+                    cancellationToken,
+                    containerName,
+                    spec.InternalPort);
 
                 if (needsExplicitDefaultDb)
                 {
