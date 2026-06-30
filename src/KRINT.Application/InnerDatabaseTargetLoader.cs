@@ -21,11 +21,12 @@ namespace KRINT.Application
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instanceId}.");
 
-            // Node-hosted: the operation is dispatched to the node and runs against the container on
-            // the node's own loopback, so there's no host to probe from here - carry the NodeId so the
-            // inner-service resolver routes it.
+            // Node-hosted: the operation is dispatched to the node, which runs it against the container.
+            // Carry the NodeId so the resolver routes it, plus the container name + internal port so the
+            // node can reach the container over its own Docker network (a containerized node can't see
+            // 127.0.0.1:<hostPort> on its host); the node falls back to that host port when it can't.
             if (instance.NodeId is { } nodeId)
-                return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId);
+                return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId, instance.ContainerName, EngineInternalPort(instance.Engine));
 
             var preferred = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
             var (host, port) = await PickReachableEndpointAsync(

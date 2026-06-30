@@ -74,10 +74,13 @@ namespace KRINT.Application.Command.DatabaseInstance
             try
             {
                 var target = CreateDatabaseCommandHandler.BuildProbeTarget(instance, oldPassword);
-                await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(target.Engine), target, instance.IsPublic, cancellationToken,
+                // WaitForReadyAsync returns the target whose host actually responded (for a node that's
+                // the container-name or loopback candidate it reached); reuse it so the reset runs
+                // against the same address instead of the unresolved probe target.
+                var readyTarget = await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(target.Engine), target, instance.IsPublic, cancellationToken,
                     instance.ContainerName, InnerDatabaseTargetLoader.EngineInternalPort(instance.Engine));
 
-                await innerUsers.Resolve(instance.Engine).ResetPasswordAsync(target, instance.Username, newPassword, cancellationToken);
+                await innerUsers.Resolve(instance.Engine).ResetPasswordAsync(readyTarget, instance.Username, newPassword, cancellationToken);
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(instance), newPassword, cancellationToken);
             }
             finally

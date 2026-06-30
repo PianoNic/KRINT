@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Docker.DotNet.Models;
+using KRINT.Application;
 using KRINT.Infrastructure.Extensions;
 using KRINT.Infrastructure.Interfaces;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -255,36 +256,43 @@ namespace KRINT.API.Nodes
         // against the container on this node's loopback, and returns the same DTO the UI consumes.
         private void RegisterInnerDbHandlers(HubConnection c)
         {
-            c.On<InnerDatabaseTarget, IReadOnlyList<string>>("Db.List", t => Inner(s => s.GetRequiredService<IInnerDatabaseServiceResolver>().Resolve(t.Engine).ListAsync(t)));
-            c.On<InnerDatabaseTarget, string, bool>("Db.Create", (t, n) => Inner(async s => { await s.GetRequiredService<IInnerDatabaseServiceResolver>().Resolve(t.Engine).CreateAsync(t, n); return true; }));
-            c.On<InnerDatabaseTarget, string, bool>("Db.Drop", (t, n) => Inner(async s => { await s.GetRequiredService<IInnerDatabaseServiceResolver>().Resolve(t.Engine).DropAsync(t, n); return true; }));
+            c.On<InnerDatabaseTarget, IReadOnlyList<string>>("Db.List", t => Inner(t, (s, rt) => s.GetRequiredService<IInnerDatabaseServiceResolver>().Resolve(rt.Engine).ListAsync(rt)));
+            c.On<InnerDatabaseTarget, string, bool>("Db.Create", (t, n) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerDatabaseServiceResolver>().Resolve(rt.Engine).CreateAsync(rt, n); return true; }));
+            c.On<InnerDatabaseTarget, string, bool>("Db.Drop", (t, n) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerDatabaseServiceResolver>().Resolve(rt.Engine).DropAsync(rt, n); return true; }));
 
-            c.On<InnerDatabaseTarget, IReadOnlyList<string>>("User.List", t => Inner(s => s.GetRequiredService<IInnerUserServiceResolver>().Resolve(t.Engine).ListAsync(t)));
-            c.On<InnerDatabaseTarget, string, string, bool>("User.Create", (t, n, p) => Inner(async s => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(t.Engine).CreateAsync(t, n, p); return true; }));
-            c.On<InnerDatabaseTarget, string, bool>("User.Delete", (t, n) => Inner(async s => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(t.Engine).DeleteAsync(t, n); return true; }));
-            c.On<InnerDatabaseTarget, string, string, bool>("User.ResetPassword", (t, n, p) => Inner(async s => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(t.Engine).ResetPasswordAsync(t, n, p); return true; }));
-            c.On<InnerDatabaseTarget, string, string, bool>("User.GrantAccess", (t, u, d) => Inner(async s => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(t.Engine).GrantAccessAsync(t, u, d); return true; }));
+            c.On<InnerDatabaseTarget, IReadOnlyList<string>>("User.List", t => Inner(t, (s, rt) => s.GetRequiredService<IInnerUserServiceResolver>().Resolve(rt.Engine).ListAsync(rt)));
+            c.On<InnerDatabaseTarget, string, string, bool>("User.Create", (t, n, p) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(rt.Engine).CreateAsync(rt, n, p); return true; }));
+            c.On<InnerDatabaseTarget, string, bool>("User.Delete", (t, n) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(rt.Engine).DeleteAsync(rt, n); return true; }));
+            c.On<InnerDatabaseTarget, string, string, bool>("User.ResetPassword", (t, n, p) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(rt.Engine).ResetPasswordAsync(rt, n, p); return true; }));
+            c.On<InnerDatabaseTarget, string, string, bool>("User.GrantAccess", (t, u, d) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerUserServiceResolver>().Resolve(rt.Engine).GrantAccessAsync(rt, u, d); return true; }));
 
-            c.On<InnerDatabaseTarget, string, string, int, QueryResult>("Query.Run", (t, db, sql, lim) => Inner(s =>
+            c.On<InnerDatabaseTarget, string, string, int, QueryResult>("Query.Run", (t, db, sql, lim) => Inner(t, (s, rt) =>
             {
-                var svc = s.GetRequiredService<IInnerQueryServiceResolver>().TryResolve(t.Engine)
-                          ?? throw new NotSupportedException($"Query console not available for engine '{t.Engine}'.");
-                return svc.RunAsync(t, db, sql, lim);
+                var svc = s.GetRequiredService<IInnerQueryServiceResolver>().TryResolve(rt.Engine)
+                          ?? throw new NotSupportedException($"Query console not available for engine '{rt.Engine}'.");
+                return svc.RunAsync(rt, db, sql, lim);
             }));
 
-            c.On<InnerDatabaseTarget, string, IReadOnlyList<TableSummary>>("Schema.ListTables", (t, db) => Inner(s => s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(t.Engine).ListTablesAsync(t, db)));
-            c.On<InnerDatabaseTarget, string, string, int, int, TableRows>("Schema.FetchRows", (t, db, table, lim, off) => Inner(s => s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(t.Engine).FetchRowsAsync(t, db, table, lim, off)));
-            c.On<InnerDatabaseTarget, string, string, UpdateRowRequest, bool>("Schema.UpdateRow", (t, db, table, r) => Inner(async s => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(t.Engine).UpdateRowAsync(t, db, table, r); return true; }));
-            c.On<InnerDatabaseTarget, string, string, BulkUpdateRowsRequest, bool>("Schema.BulkUpdateRows", (t, db, table, r) => Inner(async s => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(t.Engine).BulkUpdateRowsAsync(t, db, table, r); return true; }));
-            c.On<InnerDatabaseTarget, string, string, InsertRowRequest, bool>("Schema.InsertRow", (t, db, table, r) => Inner(async s => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(t.Engine).InsertRowAsync(t, db, table, r); return true; }));
-            c.On<InnerDatabaseTarget, string, string, DeleteRowRequest, bool>("Schema.DeleteRow", (t, db, table, r) => Inner(async s => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(t.Engine).DeleteRowAsync(t, db, table, r); return true; }));
-            c.On<InnerDatabaseTarget, string, string, bool>("Schema.DropTable", (t, db, table) => Inner(async s => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(t.Engine).DropTableAsync(t, db, table); return true; }));
+            c.On<InnerDatabaseTarget, string, IReadOnlyList<TableSummary>>("Schema.ListTables", (t, db) => Inner(t, (s, rt) => s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(rt.Engine).ListTablesAsync(rt, db)));
+            c.On<InnerDatabaseTarget, string, string, int, int, TableRows>("Schema.FetchRows", (t, db, table, lim, off) => Inner(t, (s, rt) => s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(rt.Engine).FetchRowsAsync(rt, db, table, lim, off)));
+            c.On<InnerDatabaseTarget, string, string, UpdateRowRequest, bool>("Schema.UpdateRow", (t, db, table, r) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(rt.Engine).UpdateRowAsync(rt, db, table, r); return true; }));
+            c.On<InnerDatabaseTarget, string, string, BulkUpdateRowsRequest, bool>("Schema.BulkUpdateRows", (t, db, table, r) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(rt.Engine).BulkUpdateRowsAsync(rt, db, table, r); return true; }));
+            c.On<InnerDatabaseTarget, string, string, InsertRowRequest, bool>("Schema.InsertRow", (t, db, table, r) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(rt.Engine).InsertRowAsync(rt, db, table, r); return true; }));
+            c.On<InnerDatabaseTarget, string, string, DeleteRowRequest, bool>("Schema.DeleteRow", (t, db, table, r) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(rt.Engine).DeleteRowAsync(rt, db, table, r); return true; }));
+            c.On<InnerDatabaseTarget, string, string, bool>("Schema.DropTable", (t, db, table) => Inner(t, async (s, rt) => { await s.GetRequiredService<IInnerSchemaServiceResolver>().Resolve(rt.Engine).DropTableAsync(rt, db, table); return true; }));
         }
 
-        private async Task<T> Inner<T>(Func<IServiceProvider, Task<T>> work)
+        // Runs inner-DB work against the right local address. The control plane ships the container
+        // name + internal port; here on the node we pick the reachable endpoint - the container over
+        // our own Docker network when our loopback can't see the host-published port, else the host
+        // port verbatim - so the same code path works whether the node runs in a container or on the host.
+        private async Task<T> Inner<T>(InnerDatabaseTarget target, Func<IServiceProvider, InnerDatabaseTarget, Task<T>> work)
         {
+            var (host, port) = await InnerDatabaseTargetLoader.PickReachableEndpointAsync(
+                target.ContainerName, target.InternalPort, target.Host, target.Port, CancellationToken.None);
+            var resolved = target with { Host = host, Port = port };
             using var scope = services.CreateScope();
-            return await work(scope.ServiceProvider);
+            return await work(scope.ServiceProvider, resolved);
         }
 
         private static CreateContainerParameters ToParameters(CreateContainerSpec spec)
