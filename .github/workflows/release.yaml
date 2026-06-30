@@ -57,20 +57,40 @@ jobs:
 
           # main is protected, so land the bump through an admin-merged PR rather than a direct push.
           BRANCH="release-sync/$TAG_VERSION"
+          TITLE="Bumped application.properties to $TAG_VERSION for release"
           git checkout -b "$BRANCH"
           git add application.properties
-          git commit -m "Bumped application.properties to $TAG_VERSION for release"
+          git commit -m "$TITLE"
           # The release-sync branch is ephemeral (deleted on merge); a leftover from a re-run would
           # make a plain push fail with "fetch first", so force-push it.
           git push -f origin "$BRANCH"
 
-          PR_URL=$(gh pr create \
+          # gh pr create/merge go through GitHub's GraphQL API, which returns intermittent 503s
+          # during incidents and aborts the whole release. The REST API is a separate backend, so
+          # fall back to it for both the create and the merge when the GraphQL call fails.
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+
+          if PR_URL=$(gh pr create \
             --base main \
             --head "$BRANCH" \
-            --title "Bumped application.properties to $TAG_VERSION for release" \
-            --body "Bumped application.properties to $TAG_VERSION for release" \
-            --label CI/CD)
-          gh pr merge "$PR_URL" --admin --squash --delete-branch
+            --title "$TITLE" \
+            --body "$TITLE" \
+            --label CI/CD); then
+            PR_NUMBER="${PR_URL##*/}"
+          else
+            echo "gh pr create failed (GraphQL degraded?); creating the PR via the REST API."
+            # The PR may already exist if a prior attempt got that far before failing; look it up.
+            PR_NUMBER=$(gh api -X POST "repos/$GITHUB_REPOSITORY/pulls" \
+              -f title="$TITLE" -f head="$BRANCH" -f base=main -f body="$TITLE" --jq '.number' 2>/dev/null) \
+              || PR_NUMBER=$(gh api "repos/$GITHUB_REPOSITORY/pulls?head=$OWNER:$BRANCH&state=open" --jq '.[0].number')
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f 'labels[]=CI/CD' >/dev/null 2>&1 || true
+          fi
+
+          if ! gh pr merge "$PR_NUMBER" --admin --squash --delete-branch; then
+            echo "gh pr merge failed (GraphQL degraded?); merging via the REST API."
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" -f merge_method=squash
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" >/dev/null 2>&1 || true
+          fi
 
   docker:
     name: Build and push multi-arch image
