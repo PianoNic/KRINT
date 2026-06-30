@@ -165,6 +165,7 @@
                 <hlm-select
                   [value]="selectedNodeId() ?? ''"
                   (valueChange)="selectedNodeId.set($event || null)"
+                  [itemToString]="nodeLabel"
                 >
                   <hlm-select-trigger class="w-full">
                     <hlm-select-value placeholder="Local (control plane)" />
