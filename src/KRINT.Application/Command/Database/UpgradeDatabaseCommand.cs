@@ -129,7 +129,7 @@ namespace KRINT.Application.Command.Database
                 // ReadinessProbe tries both probe hosts - see its doc comment.
                 var probeHost = instance.NodeId is not null ? "127.0.0.1" : CreateDatabaseCommandHandler.ResolveProbeHost(instance.IsPublic);
                 var readinessTarget = new InnerDatabaseTarget(instance.Engine, probeHost, instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase, instance.NodeId);
-                await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(instance.Engine), readinessTarget, instance.IsPublic, cancellationToken);
+                await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(instance.Engine), readinessTarget, instance.IsPublic, cancellationToken, newContainerName, spec.InternalPort);
 
                 // 5. Restore the pre-upgrade dump into NEW.
                 await using (var stream = backupStorage.OpenRead(backupPath)

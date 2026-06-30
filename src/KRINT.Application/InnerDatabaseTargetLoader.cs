@@ -28,10 +28,58 @@ namespace KRINT.Application
                 return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId);
 
             var preferred = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
-            var host = await PickReachableHostAsync(preferred, instance.Port, cancellationToken);
+            var (host, port) = await PickReachableEndpointAsync(
+                instance.ContainerName, EngineInternalPort(instance.Engine), preferred, instance.Port, cancellationToken);
 
-            return new InnerDatabaseTarget(instance.Engine, host, instance.Port, instance.Username, password, instance.DatabaseName);
+            return new InnerDatabaseTarget(instance.Engine, host, port, instance.Username, password, instance.DatabaseName);
         }
+
+        // Prefers reaching a KRINT-provisioned container directly over the shared Docker network
+        // (containerName:internalPort) - which works for private instances a containerized KRINT
+        // can't otherwise reach - and falls back to the host-published port when that's unavailable
+        // (host-run KRINT, or the container isn't on our network). Cached per endpoint.
+        public static async Task<(string Host, int Port)> PickReachableEndpointAsync(
+            string? containerName, int internalPort, string fallbackHost, int fallbackPort, CancellationToken cancellationToken)
+        {
+            if (!string.IsNullOrEmpty(containerName) && internalPort > 0)
+            {
+                var key = $"net:{containerName}:{internalPort}";
+                if (ReachableHostCache.TryGetValue(key, out var cached))
+                {
+                    if (cached == "1") return (containerName, internalPort);
+                }
+                else if (await CanConnectAsync(containerName, internalPort, cancellationToken))
+                {
+                    ReachableHostCache[key] = "1";
+                    return (containerName, internalPort);
+                }
+                else
+                {
+                    ReachableHostCache[key] = "0";
+                }
+            }
+
+            var host = await PickReachableHostAsync(fallbackHost, fallbackPort, cancellationToken);
+            return (host, fallbackPort);
+        }
+
+        // Internal (in-container) port each engine listens on - used to reach a provisioned container
+        // directly over KRINT's Docker network. Mirrors the engine catalog; 0 = no direct route.
+        public static int EngineInternalPort(string engine) => engine switch
+        {
+            "postgres" or "pgvector" or "timescaledb" => 5432,
+            "mysql" or "mariadb" => 3306,
+            "mongo" => 27017,
+            "redis" or "valkey" => 6379,
+            "cockroachdb" => 26257,
+            "clickhouse" => 8123,
+            "cassandra" => 9042,
+            "couchdb" => 5984,
+            "neo4j" => 7687,
+            "qdrant" => 6333,
+            "mssql" => 1433,
+            _ => 0,
+        };
 
         // Resolved (preferred, port) -> reachable host, so the probe runs once per instance
         // instead of once per operation. Without this every browse/list/rows call paid the

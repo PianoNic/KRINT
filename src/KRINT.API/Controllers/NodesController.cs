@@ -48,11 +48,13 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(typeof(NodeDraftDto), StatusCodes.Status200OK)]
         public IActionResult Draft()
         {
-            var controlPlaneUrl = configuration["Krint:PublicUrl"] ?? options.Value.PublicUrl;
+            // Krint:PublicUrl is required for self-hosting (it also drives the OIDC redirect + CORS),
+            // so it's always present here.
+            var controlPlaneUrl = (configuration["Krint:PublicUrl"] ?? options.Value.PublicUrl ?? "").TrimEnd('/');
             return Ok(new NodeDraftDto(
                 SuggestedName: GenerateNodeName(),
                 Token: NodeTokenHasher.Generate(),
-                ControlPlaneUrl: string.IsNullOrWhiteSpace(controlPlaneUrl) ? null : controlPlaneUrl.TrimEnd('/')));
+                ControlPlaneUrl: controlPlaneUrl));
         }
 
         // A fun, docker-style adjective-animal name (e.g. "brave-otter") via RandomFriendlyNameGenerator,

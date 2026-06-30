@@ -22,7 +22,7 @@ namespace KRINT.API.Controllers
             // bundled image reached via a host-assigned random port (Testcontainers), or a split-origin
             // dev setup. The old code always overrode it, which behind a TLS-terminating proxy produced
             // an http:// URL the IdP rejects even when the admin set the right https URL.
-            if (string.IsNullOrWhiteSpace(configuration["Oidc:RedirectUri"]))
+            if (string.IsNullOrWhiteSpace(configuration["Oidc:RedirectUri"]) && string.IsNullOrWhiteSpace(configuration["Krint:PublicUrl"]))
             {
                 var request = HttpContext.Request;
                 var browserOrigin = request.Headers.Origin.ToString();

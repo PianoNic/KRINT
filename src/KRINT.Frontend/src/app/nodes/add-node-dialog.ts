@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, Injectable, signal } from '@angular/core';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCopy, lucideCheck, lucideRefreshCw, lucideTriangleAlert } from '@ng-icons/lucide';
+import { lucideCopy, lucideCheck, lucideRefreshCw } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogDescription, HlmDialogHeader, HlmDialogService, HlmDialogTitle } from '@spartan-ng/helm/dialog';
 import { HlmInputImports } from '@spartan-ng/helm/input';
@@ -9,12 +9,10 @@ import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { NodesService } from '../api/api/nodes.service';
 import { NodeDto } from '../api/model/nodeDto';
 
-const URL_PLACEHOLDER = 'https://your-krint-url';
-
 @Component({
   selector: 'app-add-node-dialog',
   imports: [NgIcon, HlmButtonImports, HlmDialogHeader, HlmDialogTitle, HlmDialogDescription, HlmInputImports, HlmLabelImports],
-  providers: [provideIcons({ lucideCopy, lucideCheck, lucideRefreshCw, lucideTriangleAlert })],
+  providers: [provideIcons({ lucideCopy, lucideCheck, lucideRefreshCw })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col gap-4' },
   template: `
@@ -29,16 +27,6 @@ const URL_PLACEHOLDER = 'https://your-krint-url';
       <label hlmLabel for="node-name">Node name <span class="text-muted-foreground">(optional)</span></label>
       <input hlmInput id="node-name" [value]="name()" (input)="onName($event)" placeholder="node-1" />
     </div>
-
-    @if (!controlPlaneUrl()) {
-      <div class="border-destructive/40 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-xs">
-        <ng-icon name="lucideTriangleAlert" size="16" class="mt-0.5 shrink-0" />
-        <span>
-          <code class="font-mono">Krint__PublicUrl</code> isn't set, so the URL below is a placeholder.
-          Set it in your env file to the URL this app is served on, then reopen this dialog.
-        </span>
-      </div>
-    }
 
     <div class="flex flex-col gap-2">
       <div class="flex items-center justify-between">
@@ -75,7 +63,7 @@ export class AddNodeDialog {
 
   protected readonly name = signal('');
   protected readonly token = signal('');
-  protected readonly controlPlaneUrl = signal<string | null>(null);
+  protected readonly controlPlaneUrl = signal('');
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -84,7 +72,7 @@ export class AddNodeDialog {
   // The compose mirrors docs/nodes.md. No Node__Id: the control plane derives the node's identity
   // from its token, so the node never needs to know its own id.
   protected readonly compose = computed(() => {
-    const url = this.controlPlaneUrl() ?? URL_PLACEHOLDER;
+    const url = this.controlPlaneUrl();
     const name = this.name().trim() || 'node';
     return [
       'services:',
@@ -114,7 +102,7 @@ export class AddNodeDialog {
       next: (draft) => {
         if (!this.name()) this.name.set(draft.suggestedName);
         this.token.set(draft.token);
-        this.controlPlaneUrl.set(draft.controlPlaneUrl ?? null);
+        this.controlPlaneUrl.set(draft.controlPlaneUrl);
         this.loading.set(false);
       },
       error: (err) => {

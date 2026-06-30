@@ -98,7 +98,8 @@ namespace KRINT.Application.Command.DatabaseInstance
             // see the failure surfaced from this command.
             // After the swap the binding is whatever the caller asked for; probe via the right host.
             var probeTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ResolveProbeHost(command.IsPublic), instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
-            await WaitForReadyAsync(probeTarget, cancellationToken);
+            await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(instance.Engine), probeTarget, command.IsPublic, cancellationToken,
+                instance.ContainerName, InnerDatabaseTargetLoader.EngineInternalPort(instance.Engine));
 
             instance.ContainerId = createResult.ID;
             instance.IsPublic = command.IsPublic;
@@ -115,28 +116,5 @@ namespace KRINT.Application.Command.DatabaseInstance
             return instance.ToDto();
         }
 
-        private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
-        {
-            var inner = innerDbs.Resolve(target.Engine);
-            var ceiling = target.Engine switch
-            {
-                "cassandra" or "neo4j" => 180,
-                _ => 60,
-            };
-            var deadline = DateTime.UtcNow.AddSeconds(ceiling);
-            var delayMs = 500;
-            Exception? last = null;
-            while (DateTime.UtcNow < deadline)
-            {
-                try { await inner.ListAsync(target, cancellationToken); return; }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    last = ex;
-                    await Task.Delay(delayMs, cancellationToken);
-                    delayMs = Math.Min(delayMs * 2, 3000);
-                }
-            }
-            throw new InvalidOperationException($"{target.Engine} container did not become ready within {ceiling}s after visibility change.", last);
-        }
     }
 }

@@ -40,34 +40,11 @@ namespace KRINT.Application.Command.DatabaseInstance
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
             var target = CreateDatabaseCommandHandler.BuildProbeTarget(instance, password);
-            await WaitForReadyAsync(target, cancellationToken);
+            await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(target.Engine), target, instance.IsPublic, cancellationToken,
+                instance.ContainerName, InnerDatabaseTargetLoader.EngineInternalPort(instance.Engine));
 
             await activity.LogAsync("instance.start", instance.ContainerName ?? instance.DisplayName, instance.Id, instance.Engine, null, cancellationToken);
             return Unit.Value;
-        }
-
-        private async Task WaitForReadyAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
-        {
-            var inner = innerDbs.Resolve(target.Engine);
-            var ceiling = target.Engine switch
-            {
-                "cassandra" or "neo4j" => 180,
-                _ => 60,
-            };
-            var deadline = DateTime.UtcNow.AddSeconds(ceiling);
-            var delayMs = 500;
-            Exception? last = null;
-            while (DateTime.UtcNow < deadline)
-            {
-                try { await inner.ListAsync(target, cancellationToken); return; }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    last = ex;
-                    await Task.Delay(delayMs, cancellationToken);
-                    delayMs = Math.Min(delayMs * 2, 3000);
-                }
-            }
-            throw new InvalidOperationException($"{target.Engine} container did not become ready within {ceiling}s after start.", last);
         }
     }
 }
