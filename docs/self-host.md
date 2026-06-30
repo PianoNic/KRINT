@@ -47,6 +47,7 @@ services:
       Oidc__Scope: "openid profile email roles"
       Oidc__RequireHttpsMetadata: "true"
       Cors__AllowedOrigins__0: ${KRINT_CORS_ORIGIN}
+      Krint__PublicUrl: ${KRINT_PUBLIC_URL}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock   # Windows: //var/run/docker.sock
       - ./backups:/app/backups
@@ -79,6 +80,9 @@ KRINT_OIDC_AUTHORITY=https://auth.example.com/realms/krint
 KRINT_OIDC_CLIENT_ID=krint
 KRINT_OIDC_REDIRECT_URI=http://localhost:5000/
 KRINT_CORS_ORIGIN=http://localhost:5000
+
+# The public URL KRINT is served on - used to pre-fill the Add-node compose.
+KRINT_PUBLIC_URL=http://localhost:5000
 ```
 
 **`krint.yaml`** - the host-port ranges KRINT allocates from per engine. Copy as-is:

@@ -124,6 +124,12 @@ export class Create {
   // Target node for provisioning: null = the control plane's local Docker. Only online nodes are offered.
   protected readonly onlineNodes = signal<ReadonlyArray<NodeDto>>([]);
   protected readonly selectedNodeId = signal<string | null>(null);
+  // Maps the selected node id back to its name for the trigger label (the lazy *hlmSelectPortal
+  // options aren't available to brn-select, so without this it shows the raw GUID).
+  protected readonly nodeLabel = (id: string): string => {
+    if (!id) return 'Local (control plane)';
+    return this.onlineNodes().find((n) => n.id === id)?.name ?? id;
+  };
   // Root password: empty string = auto-generate at provision time.
   protected readonly customRootPassword = signal('');
   // Per-user custom passwords - empty string at index n means auto-generate.
