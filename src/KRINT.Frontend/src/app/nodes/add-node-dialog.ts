@@ -28,30 +28,36 @@ import { NodeDto } from '../api/model/nodeDto';
       <input hlmInput id="node-name" [value]="name()" (input)="onName($event)" placeholder="node-1" />
     </div>
 
-    <div class="flex flex-col gap-2">
-      <div class="flex items-center justify-between">
-        <label hlmLabel>Compose</label>
-        <div class="flex gap-2">
-          <button hlmBtn variant="outline" size="sm" type="button" (click)="regenerate()" [disabled]="loading()">
-            <ng-icon name="lucideRefreshCw" size="14" />
-            New token
-          </button>
-          <button hlmBtn variant="outline" size="sm" type="button" (click)="copy()">
-            <ng-icon [name]="copied() ? 'lucideCheck' : 'lucideCopy'" size="14" />
-            {{ copied() ? 'Copied' : 'Copy' }}
-          </button>
+    @if (!ready()) {
+      @if (error(); as err) {
+        <p class="text-destructive text-sm">{{ err }}</p>
+      }
+    } @else {
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <label hlmLabel>Compose</label>
+          <div class="flex gap-2">
+            <button hlmBtn variant="outline" size="sm" type="button" (click)="regenerate()" [disabled]="loading()">
+              <ng-icon name="lucideRefreshCw" size="14" />
+              New token
+            </button>
+            <button hlmBtn variant="outline" size="sm" type="button" (click)="copy()">
+              <ng-icon [name]="copied() ? 'lucideCheck' : 'lucideCopy'" size="14" />
+              {{ copied() ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
         </div>
+        <pre class="bg-muted max-h-72 overflow-auto rounded-md border p-3 font-mono text-xs leading-relaxed">{{ compose() }}</pre>
       </div>
-      <pre class="bg-muted max-h-72 overflow-auto rounded-md border p-3 font-mono text-xs leading-relaxed">{{ compose() }}</pre>
-    </div>
 
-    @if (error(); as err) {
-      <p class="text-destructive text-sm">{{ err }}</p>
+      @if (error(); as err) {
+        <p class="text-destructive text-sm">{{ err }}</p>
+      }
     }
 
     <div class="flex justify-end gap-2">
       <button hlmBtn variant="ghost" type="button" (click)="cancel()" [disabled]="saving()">Cancel</button>
-      <button hlmBtn type="button" (click)="save()" [disabled]="saving() || loading()">
+      <button hlmBtn type="button" (click)="save()" [disabled]="saving() || loading() || !ready()">
         {{ saving() ? 'Adding…' : 'Add node' }}
       </button>
     </div>
@@ -68,6 +74,9 @@ export class AddNodeDialog {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly copied = signal(false);
+  // True once a draft with a real control-plane URL loaded. When the control plane has no
+  // Krint__PublicUrl the draft endpoint returns 400, so there's no valid compose to show.
+  protected readonly ready = signal(false);
 
   // The compose mirrors docs/nodes.md. No Node__Id: the control plane derives the node's identity
   // from its token, so the node never needs to know its own id.
@@ -103,13 +112,23 @@ export class AddNodeDialog {
         if (!this.name()) this.name.set(draft.suggestedName);
         this.token.set(draft.token);
         this.controlPlaneUrl.set(draft.controlPlaneUrl);
+        this.ready.set(true);
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err instanceof Error ? err.message : 'Failed to prepare a node');
+        this.ready.set(false);
+        this.error.set(this.messageFrom(err, 'Failed to prepare a node'));
         this.loading.set(false);
       },
     });
+  }
+
+  // Prefer the ProblemDetails `detail` a 400 carries (e.g. the "set Krint__PublicUrl" guidance)
+  // over the generic HTTP error message.
+  private messageFrom(err: unknown, fallback: string): string {
+    const problem = (err as { error?: { detail?: string } } | null)?.error;
+    if (problem?.detail) return problem.detail;
+    return err instanceof Error ? err.message : fallback;
   }
 
   protected onName(event: Event): void {
@@ -133,7 +152,7 @@ export class AddNodeDialog {
     this.api.apiNodesPost({ name: this.name().trim(), token: this.token() }).subscribe({
       next: (created) => this.ref.close(created),
       error: (err) => {
-        this.error.set(err instanceof Error ? err.message : 'Failed to add the node');
+        this.error.set(this.messageFrom(err, 'Failed to add the node'));
         this.saving.set(false);
       },
     });
