@@ -99,3 +99,7 @@ The node retries on its own if the control plane is unreachable at boot, and re-
 ## Provision onto a node
 
 Pick the node from the create wizard's **Target node** dropdown (it appears once a node is online), or pass `nodeId` in the provision request. The instance then shows a node badge on the instances list.
+
+## Register an existing database on a node
+
+Databases KRINT didn't provision can also live on a node. In **Register external database**, pick the node from the **Target node** dropdown (shown once a node is online): **Scan** then discovers containers on that node's Docker daemon, and the connection test plus every later operation is dispatched to the node - the control plane never connects to the database directly. Leave it on *Local (control plane)* to register a database reachable from the control plane, exactly as before.

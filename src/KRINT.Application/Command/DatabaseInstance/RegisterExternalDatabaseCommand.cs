@@ -20,7 +20,7 @@ namespace KRINT.Application.Command.DatabaseInstance
         KrintDbContext db,
         ISecretsVaultService vault,
         IInnerDatabaseServiceResolver innerDbs,
-        IDockerService docker,
+        IDockerServiceResolver dockerResolver,
         IActivityLogger activity)
         : ICommandHandler<RegisterExternalDatabaseCommand, ProvisionedDatabaseDto>
     {
@@ -49,8 +49,19 @@ namespace KRINT.Application.Command.DatabaseInstance
             // local DB registers on the desktop too. The original host is stored as the user typed.
             var inner = ResolveInner(req.Engine);
             var preferredHost = InnerDatabaseTargetLoader.ResolveTargetHost(req.Host, isManaged: false, isPublic: false);
-            var probeHost = await InnerDatabaseTargetLoader.PickReachableHostAsync(preferredHost, req.Port, cancellationToken);
-            var target = new InnerDatabaseTarget(req.Engine, probeHost, req.Port, req.Username, req.Password, req.DatabaseName);
+            InnerDatabaseTarget target;
+            if (req.NodeId is { } probeNodeId)
+            {
+                // The DB lives on the node's host/network; only the node can reach it. Dispatch the
+                // probe there (NodeId set) and let the node resolve the reachable endpoint locally -
+                // the control plane must not pre-probe an address it can't see.
+                target = new InnerDatabaseTarget(req.Engine, preferredHost, req.Port, req.Username, req.Password, req.DatabaseName, probeNodeId);
+            }
+            else
+            {
+                var probeHost = await InnerDatabaseTargetLoader.PickReachableHostAsync(preferredHost, req.Port, cancellationToken);
+                target = new InnerDatabaseTarget(req.Engine, probeHost, req.Port, req.Username, req.Password, req.DatabaseName);
+            }
             try
             {
                 await inner.ListAsync(target, cancellationToken);
@@ -70,6 +81,8 @@ namespace KRINT.Application.Command.DatabaseInstance
             {
                 try
                 {
+                    // Inspect on the same daemon the DB runs on (the node's, when NodeId is set).
+                    var docker = dockerResolver.Resolve(req.NodeId);
                     var inspect = await docker.InspectContainerAsync(req.ContainerId, cancellationToken);
                     adoptedContainerId = inspect.ID;
                     adoptedContainerName = req.ContainerName;
@@ -93,6 +106,7 @@ namespace KRINT.Application.Command.DatabaseInstance
                 Username = req.Username,
                 DatabaseName = req.DatabaseName,
                 IsManaged = false,
+                NodeId = req.NodeId,
             };
             db.DatabaseInstances.Add(instance);
             await db.SaveChangesAsync(cancellationToken);

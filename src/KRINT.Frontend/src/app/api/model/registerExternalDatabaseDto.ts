@@ -21,5 +21,6 @@ export interface RegisterExternalDatabaseDto {
     databaseName: string;
     containerId?: string | null;
     containerName?: string | null;
+    nodeId?: string | null;
 }
 

@@ -6,21 +6,25 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Queries.Database
 {
-    public record DiscoverContainersQuery : IQuery<IReadOnlyList<DiscoveredContainerDto>>;
+    /// <param name="NodeId">Which Docker host to scan: null = the control plane's local daemon,
+    /// a node id = that node's daemon (over SignalR). Lets the Register flow discover containers
+    /// running on a remote node, not just the control plane.</param>
+    public record DiscoverContainersQuery(Guid? NodeId = null) : IQuery<IReadOnlyList<DiscoveredContainerDto>>;
 
     /// <summary>
-    /// Walks the host's Docker containers, picks ones whose image matches a supported engine,
+    /// Walks the target host's Docker containers, picks ones whose image matches a supported engine,
     /// parses creds + port out of the inspect response, and returns them as candidates for the
     /// Register flow. Skips:
     ///   - anything labelled krint.managed=true (KRINT provisioned it; already in the list)
     ///   - anything whose container id matches a row in DatabaseInstances (registered already
     ///     as an external instance from an earlier discover round)
     /// </summary>
-    public class DiscoverContainersQueryHandler(KrintDbContext db, IDockerService docker)
+    public class DiscoverContainersQueryHandler(KrintDbContext db, IDockerServiceResolver dockerResolver)
         : IQueryHandler<DiscoverContainersQuery, IReadOnlyList<DiscoveredContainerDto>>
     {
         public async ValueTask<IReadOnlyList<DiscoveredContainerDto>> Handle(DiscoverContainersQuery query, CancellationToken cancellationToken)
         {
+            var docker = dockerResolver.Resolve(query.NodeId);
             var containers = await docker.ListContainersAsync(all: true, cancellationToken);
 
             var trackedIds = await db.DatabaseInstances
