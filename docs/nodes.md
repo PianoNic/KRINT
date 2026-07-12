@@ -29,8 +29,8 @@ Set the public URL this control plane is served on in your **env file** so the A
 Krint__PublicUrl=https://krint.example.com
 ```
 
-::: info
-If `Krint__PublicUrl` is unset, the Add-node modal still works but uses a placeholder URL you'll need to edit by hand.
+::: warning
+`Krint__PublicUrl` is **required to add nodes**, and it must be reachable from each node's host - use the control plane's LAN or public address, never `localhost`/`127.0.0.1`. If it's unset the Add-node dialog refuses to generate a compose and tells you to set it.
 :::
 
 ## Add a node

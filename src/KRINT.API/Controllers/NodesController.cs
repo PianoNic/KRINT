@@ -48,11 +48,20 @@ namespace KRINT.API.Controllers
         /// anything. The UI builds the copy-paste compose from this and only saves on demand.</summary>
         [HttpGet("draft")]
         [ProducesResponseType(typeof(NodeDraftDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public IActionResult Draft()
         {
-            // Krint:PublicUrl is required for self-hosting (it also drives the OIDC redirect + CORS),
-            // so it's always present here.
+            // A node dials Krint:PublicUrl to reach the control plane, so it must be set (and reachable
+            // from the node host). Without it the generated compose would carry an empty ControlPlaneUrl
+            // and the node would silently fail to connect - fail loudly here instead so the UI can tell
+            // the operator exactly what to configure.
             var controlPlaneUrl = (configuration["Krint:PublicUrl"] ?? options.Value.PublicUrl ?? "").TrimEnd('/');
+            if (string.IsNullOrEmpty(controlPlaneUrl))
+                return Problem(
+                    title: "Public URL not configured",
+                    detail: "Set Krint__PublicUrl on the control plane to the URL nodes should dial (e.g. https://krint.example.com) - it must be reachable from the node's host, not localhost. Then reopen this dialog.",
+                    statusCode: StatusCodes.Status400BadRequest);
+
             return Ok(new NodeDraftDto(
                 SuggestedName: GenerateNodeName(),
                 Token: NodeTokenHasher.Generate(),

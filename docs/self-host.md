@@ -147,7 +147,7 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Oidc__Scope` | `openid profile email roles` (`roles` optional). |
 | `Oidc__RequireHttpsMetadata` | `true` (set `false` only for a plain-HTTP IdP). |
 | `Cors__AllowedOrigins__0` | Browser origin allowed to call the API - KRINT URL **without** trailing slash. Add more as `__1`, `__2`. |
-| `Krint__PublicUrl` | Public URL this control plane is served on (e.g. `https://krint.example.com`). Used to pre-fill the [Add-node](./nodes#add-a-node) compose. Optional. |
+| `Krint__PublicUrl` | Public URL this control plane is served on (e.g. `https://krint.example.com`). Drives the [Add-node](./nodes#add-a-node) compose, and backs the OIDC redirect + CORS when those aren't set explicitly. **Required to add nodes** - it must be reachable from each node's host (not `localhost`); the Add-node dialog refuses to generate a compose until it's set. |
 | `Backup__Directory` | Where dumps are written. Optional - defaults to `/app/backups` (the path the compose bind-mounts). |
 | `Docker__Endpoint` | Docker daemon URI, e.g. `unix:///var/run/docker.sock`. Optional - auto-detected (Unix socket / Windows named pipe) when unset. |
 
