@@ -9,7 +9,9 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { DatabaseService } from '../api/api/database.service';
+import { NodesService } from '../api/api/nodes.service';
 import { DiscoveredContainerDto } from '../api/model/discoveredContainerDto';
+import { NodeDto } from '../api/model/nodeDto';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { DatabaseMigrateDialog } from './database-migrate-dialog';
 
@@ -39,9 +41,33 @@ import { DatabaseMigrateDialog } from './database-migrate-dialog';
       </p>
     </hlm-dialog-header>
 
-    <!-- Discover panel. Scans the host's Docker for engine containers KRINT doesn't already
+    @if (onlineNodes().length > 0) {
+      <div class="flex flex-col gap-1.5">
+        <label hlmLabel class="text-muted-foreground text-xs uppercase tracking-wide">Target node</label>
+        <hlm-select
+          [value]="selectedNodeId() ?? ''"
+          (valueChange)="onNodeChange($event || null)"
+          [itemToString]="nodeLabel"
+        >
+          <hlm-select-trigger class="w-full">
+            <hlm-select-value placeholder="Local (control plane)" />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-item value="">Local (control plane)</hlm-select-item>
+            @for (n of onlineNodes(); track n.id) {
+              <hlm-select-item [value]="n.id">{{ n.name }}</hlm-select-item>
+            }
+          </hlm-select-content>
+        </hlm-select>
+        <span class="text-muted-foreground text-xs">
+          Which host to scan and reach the database on. Node-hosted databases are reached through the control plane.
+        </span>
+      </div>
+    }
+
+    <!-- Discover panel. Scans the selected host's Docker for engine containers KRINT doesn't already
          track, pre-fills creds from env vars where possible. Saves the user from re-typing
-         everything when the DB already runs on the same host. -->
+         everything when the DB already runs on that host. -->
     <section class="border-border rounded-md border">
       <header class="flex items-center justify-between gap-2 px-3 py-2 border-b">
         <div class="flex items-center gap-2 text-sm font-medium">
@@ -58,7 +84,7 @@ import { DatabaseMigrateDialog } from './database-migrate-dialog';
         <p class="text-destructive p-3 text-sm">{{ err }}</p>
       } @else if (candidates() === null) {
         <p class="text-muted-foreground p-3 text-sm">
-          Click <strong>Scan</strong> to look for database containers running on this Docker host.
+          Click <strong>Scan</strong> to look for database containers running on the selected host.
         </p>
       } @else if (candidates()!.length === 0) {
         <p class="text-muted-foreground p-3 text-sm">
@@ -212,7 +238,36 @@ export class DatabaseRegisterExternalDialog {
   protected readonly store = inject(DatabasesStore);
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
   private readonly api = inject(DatabaseService);
+  private readonly nodesApi = inject(NodesService);
   private readonly dialog = inject(HlmDialogService);
+
+  // Which host to scan / reach the DB on: null = the control plane, a node id = that node. Only
+  // online nodes are offered; the picker is hidden when none are connected.
+  protected readonly onlineNodes = signal<ReadonlyArray<NodeDto>>([]);
+  protected readonly selectedNodeId = signal<string | null>(null);
+  // Maps the selected id back to its name for the trigger label (lazy *hlmSelectPortal options
+  // aren't available to brn-select, so without this it shows the raw GUID).
+  protected readonly nodeLabel = (id: string): string => {
+    if (!id) return 'Local (control plane)';
+    return this.onlineNodes().find((n) => n.id === id)?.name ?? id;
+  };
+
+  constructor() {
+    this.nodesApi.apiNodesGet().subscribe({
+      next: (nodes) => this.onlineNodes.set(nodes.filter((n) => n.online)),
+      error: () => this.onlineNodes.set([]),
+    });
+  }
+
+  // Candidates + any adopted container belong to the previously scanned host, so clear them when
+  // the target host changes - otherwise the user could register a node's container against another.
+  protected onNodeChange(id: string | null): void {
+    this.selectedNodeId.set(id);
+    this.candidates.set(null);
+    this.scanError.set(null);
+    this.adoptedContainerId.set(null);
+    this.adoptedContainerName.set(null);
+  }
 
   // v1 of the migration command supports only the SQL engines with an existing IBackupService.
   // Keep this in sync with StreamMigrateContainerCommandHandler.SupportedSourceEngines.
@@ -269,7 +324,7 @@ export class DatabaseRegisterExternalDialog {
   protected scan(): void {
     this.scanning.set(true);
     this.scanError.set(null);
-    this.api.apiDatabaseDiscoverGet().subscribe({
+    this.api.apiDatabaseDiscoverGet(this.selectedNodeId() ?? undefined).subscribe({
       next: (list) => {
         this.candidates.set(list);
         this.scanning.set(false);
@@ -313,6 +368,7 @@ export class DatabaseRegisterExternalDialog {
         databaseName: this.databaseName().trim(),
         containerId: this.adoptedContainerId(),
         containerName: this.adoptedContainerName(),
+        nodeId: this.selectedNodeId(),
       },
       onResult: (res) => {
         this.submitting.set(false);

@@ -73,9 +73,9 @@ namespace KRINT.API.Controllers
 
         [HttpGet("discover")]
         [ProducesResponseType(typeof(IReadOnlyList<DiscoveredContainerDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Discover(CancellationToken cancellationToken)
+        public async Task<IActionResult> Discover([FromQuery] Guid? nodeId, CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new DiscoverContainersQuery(), cancellationToken);
+            var result = await mediator.Send(new DiscoverContainersQuery(nodeId), cancellationToken);
             return Ok(result);
         }
 

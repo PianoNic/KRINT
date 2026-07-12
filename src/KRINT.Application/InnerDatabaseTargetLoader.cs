@@ -21,12 +21,19 @@ namespace KRINT.Application
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instanceId}.");
 
-            // Node-hosted: the operation is dispatched to the node, which runs it against the container.
-            // Carry the NodeId so the resolver routes it, plus the container name + internal port so the
-            // node can reach the container over its own Docker network (a containerized node can't see
-            // 127.0.0.1:<hostPort> on its host); the node falls back to that host port when it can't.
+            // Node-hosted: the operation is dispatched to the node, which runs it locally against the DB.
             if (instance.NodeId is { } nodeId)
-                return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId, instance.ContainerName, EngineInternalPort(instance.Engine));
+            {
+                // Managed instances live in a KRINT container the node reaches by name on its own Docker
+                // network (a containerized node can't see 127.0.0.1:<hostPort> on its host); it falls back
+                // to that host port when it can't. External instances aren't KRINT's container - reach them
+                // at the host the user registered, resolved to the node's loopback/host-gateway on the node.
+                if (instance.IsManaged)
+                    return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId, instance.ContainerName, EngineInternalPort(instance.Engine));
+
+                var externalHost = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
+                return new InnerDatabaseTarget(instance.Engine, externalHost, instance.Port, instance.Username, password, instance.DatabaseName, nodeId);
+            }
 
             var preferred = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
             var (host, port) = await PickReachableEndpointAsync(

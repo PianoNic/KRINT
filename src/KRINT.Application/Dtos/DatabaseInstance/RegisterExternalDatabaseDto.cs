@@ -26,5 +26,9 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         public string? ContainerId { get; init; }
         /// <summary>Optional. Set alongside ContainerId.</summary>
         public string? ContainerName { get; init; }
+        /// <summary>Optional. The node the database runs on (null = the control plane's host). When set,
+        /// the connection probe, container adoption, and all later operations are dispatched to that
+        /// node - the control plane never connects to the DB directly.</summary>
+        public Guid? NodeId { get; init; }
     }
 }
