@@ -54,8 +54,13 @@ namespace KRINT.Application.Command.DatabaseInstance
             {
                 // The DB lives on the node's host/network; only the node can reach it. Dispatch the
                 // probe there (NodeId set) and let the node resolve the reachable endpoint locally -
-                // the control plane must not pre-probe an address it can't see.
-                target = new InnerDatabaseTarget(req.Engine, preferredHost, req.Port, req.Username, req.Password, req.DatabaseName, probeNodeId);
+                // the control plane must not pre-probe an address it can't see. Carry the container
+                // name + internal port when adopting a container so the node can reach it directly
+                // over a shared Docker network, which also covers a container published only on the
+                // node's loopback; it falls back to the host address above when that isn't available.
+                target = new InnerDatabaseTarget(
+                    req.Engine, preferredHost, req.Port, req.Username, req.Password, req.DatabaseName,
+                    probeNodeId, req.ContainerName, InnerDatabaseTargetLoader.EngineInternalPort(req.Engine));
             }
             else
             {
@@ -68,7 +73,12 @@ namespace KRINT.Application.Command.DatabaseInstance
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new ArgumentException($"Could not connect to {req.Engine} at {req.Host}:{req.Port}: {ex.Message}");
+                // Report the address actually attempted, not just what the user typed - "localhost"
+                // is rewritten to a host-gateway alias, and a DNS failure on that alias is otherwise
+                // impossible to diagnose from the message.
+                var attempted = target.Host == req.Host ? $"{req.Host}:{req.Port}" : $"{req.Host}:{req.Port} (as {target.Host}:{target.Port})";
+                var where = req.NodeId is null ? "" : " from the selected node";
+                throw new ArgumentException($"Could not connect to {req.Engine} at {attempted}{where}: {ex.Message}");
             }
 
             // Adoption path: when caller claims this is a Docker container on the local daemon,
