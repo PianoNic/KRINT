@@ -22,17 +22,21 @@ namespace KRINT.Application
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instanceId}.");
 
             // Node-hosted: the operation is dispatched to the node, which runs it locally against the DB.
+            // Either way the node prefers reaching the container by name on its own Docker network (a
+            // containerized node can't see 127.0.0.1:<hostPort> on its host) and falls back to the host
+            // address below. ContainerName is null for a non-adopted external DB, which just means the
+            // node goes straight to that host address.
             if (instance.NodeId is { } nodeId)
             {
-                // Managed instances live in a KRINT container the node reaches by name on its own Docker
-                // network (a containerized node can't see 127.0.0.1:<hostPort> on its host); it falls back
-                // to that host port when it can't. External instances aren't KRINT's container - reach them
-                // at the host the user registered, resolved to the node's loopback/host-gateway on the node.
-                if (instance.IsManaged)
-                    return new InnerDatabaseTarget(instance.Engine, "127.0.0.1", instance.Port, instance.Username, password, instance.DatabaseName, nodeId, instance.ContainerName, EngineInternalPort(instance.Engine));
+                // Managed instances are KRINT's own container, published on the node's loopback.
+                // External ones live wherever the user registered them.
+                var nodeHost = instance.IsManaged
+                    ? "127.0.0.1"
+                    : ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
 
-                var externalHost = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);
-                return new InnerDatabaseTarget(instance.Engine, externalHost, instance.Port, instance.Username, password, instance.DatabaseName, nodeId);
+                return new InnerDatabaseTarget(
+                    instance.Engine, nodeHost, instance.Port, instance.Username, password, instance.DatabaseName,
+                    nodeId, instance.ContainerName, EngineInternalPort(instance.Engine));
             }
 
             var preferred = ResolveTargetHost(instance.Host, instance.IsManaged, instance.IsPublic);

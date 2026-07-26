@@ -80,6 +80,10 @@ services:
     image: ghcr.io/pianonic/krint:latest   # or pianonic/krint:latest (Docker Hub)
     container_name: krint-node
     restart: unless-stopped
+    extra_hosts:
+      # How the node reaches databases published on its host's ports. Without this,
+      # registering an existing database on this node fails to resolve its address.
+      - "host.docker.internal:host-gateway"
     environment:
       Krint__Role: "node"
       Node__ControlPlaneUrl: "https://krint.example.com"
@@ -103,3 +107,9 @@ Pick the node from the create wizard's **Target node** dropdown (it appears once
 ## Register an existing database on a node
 
 Databases KRINT didn't provision can also live on a node. In **Register external database**, pick the node from the **Target node** dropdown (shown once a node is online): **Scan** then discovers containers on that node's Docker daemon, and the connection test plus every later operation is dispatched to the node - the control plane never connects to the database directly. Leave it on *Local (control plane)* to register a database reachable from the control plane, exactly as before.
+
+The node reaches the database either over a shared Docker network (by container name) or at the address you registered. For the second route it needs the host-gateway alias, so keep `extra_hosts: ["host.docker.internal:host-gateway"]` on the node service.
+
+::: warning
+Registering fails with `Could not connect to ... Name or service not known` when the node is missing that `extra_hosts` entry - `localhost` then has no address the node can resolve. Add it and redeploy the node.
+:::

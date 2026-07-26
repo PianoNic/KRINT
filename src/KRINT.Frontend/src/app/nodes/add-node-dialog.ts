@@ -89,6 +89,8 @@ export class AddNodeDialog {
       '    image: ghcr.io/pianonic/krint:latest   # or pianonic/krint:latest (Docker Hub)',
       '    container_name: krint-node',
       '    restart: unless-stopped',
+      '    extra_hosts:',
+      '      - "host.docker.internal:host-gateway"   # how the node reaches DBs on published host ports',
       '    environment:',
       '      Krint__Role: "node"',
       `      Node__ControlPlaneUrl: "${url}"`,
