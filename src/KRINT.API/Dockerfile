@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Stage 1: frontend ----------
-FROM oven/bun:1.3.14 AS frontend-build
+# Pinned to BUILDPLATFORM so this runs once on the runner's native arch instead of once per
+# target platform - the arm64 pass would otherwise run under QEMU, where the Angular build alone
+# took ~13 minutes and pushed the multi-arch job past the 6h ceiling. The output is plain
+# JS/CSS, so the same artifacts are valid for every target arch.
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.14 AS frontend-build
 WORKDIR /src/frontend
 COPY src/KRINT.Frontend/package.json src/KRINT.Frontend/bun.lock ./
 RUN bun install
@@ -9,7 +13,12 @@ COPY src/KRINT.Frontend .
 RUN bun run build:agent --output-path /artifacts/frontend
 
 # ---------- Stage 2: backend restore ----------
-FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS backend-deps
+# Also pinned to BUILDPLATFORM (restore + publish both inherit it). The publish below is
+# framework-dependent with UseAppHost=false and no RuntimeIdentifier, so it emits portable IL -
+# native dependencies ship under runtimes/<rid>/ and are picked at runtime by the target's
+# runtime. That makes one native build valid for every target arch; only the small final stage
+# below is built per-arch.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.300 AS backend-deps
 WORKDIR /src/backend
 COPY ["src/KRINT.API/KRINT.API.csproj",                       "KRINT.API/"]
 COPY ["src/KRINT.Application/KRINT.Application.csproj",       "KRINT.Application/"]

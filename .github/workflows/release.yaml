@@ -96,6 +96,10 @@ jobs:
     name: Build and push multi-arch image
     needs: sync-version
     runs-on: ubuntu-latest
+    # The heavy stages build once on the runner's native arch (see the Dockerfile's
+    # BUILDPLATFORM pins), so this is a minutes-long job. Fail fast if that ever regresses to
+    # emulated per-arch builds instead of burning the default 6h ceiling before being cancelled.
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
