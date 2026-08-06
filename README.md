@@ -2,7 +2,7 @@
   <img src="assets/krint-icon.svg" width="180" alt="KRINT Logo" />
 </p>
 <p align="center">
-  <strong>KRINT</strong><br/>
+  <strong>KRINT </strong><br/>
   One click. One key. Your database is ready.
 </p>
 <p align="center">
