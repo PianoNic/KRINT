@@ -26,5 +26,11 @@ export interface ProvisionedDatabaseDto {
     isPublic: boolean;
     state?: string | null;
     isConfigManaged: boolean;
+    nodeId?: string | null;
+    nodeName?: string | null;
+    containerPort?: DashboardStatsDtoTotalInstances | null;
+    containerConnectionString?: string | null;
+    dockerNetwork?: string | null;
+    loopbackOnly: boolean;
 }
 

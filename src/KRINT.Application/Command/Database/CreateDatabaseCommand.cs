@@ -18,6 +18,11 @@ namespace KRINT.Application.Command.Database
 
     public class CreateDatabaseCommandHandler(IDockerServiceResolver dockerResolver, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
+        // Recorded on every provisioned instance and treated as a sentinel, not as an address: the
+        // probe and inner-DB resolvers rewrite it per deployment (see BuildProbeTarget /
+        // InnerDatabaseTargetLoader.ResolveTargetHost). It is only a real address from a shell on
+        // the machine running the container, so for node-hosted instances it is never usable by the
+        // caller. InstanceReachability is what the API surfaces to say where an instance really is.
         private const string Host = "localhost";
         // krint runs in its own container; localhost there is krint's loopback, not the Docker
         // host. host.docker.internal resolves to the host via the host-gateway alias set in
@@ -221,8 +226,28 @@ namespace KRINT.Application.Command.Database
 
                 var connectionString = ConnectionStringBuilder.Build(command.Engine, instance.Host, hostPort, instance.Username, password, instance.DatabaseName);
 
+                // Which networks the container ended up on (KRINT attaches it to its own after
+                // create). The success screen needs this to tell the user what their own compose
+                // service must join - for a node-hosted instance that's the only viable route,
+                // since the published port is bound to the node's loopback.
+                IEnumerable<string>? networks = null;
+                try
+                {
+                    var inspect = await docker.InspectContainerAsync(createResult.ID, cancellationToken);
+                    networks = inspect.NetworkSettings?.Networks?.Keys.ToList();
+                }
+                catch
+                {
+                    // Non-fatal: the instance is provisioned either way, we just can't name the
+                    // network and the UI falls back to telling the user how to look it up.
+                }
+
+                var nodeName = command.NodeId is { } createdOnNodeId
+                    ? await db.Nodes.Where(n => n.Id == createdOnNodeId).Select(n => n.Name).FirstOrDefaultAsync(cancellationToken)
+                    : null;
+
                 provisionedOk = true;
-                return instance.ToProvisionedDto(password, connectionString);
+                return instance.ToProvisionedDto(password, connectionString, nodeName, networks);
             }
             finally
             {

@@ -31,5 +31,12 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         /// The UI shows a node badge and hides the not-yet-supported controls (logs, console,
         /// backups, upgrade, visibility) for node-hosted instances.</summary>
         public Guid? NodeId { get; init; }
+        /// <summary>Display name of that node. The instances table shows this in place of the
+        /// recorded Host, which for a node-hosted instance is a loopback address on the node and
+        /// so is not an address the caller can use.</summary>
+        public string? NodeName { get; init; }
+        /// <summary>True when the container's published port is bound to 127.0.0.1 only.
+        /// Always true for node-hosted instances.</summary>
+        public required bool LoopbackOnly { get; init; }
     }
 }
