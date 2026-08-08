@@ -104,6 +104,55 @@ The node retries on its own if the control plane is unreachable at boot, and re-
 
 Pick the node from the create wizard's **Target node** dropdown (it appears once a node is online), or pass `nodeId` in the provision request. The instance then shows a node badge on the instances list.
 
+Manage it entirely through the control plane. To point one of your own apps at it, see [Connect an app to a node-hosted database](#connect-an-app-to-a-node-hosted-database). The published port is not reachable off the node.
+
+## Connect an app to a node-hosted database
+
+A node-hosted container publishes its port on the **node's loopback**, never on `0.0.0.0`. Nothing connects to a node directly, so there is deliberately no address on the node's host that another machine can dial. The **Public** visibility toggle is rejected for node-hosted instances for the same reason.
+
+That means the instances list shows `node-local` instead of a host, and the endpoint your app uses is the **container name on the node's Docker network**. KRINT attaches every container it provisions to its own network, so an app deployed on that node joins the same network and resolves the name.
+
+The create-success screen and the instance details dialog both give you the connection string and the compose fragment ready to copy. The shape is:
+
+```yaml
+services:
+  your-app:
+    environment:
+      # The container name and the engine's internal port, not the published one.
+      DATABASE_URL: "postgres://postgres:<password>@krint-pg-c77bea94:5432/postgres"
+    networks: [krint]
+
+networks:
+  krint:
+    external: true
+    name: krint_default
+```
+
+`krint_default` is the network the node's own compose project created. Confirm it on the node with:
+
+```sh
+docker network ls
+docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' krint-pg-c77bea94
+```
+
+::: warning
+Two mistakes account for almost every failure here.
+
+**Using the published port with the container name.** The port in the instances list (e.g. `30000`) is the *host* port on the node. Over the Docker network you use the engine's internal port, `5432` for Postgres. Pairing the container name with `30000` gives `Connection refused`.
+
+**Using `host.docker.internal` and the published port.** That resolves to the docker0 gateway, a different interface from loopback, so a loopback-bound port refuses the connection. It works for a *local* instance published on `0.0.0.0`, never for a node-hosted one.
+:::
+
+::: tip
+The default database and user shown for an instance are the ones KRINT provisioned. If your app expects its own database and role, create them first. On Postgres 15 and newer a plain role also needs ownership of the target database, or `CREATE TABLE` fails with `permission denied for schema public`:
+
+```sh
+docker exec krint-pg-c77bea94 psql -U postgres \
+  -c "CREATE USER myapp WITH PASSWORD '...';" \
+  -c "CREATE DATABASE myapp OWNER myapp;"
+```
+:::
+
 ## Register an existing database on a node
 
 Databases KRINT didn't provision can also live on a node. In **Register external database**, pick the node from the **Target node** dropdown (shown once a node is online): **Scan** then discovers containers on that node's Docker daemon, and the connection test plus every later operation is dispatched to the node - the control plane never connects to the database directly. Leave it on *Local (control plane)* to register a database reachable from the control plane, exactly as before.

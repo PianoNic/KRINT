@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogDescription, HlmDialogHeader, HlmDialogTitle } from '@spartan-ng/helm/dialog';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
+import { dockerNetworkComposeSnippet } from '../shared/docker-network-compose';
 
 type DialogContext = { id: string };
 
@@ -23,9 +24,7 @@ type DialogContext = { id: string };
   template: `
     <hlm-dialog-header>
       <h3 hlmDialogTitle>Instance details</h3>
-      <p hlmDialogDescription>
-        Read-only view of the connection string and credentials.
-      </p>
+      <p hlmDialogDescription>Read-only view of the connection string and credentials.</p>
     </hlm-dialog-header>
 
     @if (store.loadingDetails()) {
@@ -36,8 +35,8 @@ type DialogContext = { id: string };
           <p class="font-medium">This database is not managed by KRINT.</p>
           <p class="text-muted-foreground mt-1">
             @if (d.containerName) {
-              It was adopted from an existing Docker container. KRINT can back up, exec, and
-              tail logs, but <strong>upgrade is disabled</strong> — the image is pinned by your
+              It was adopted from an existing Docker container. KRINT can back up, exec, and tail
+              logs, but <strong>upgrade is disabled</strong> — the image is pinned by your
               orchestrator (docker compose, etc.) and upgrade there. Delete is a "forget" — the
               container itself will not be removed.
             } @else {
@@ -60,12 +59,21 @@ type DialogContext = { id: string };
         }
 
         <dt class="text-muted-foreground">Host</dt>
-        <dd class="font-mono">{{ d.host }}</dd>
-        <app-copy-button [value]="d.host" />
+        @if (d.nodeId) {
+          <dd class="text-muted-foreground text-xs">
+            <span class="font-mono">{{ d.host }}:{{ d.port }}</span> on node
+            <span class="font-mono">{{ d.nodeName ?? 'unknown' }}</span
+            >, loopback only
+          </dd>
+          <span></span>
+        } @else {
+          <dd class="font-mono">{{ d.host }}</dd>
+          <app-copy-button [value]="d.host" />
 
-        <dt class="text-muted-foreground">Port</dt>
-        <dd class="font-mono">{{ d.port }}</dd>
-        <app-copy-button [value]="d.port.toString()" />
+          <dt class="text-muted-foreground">Port</dt>
+          <dd class="font-mono">{{ d.port }}</dd>
+          <app-copy-button [value]="d.port.toString()" />
+        }
 
         <dt class="text-muted-foreground">Database</dt>
         <dd class="font-mono">{{ d.databaseName }}</dd>
@@ -84,13 +92,64 @@ type DialogContext = { id: string };
         <span></span>
       </dl>
 
-      <div class="flex flex-col gap-2">
-        <span class="text-muted-foreground text-sm">Connection string</span>
-        <div class="flex items-start gap-2">
-          <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{ d.connectionString }}</code>
-          <app-copy-button [value]="d.connectionString" />
+      @if (d.nodeId && d.containerConnectionString) {
+        <div class="flex flex-col gap-2">
+          <span class="text-muted-foreground text-sm">
+            Connection string for other containers on
+            <span class="font-mono">{{ d.nodeName ?? 'the node' }}</span>
+          </span>
+          <div class="flex items-start gap-2">
+            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+              d.containerConnectionString
+            }}</code>
+            <app-copy-button [value]="d.containerConnectionString" />
+          </div>
         </div>
-      </div>
+
+        @if (composeSnippet(); as snippet) {
+          <div class="flex flex-col gap-2">
+            <span class="text-muted-foreground text-sm">
+              Add this to your app's compose file so it can resolve that name
+            </span>
+            <div class="flex items-start gap-2">
+              <code
+                class="bg-muted flex-1 overflow-x-auto rounded-md p-3 font-mono text-xs whitespace-pre"
+                >{{ snippet }}</code
+              >
+              <app-copy-button [value]="snippet" />
+            </div>
+            @if (!d.dockerNetwork) {
+              <p class="text-muted-foreground text-xs">
+                KRINT could not read the container's networks. Find the name on the node with
+                <code class="font-mono">docker inspect {{ d.containerName }}</code> and put it in
+                <code class="font-mono">name:</code>.
+              </p>
+            }
+          </div>
+        }
+
+        <div class="flex flex-col gap-2">
+          <span class="text-muted-foreground text-sm"
+            >Connection string from a shell on the node</span
+          >
+          <div class="flex items-start gap-2">
+            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+              d.connectionString
+            }}</code>
+            <app-copy-button [value]="d.connectionString" />
+          </div>
+        </div>
+      } @else {
+        <div class="flex flex-col gap-2">
+          <span class="text-muted-foreground text-sm">Connection string</span>
+          <div class="flex items-start gap-2">
+            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+              d.connectionString
+            }}</code>
+            <app-copy-button [value]="d.connectionString" />
+          </div>
+        </div>
+      }
     } @else if (store.error(); as err) {
       <p class="text-destructive text-sm">{{ err }}</p>
     }
@@ -102,6 +161,13 @@ type DialogContext = { id: string };
 })
 export class DatabaseDetailsDialog {
   protected readonly store = inject(DatabasesStore);
+
+  protected readonly composeSnippet = computed(() => {
+    const d = this.store.details();
+    if (!d?.containerName) return null;
+    return dockerNetworkComposeSnippet(d.dockerNetwork);
+  });
+
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
   private readonly ctx = injectBrnDialogContext<DialogContext>();
 

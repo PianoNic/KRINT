@@ -122,7 +122,23 @@
               <td hlmTableCell class="font-mono text-xs">
                 {{ db.containerName ?? '-' }}
               </td>
-              <td hlmTableCell>{{ db.host }}</td>
+              <td hlmTableCell>
+                @if (db.nodeId) {
+                  <span
+                    class="text-muted-foreground inline-flex items-center gap-1 text-xs"
+                    [hlmTooltip]="
+                      'Published on the loopback of ' +
+                      nodeName(db.nodeId) +
+                      '. Nothing off that host can dial it. Open instance details for an endpoint you can actually connect to.'
+                    "
+                  >
+                    <ng-icon name="lucideNetwork" size="12" />
+                    node-local
+                  </span>
+                } @else {
+                  {{ db.host }}
+                }
+              </td>
               <td hlmTableCell class="text-right font-mono">{{ db.port }}</td>
               <td hlmTableCell>{{ db.databaseName }}</td>
               <td hlmTableCell>{{ db.username }}</td>

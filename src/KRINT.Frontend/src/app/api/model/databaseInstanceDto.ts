@@ -27,5 +27,7 @@ export interface DatabaseInstanceDto {
     state?: string | null;
     isConfigManaged: boolean;
     nodeId?: string | null;
+    nodeName?: string | null;
+    loopbackOnly: boolean;
 }
 

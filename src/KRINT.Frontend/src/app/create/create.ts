@@ -42,6 +42,7 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
+import { dockerNetworkComposeSnippet } from '../shared/docker-network-compose';
 import {
   customAzurite,
   customMssql,
@@ -142,6 +143,10 @@ export class Create {
   protected readonly result = signal<ProvisionResultDto | null>(null);
 
   // ----- computed -----
+  protected readonly composeSnippet = computed(() =>
+    dockerNetworkComposeSnippet(this.result()?.instance.dockerNetwork),
+  );
+
   protected readonly versions = computed(
     () => this.supported().find((s) => s.key === this.engine())?.versions ?? [],
   );
