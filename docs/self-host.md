@@ -266,6 +266,8 @@ Migrations run on startup; the vault, metadata, and provisioned containers are p
 | `SocketException (13): Permission denied` | Running as non-root without socket access - keep the default root user or `group_add` the docker GID. |
 | `No free host port in range` | `krint.yaml` `port_ranges` exhausted - delete an instance or widen the range. |
 | DB auth fails after changing the password | `POSTGRES_PASSWORD` only applies on first init - reset in-DB or wipe the volume. |
+| Your app gets `Name or service not known` or `Connection refused` for a provisioned DB | The host shown for an instance is only an address on the machine running the container. Connect by container name on KRINT's Docker network. See [Connect an app to a node-hosted database](./nodes.md#connect-an-app-to-a-node-hosted-database). |
+| `permission denied for schema public` on your app's migrations | Postgres 15+ dropped the implicit `CREATE` grant. Make your app's role the owner of its database. |
 
 </details>
 

@@ -40,9 +40,14 @@ namespace KRINT.Application.Queries.Database
                 }
             }
 
+            // Node names, so the UI can name where a node-hosted instance lives instead of showing
+            // the recorded "localhost" - an address that only resolves on the node itself.
+            var nodeNames = await db.Nodes
+                .ToDictionaryAsync(n => n.Id, n => n.Name, cancellationToken);
+
             return rows.Select(d =>
             {
-                var dto = d.ToDto();
+                var dto = d.ToDto(d.NodeId is { } nodeId && nodeNames.TryGetValue(nodeId, out var nodeName) ? nodeName : null);
                 if (d.ContainerName is not null && stateByName.TryGetValue(d.ContainerName, out var state))
                 {
                     dto = dto with { State = state };

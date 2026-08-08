@@ -4,7 +4,8 @@ namespace KRINT.Application.Mappings.DatabaseInstance
 {
     public static class DatabaseInstanceMappings
     {
-        public static DatabaseInstanceDto ToDto(this KRINT.Domain.DatabaseInstance d) => new()
+        /// <param name="nodeName">Display name of the node hosting this instance, when node-hosted.</param>
+        public static DatabaseInstanceDto ToDto(this KRINT.Domain.DatabaseInstance d, string? nodeName = null) => new()
         {
             Id = d.Id,
             Engine = d.Engine,
@@ -21,6 +22,8 @@ namespace KRINT.Application.Mappings.DatabaseInstance
             IsPublic = d.IsPublic,
             IsConfigManaged = d.IsConfigManaged,
             NodeId = d.NodeId,
+            NodeName = nodeName,
+            LoopbackOnly = InstanceReachability.IsLoopbackOnly(d),
         };
     }
 }

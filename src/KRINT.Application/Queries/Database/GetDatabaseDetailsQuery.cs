@@ -25,12 +25,16 @@ namespace KRINT.Application.Queries.Database
             var connectionString = ConnectionStringBuilder.Build(instance.Engine, instance.Host, instance.Port, instance.Username, password, instance.DatabaseName);
 
             string? state = null;
+            IEnumerable<string>? networks = null;
             if (instance.ContainerId is not null)
             {
                 try
                 {
                     var inspect = await dockerResolver.Resolve(instance.NodeId).InspectContainerAsync(instance.ContainerId, cancellationToken);
                     state = inspect.State?.Status;
+                    // The same inspect tells us which networks the container joined, which is what a
+                    // user's own compose service has to declare to reach it by container name.
+                    networks = inspect.NetworkSettings?.Networks?.Keys.ToList();
                 }
                 catch
                 {
@@ -39,7 +43,11 @@ namespace KRINT.Application.Queries.Database
                 }
             }
 
-            return instance.ToProvisionedDto(password, connectionString) with { State = state };
+            var nodeName = instance.NodeId is { } nodeId
+                ? await db.Nodes.Where(n => n.Id == nodeId).Select(n => n.Name).FirstOrDefaultAsync(cancellationToken)
+                : null;
+
+            return instance.ToProvisionedDto(password, connectionString, nodeName, networks) with { State = state };
         }
     }
 }

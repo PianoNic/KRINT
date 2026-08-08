@@ -10,15 +10,68 @@
           Instance ready
         </h2>
         <p hlmCardDescription>
-          <code class="font-mono">{{ res.instance.containerName }}</code> is up on
-          <code class="font-mono">{{ res.instance.host }}:{{ res.instance.port }}</code
-          >.
+          @if (res.instance.nodeId) {
+            <code class="font-mono">{{ res.instance.containerName }}</code> is up on node
+            <code class="font-mono">{{ res.instance.nodeName ?? 'unknown' }}</code
+            >, listening on <code class="font-mono">{{ res.instance.port }}</code> on that node's
+            loopback.
+          } @else {
+            <code class="font-mono">{{ res.instance.containerName }}</code> is up on
+            <code class="font-mono">{{ res.instance.host }}:{{ res.instance.port }}</code
+            >.
+          }
         </p>
       </div>
 
       <div hlmCardContent class="flex flex-col gap-4">
+        @if (res.instance.nodeId && res.instance.containerConnectionString) {
+          <div class="border-primary/30 bg-primary/5 flex flex-col gap-3 rounded-md border p-3">
+            <p class="text-sm">
+              This instance runs on a node, so its port is bound to that node's loopback. Apps
+              connect to it by container name over the node's Docker network. Use the string below,
+              not the one from a shell on the node.
+            </p>
+
+            <div class="flex flex-col gap-2">
+              <span class="text-muted-foreground text-sm">Connection string for your app</span>
+              <div class="flex items-start gap-2">
+                <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+                  res.instance.containerConnectionString
+                }}</code>
+                <app-copy-button [value]="res.instance.containerConnectionString" />
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <span class="text-muted-foreground text-sm"
+                >Add this to your app's compose file on that node</span
+              >
+              <div class="flex items-start gap-2">
+                <code
+                  class="bg-muted flex-1 overflow-x-auto rounded-md p-3 font-mono text-xs whitespace-pre"
+                  >{{ composeSnippet() }}</code
+                >
+                <app-copy-button [value]="composeSnippet()" />
+              </div>
+              @if (!res.instance.dockerNetwork) {
+                <p class="text-muted-foreground text-xs">
+                  KRINT could not read the container's networks. Run
+                  <code class="font-mono">docker network ls</code> on the node and use the network
+                  its KRINT compose project created.
+                </p>
+              }
+            </div>
+          </div>
+        }
+
         <div class="flex flex-col gap-2">
-          <span class="text-muted-foreground text-sm">Connection string (root)</span>
+          <span class="text-muted-foreground text-sm">
+            @if (res.instance.nodeId) {
+              Connection string (root) from a shell on the node
+            } @else {
+              Connection string (root)
+            }
+          </span>
           <div class="flex items-start gap-2">
             <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
               res.instance.connectionString
