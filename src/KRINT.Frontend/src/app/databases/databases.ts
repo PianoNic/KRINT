@@ -237,6 +237,7 @@ export class Databases {
         : 'KRINT will forget this external database and clear its stored credentials. The remote database itself is not touched.',
       confirmLabel: db.isManaged ? 'Delete instance' : 'Forget database',
       destructive: true,
+      requireTypedValue: db.isManaged ? db.displayName : undefined,
     });
     if (!ok) return;
     this.store.deleteInstance(db.id);
