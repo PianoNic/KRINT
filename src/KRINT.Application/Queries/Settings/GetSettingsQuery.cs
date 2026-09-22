@@ -11,6 +11,14 @@ namespace KRINT.Application.Queries.Settings
 
     public class GetSettingsQueryHandler(IOptions<KrintOptions> options, IConfiguration configuration, IMediator mediator) : IQueryHandler<GetSettingsQuery, SettingsDto>
     {
+        // "Configured" means a key that actually decodes, not merely a value that is present:
+        // a 16-byte key shows green on the settings page and fails on the first provision.
+        private static bool VaultKeyDecodes(IConfiguration configuration)
+        {
+            try { KRINT.Infrastructure.Services.SecretsVaultService.ValidateMasterKey(configuration); return true; }
+            catch (InvalidOperationException) { return false; }
+        }
+
         public async ValueTask<SettingsDto> Handle(GetSettingsQuery query, CancellationToken cancellationToken)
         {
             var supported = await mediator.Send(new GetSupportedDatabasesQuery(), cancellationToken);
@@ -28,7 +36,7 @@ namespace KRINT.Application.Queries.Settings
             {
                 PortRanges = ranges,
                 SupportedEngines = supported,
-                VaultMasterKeyConfigured = !string.IsNullOrWhiteSpace(configuration["Vault:MasterKey"]),
+                VaultMasterKeyConfigured = VaultKeyDecodes(configuration),
             };
         }
     }

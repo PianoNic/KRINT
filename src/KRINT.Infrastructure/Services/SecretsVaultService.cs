@@ -83,6 +83,11 @@ namespace KRINT.Infrastructure.Services
             return Encoding.UTF8.GetString(plainBytes);
         }
 
+        /// <summary>Throws with a plain-language reason when Vault:MasterKey is missing, not
+        /// base64, or not 32 bytes. Run at startup so a bad key is found before a secret is
+        /// ever written with it.</summary>
+        public static void ValidateMasterKey(IConfiguration configuration) => LoadMasterKey(configuration);
+
         private static byte[] LoadMasterKey(IConfiguration configuration)
         {
             var encoded = configuration["Vault:MasterKey"]

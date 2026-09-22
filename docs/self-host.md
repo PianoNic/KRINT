@@ -226,6 +226,15 @@ KRINT's SPA uses Authorization Code Flow + **PKCE**, so register a **public clie
 </details>
 
 <details>
+<summary><strong>Health and startup checks</strong></summary>
+
+`GET /health` needs no token and answers `{"status":"healthy","checks":{"database":…,"docker":…}}`, or `503` when the metadata database or the Docker daemon is unreachable. Point your orchestrator's probe at it.
+
+At boot KRINT logs the effective configuration (database provider, config file, storage mode, authority, public URL) and refuses to start when `Vault__MasterKey` is missing or not a 32-byte base64 key. A missing Docker socket or `Oidc__Authority` is logged as an error so `docker logs krint` names the problem.
+
+</details>
+
+<details>
 <summary><strong>Reverse proxy (Caddy/Traefik/nginx)</strong></summary>
 
 Make the public origin match `Oidc__RedirectUri` and `Cors__AllowedOrigins__0`, serve over HTTPS, and set `Krint__TrustForwardedHeaders: "true"` so KRINT reads the proxy's `X-Forwarded-Proto` / `X-Forwarded-Host` instead of seeing plain `http://krint:8080`. Leave it unset when KRINT is reached directly - with it on, any caller could spoof its scheme and address.
