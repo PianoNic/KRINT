@@ -217,7 +217,9 @@ namespace KRINT.Infrastructure.Services
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
-                throw new TimeoutException($"docker exec on {containerId} exceeded 2 minutes (command: {string.Join(' ', command)}).");
+                // Only the program name: the argv may carry credentials, and this text reaches
+                // logs, the schedule's LastError column and the UI.
+                throw new TimeoutException($"docker exec on {containerId} exceeded 2 minutes (command: {command.FirstOrDefault()}).");
             }
 
             var inspect = await client.Exec.InspectContainerExecAsync(exec.ID, ct);
@@ -234,11 +236,12 @@ namespace KRINT.Infrastructure.Services
             // The MultiplexedStream stdin path doesn't half-close reliably (pg_restore / mysql
             // hang forever waiting on EOF). Sidestep it: push the input as a tar to /tmp inside
             // the container, then rerun the command with stdin redirected from that file.
-            // Requires the caller to invoke the actual work via a shell (bash/sh -c "..."),
-            // which every existing IBackupService.RestoreAsync does.
-            if (command.Count != 3 || command[1] != "-c" || (command[0] != "bash" && command[0] != "sh"))
+            // Requires the caller to invoke the actual work via a shell (bash/sh -c "..." [args]),
+            // which every existing IBackupService.RestoreAsync does. Anything after the script is
+            // positional argv ($0, $1, ...) and is passed through untouched.
+            if (command.Count < 3 || command[1] != "-c" || (command[0] != "bash" && command[0] != "sh"))
             {
-                throw new InvalidOperationException("ExecWithStdinAsync requires a [shell, -c, script] command so the input can be redirected from a temp file.");
+                throw new InvalidOperationException("ExecWithStdinAsync requires a [shell, -c, script, args...] command so the input can be redirected from a temp file.");
             }
 
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
@@ -277,7 +280,8 @@ namespace KRINT.Infrastructure.Services
 
             // Rewrite the script to redirect stdin from the staged file. e.g.
             //   bash -c "pg_restore ..." -> bash -c "pg_restore ... < /tmp/krint-input-xxx.bin"
-            var rewritten = new[] { command[0], command[1], command[2] + " < " + tmpPath };
+            var rewritten = command.ToList();
+            rewritten[2] = command[2] + " < " + tmpPath;
 
             try
             {

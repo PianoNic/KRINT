@@ -9,10 +9,12 @@ namespace KRINT.Infrastructure.Services
         public async Task<BackupOutput> DumpAsync(BackupTarget target, CancellationToken cancellationToken = default)
         {
             // mongodump --archive sends a single binary archive to stdout.
+            // Credentials as argv ($1, $2) so the shell never parses them.
             var cmd = new List<string>
             {
                 "bash", "-c",
-                $"mongodump --host 127.0.0.1 --username {target.Username} --password '{target.Password}' --authenticationDatabase admin --archive",
+                "mongodump --host 127.0.0.1 --username \"$2\" --password \"$1\" --authenticationDatabase admin --archive",
+                "krint", target.Password, target.Username,
             };
             var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
             return new BackupOutput(bytes, "archive");
@@ -24,7 +26,8 @@ namespace KRINT.Infrastructure.Services
             var cmd = new List<string>
             {
                 "bash", "-c",
-                $"mongorestore --host 127.0.0.1 --username {target.Username} --password '{target.Password}' --authenticationDatabase admin --archive --drop",
+                "mongorestore --host 127.0.0.1 --username \"$2\" --password \"$1\" --authenticationDatabase admin --archive --drop",
+                "krint", target.Password, target.Username,
             };
             await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
         }
