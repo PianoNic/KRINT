@@ -5,7 +5,7 @@ This is what a fresh checkout needs to be productive locally.
 ## Prerequisites
 
 - **.NET 10 SDK** (the API targets `net10.0`)
-- **Docker** + **Docker Compose** (for Postgres and Keycloak)
+- **Docker** + **Docker Compose** (for Postgres; Keycloak only if you test the OIDC path)
 - **Node.js 20+** and **Bun 1.3+** (the frontend uses bun as its package manager)
 - **Apache Maven** (only if you want to rebuild the Keycloak theme JAR, see Notes)
 - **Java 11+** (only for `bun run apigen`, which runs the OpenAPI generator; the generated client is committed, so most changes never need it)
@@ -15,29 +15,36 @@ This is what a fresh checkout needs to be productive locally.
 
 Secrets live in **dotnet user-secrets**: they are never committed and never written to `appsettings.json`. The `KRINT.API` project has a `UserSecretsId` configured.
 
-Set them once:
+Set them once. With no `Oidc:Authority` the API runs in **local login** mode, so three values are enough:
 
 ```powershell
 # DB connection
 dotnet user-secrets --project src/KRINT.API set "ConnectionStrings:KrintDatabase" "Host=localhost;Port=5434;Database=krint-dev;Username=postgres;Password=d4vpas8w0rd13!!!"
 
-# OIDC (consumed by /api/App, which the frontend reads at startup to configure auth)
-dotnet user-secrets --project src/KRINT.API set "Oidc:Authority" "http://localhost:8080/realms/krint"
-dotnet user-secrets --project src/KRINT.API set "Oidc:RequireHttpsMetadata" "false"
-dotnet user-secrets --project src/KRINT.API set "Oidc:ClientId" "krint"
-dotnet user-secrets --project src/KRINT.API set "Oidc:RedirectUri" "http://localhost:4200/"
-dotnet user-secrets --project src/KRINT.API set "Oidc:PostLogoutRedirectUri" "http://localhost:4200/"
-dotnet user-secrets --project src/KRINT.API set "Oidc:Scope" "openid profile email roles"
-
-# CORS: origins allowed to call the API
+# CORS: the dev SPA on :4200 calls the API on :5165
 dotnet user-secrets --project src/KRINT.API set "Cors:AllowedOrigins:0" "http://localhost:4200"
 
 # Vault master key, used by SecretsVaultService to AES-GCM encrypt stored secrets at rest.
 # 32 raw bytes, base64-encoded. Generate fresh on bash via `openssl rand -base64 32`.
 dotnet user-secrets --project src/KRINT.API set "Vault:MasterKey" "$(openssl rand -base64 32)"
+
+# Optional: a known password for the first local account (otherwise it is printed once in the API log).
+dotnet user-secrets --project src/KRINT.API set "LocalLogin:AdminPassword" "dev-admin-password"
 ```
 
 Verify with `dotnet user-secrets list --project src/KRINT.API`.
+
+To develop against the OIDC path instead, start Keycloak (`docker compose -f compose.dev.yml --profile oidc up -d`) and add:
+
+```powershell
+dotnet user-secrets --project src/KRINT.API set "Oidc:Authority" "http://localhost:8080/realms/krint"
+dotnet user-secrets --project src/KRINT.API set "Oidc:RequireHttpsMetadata" "false"
+dotnet user-secrets --project src/KRINT.API set "Oidc:ClientId" "krint"
+dotnet user-secrets --project src/KRINT.API set "Oidc:RedirectUri" "http://localhost:4200/"
+dotnet user-secrets --project src/KRINT.API set "Oidc:PostLogoutRedirectUri" "http://localhost:4200/"
+```
+
+Remove `Oidc:Authority` again to go back to local login.
 
 ::: info
 `appsettings.json` and `appsettings.Development.json` only carry ASP.NET framework defaults (logging, allowed hosts). Application config goes in user-secrets.
@@ -65,14 +72,15 @@ krint:
 
 Bind into a handler via `IOptions<KrintOptions>` (in `KRINT.Application/Options/`). The file is read once at startup; restart the API after editing it.
 
-## 3. Dev infrastructure (Postgres + Keycloak)
+## 3. Dev infrastructure (Postgres, optionally Keycloak)
 
 ```powershell
-docker compose -f compose.dev.yml up -d
+docker compose -f compose.dev.yml up -d                  # Postgres only
+docker compose -f compose.dev.yml --profile oidc up -d   # Postgres + Keycloak, for the OIDC path
 ```
 
 - **Postgres** → `localhost:5434`, db `krint-dev`, user `postgres`, password `d4vpas8w0rd13!!!`
-- **Keycloak** → `http://localhost:8080`, admin `admin` / `admin`. The `krint` realm is auto-imported on first start from `keycloak/krint-realm.json`.
+- **Keycloak** (profile `oidc`) → `http://localhost:8080`, admin `admin` / `admin`. The `krint` realm is auto-imported on first start from `keycloak/krint-realm.json`.
 
 Stop with `docker compose -f compose.dev.yml down`. Volumes (`postgres-data-dev`, `keycloak-data-dev`) persist across restarts; drop them with `-v` if you want a clean slate.
 
@@ -84,7 +92,7 @@ dotnet run --project src/KRINT.API --launch-profile http
 
 The API binds to `http://localhost:5165`. In Development:
 - OpenAPI document: `http://localhost:5165/openapi/v1.json` (`AllowAnonymous`)
-- Scalar API reference UI: `http://localhost:5165/scalar/v1`: click **Authenticate** to redirect to Keycloak (authorization code + PKCE against the `krint` realm/client). On return, Scalar attaches the bearer token to every request you fire from the UI.
+- Scalar API reference UI: `http://localhost:5165/scalar/v1`. In local login mode, get a token with `POST /auth/login` (`{"identifier":"admin","password":"…"}`) and paste it into **Authenticate**; with Keycloak configured, **Authenticate** redirects there (authorization code + PKCE) and Scalar attaches the bearer token to every request.
 
 On startup the API:
 1. Applies any pending EF migrations to the dev DB (`ApplyMigrations()`).
