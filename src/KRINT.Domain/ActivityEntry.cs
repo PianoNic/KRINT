@@ -7,7 +7,7 @@ namespace KRINT.Domain
         public Guid? InstanceId { get; init; }
         public string? Engine { get; init; }
         public string? Details { get; init; }
-        /// <summary>The Keycloak preferred_username (or email) of the user who triggered the
+        /// <summary>The preferred_username (or name / email) from the bearer token of the user who triggered the
         /// action. Null for background jobs (scheduler / hosted services).</summary>
         public string? ActorName { get; init; }
     }

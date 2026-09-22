@@ -89,7 +89,7 @@ Full documentation: **[docs.krint.pianonic.ch](https://docs.krint.pianonic.ch)**
 - **Angular 21** + Signals + Spartan UI.
 - **SignalR** for the live dashboard, log tailing, and interactive shell; **xterm.js** for the console.
 - **Docker.DotNet** for container lifecycle.
-- **Keycloak** for OIDC.
+- **Toamaisutaa** for OIDC bearer validation against any provider (or the bundled Keycloak).
 - **TUnit** + **Microsoft.Playwright** for tests; **OpenAPI** client via `bun run apigen`.
 
 </details>

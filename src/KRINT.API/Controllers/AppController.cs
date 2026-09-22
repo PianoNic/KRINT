@@ -1,42 +1,48 @@
 using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using KRINT.Application.Dtos.App;
 using KRINT.Application.Queries.App;
+using Toamaisutaa.Abstractions;
+using Toamaisutaa.AspNetCore;
 
 namespace KRINT.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AppController(IMediator mediator, IConfiguration configuration) : ControllerBase
+    public class AppController(
+        IMediator mediator,
+        IToamaisutaaClientConfigurationProvider clientConfiguration,
+        IOptions<ToamaisutaaOidcOptions> oidc) : ControllerBase
     {
         [AllowAnonymous]
         [HttpGet]
         [ProducesResponseType(typeof(AppDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get(CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new AppQuery(), cancellationToken);
+            // Toamaisutaa resolves the redirect URI as Oidc:RedirectUri, then the public URL, then the
+            // request's own origin. That last fallback is right for the bundled image (the SPA is served
+            // same-origin, even on a host-assigned random port) but wrong for a split-origin dev run
+            // where the SPA lives on :4200 and the API elsewhere: there the browser's Origin header is
+            // the URL the IdP has to send the user back to, so prefer it when nothing is configured.
+            var client = clientConfiguration.GetConfiguration(HttpContext);
+            var settings = oidc.Value;
+            var browserOrigin = HttpContext.Request.Headers.Origin.ToString();
 
-            // Respect an explicitly configured Oidc:RedirectUri (e.g. a fixed public HTTPS URL behind
-            // a reverse proxy). Only DERIVE it from the current request when it isn't configured - the
-            // bundled image reached via a host-assigned random port (Testcontainers), or a split-origin
-            // dev setup. The old code always overrode it, which behind a TLS-terminating proxy produced
-            // an http:// URL the IdP rejects even when the admin set the right https URL.
-            if (string.IsNullOrWhiteSpace(configuration["Oidc:RedirectUri"]) && string.IsNullOrWhiteSpace(configuration["Krint:PublicUrl"]))
+            if (string.IsNullOrWhiteSpace(settings.RedirectUri)
+                && string.IsNullOrWhiteSpace(settings.PublicUrl)
+                && !string.IsNullOrWhiteSpace(browserOrigin))
             {
-                var request = HttpContext.Request;
-                var browserOrigin = request.Headers.Origin.ToString();
-                var origin = !string.IsNullOrWhiteSpace(browserOrigin)
-                    ? browserOrigin.TrimEnd('/') + "/"
-                    : $"{request.Scheme}://{request.Host.Value}/";
-                result = result with
+                var origin = browserOrigin.TrimEnd('/') + "/";
+                client = client with
                 {
                     RedirectUri = origin,
-                    PostLogoutRedirectUri = origin,
+                    PostLogoutRedirectUri = string.IsNullOrWhiteSpace(settings.PostLogoutRedirectUri) ? origin : client.PostLogoutRedirectUri,
                 };
             }
 
-            return Ok(result);
+            return Ok(await mediator.Send(new AppQuery(client), cancellationToken));
         }
     }
 }
