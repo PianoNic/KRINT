@@ -48,14 +48,14 @@ namespace KRINT.Infrastructure.Services
 
         public async Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
+            BucketNameValidator.Require(name);
             var client = AzuriteBlob.Build(target);
             await client.CreateBlobContainerAsync(name, cancellationToken: cancellationToken);
         }
 
         public async Task DropAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
+            BucketNameValidator.Require(name);
             var client = AzuriteBlob.Build(target);
             await client.DeleteBlobContainerAsync(name, cancellationToken: cancellationToken);
         }
@@ -87,7 +87,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<TableRows> FetchRowsAsync(InnerDatabaseTarget target, string database, string table, int limit, int offset, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(database);
+            BucketNameValidator.Require(database);
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
@@ -119,7 +119,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task UploadObjectAsync(InnerDatabaseTarget target, string database, string key, Stream content, string? contentType, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(database);
+            BucketNameValidator.Require(database);
             if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Blob name is required.", nameof(key));
             var blob = AzuriteBlob.Build(target).GetBlobContainerClient(database).GetBlobClient(key);
             // overwrite: true so re-uploading the same name replaces the blob.
@@ -134,7 +134,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(database);
+            BucketNameValidator.Require(database);
             var nameIndex = -1;
             for (var i = 0; i < request.Columns.Count; i++)
                 if (request.Columns[i] == "name") nameIndex = i;
