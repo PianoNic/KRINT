@@ -14,6 +14,12 @@ namespace KRINT.Infrastructure.Services
         protected virtual string RestoreBinary => "mysql";
         protected virtual string RestoreFallback => "mariadb";
 
+        // MySQL 8.4+ writes SET @@GLOBAL.GTID_PURGED into every dump, and replaying that into a
+        // server that already has executed GTIDs (the same instance, on restore) fails with
+        // ERROR 3546. The dump is a logical copy of the data, not a replication seed, so the
+        // GTID bookkeeping is left out. mariadb-dump does not know the flag, so MariaDB clears it.
+        protected virtual string DumpExtraArgs => "--set-gtid-purged=OFF";
+
         public async Task<BackupOutput> DumpAsync(BackupTarget target, CancellationToken cancellationToken = default)
         {
             // dump --all-databases, consistent snapshot via single-transaction. Pick whichever
@@ -22,7 +28,7 @@ namespace KRINT.Infrastructure.Services
             var cmd = new List<string>
             {
                 "bash", "-c",
-                $"{bin} -h 127.0.0.1 -u {target.Username} -p'{target.Password}' --single-transaction --all-databases",
+                $"{bin} -h 127.0.0.1 -u {target.Username} -p'{target.Password}' --single-transaction --all-databases {DumpExtraArgs}".TrimEnd(),
             };
             var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
             return new BackupOutput(bytes, "sql");
