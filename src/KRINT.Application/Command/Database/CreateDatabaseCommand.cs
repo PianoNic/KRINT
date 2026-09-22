@@ -14,7 +14,9 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command.Database
 {
-    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false, string? Password = null, Guid? NodeId = null) : ICommand<ProvisionedDatabaseDto>;
+    /// <param name="Progress">Optional step reporter, for a caller streaming the provision to a
+    /// client. Null costs nothing; the plain POST and the reconciler pass nothing.</param>
+    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false, string? Password = null, Guid? NodeId = null, IProgress<string>? Progress = null) : ICommand<ProvisionedDatabaseDto>;
 
     public class CreateDatabaseCommandHandler(IDockerServiceResolver dockerResolver, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
@@ -104,6 +106,7 @@ namespace KRINT.Application.Command.Database
             var imageTag = imageOverride == "pgvector/pgvector"
                 ? PgVectorTagFor(command.Version)
                 : command.Version;
+            command.Progress?.Report($"Pulling image {imageName}:{imageTag} (first time can take a while)");
             await docker.PullImageAsync(imageName, imageTag, cancellationToken);
 
             var hostPort = await AllocateHostPortAsync(command.Engine, command.NodeId, docker, cancellationToken);
@@ -145,6 +148,7 @@ namespace KRINT.Application.Command.Database
             Docker.DotNet.Models.CreateContainerResponse? createResult = null;
             try
             {
+                command.Progress?.Report($"Starting container {containerName} on port {hostPort}");
                 createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
                 await docker.StartContainerAsync(createResult.ID, cancellationToken);
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
@@ -178,6 +182,7 @@ namespace KRINT.Application.Command.Database
                 // resolver dispatches there); local: the deployment-aware probe host.
                 var probeHostInitial = command.NodeId is not null ? "127.0.0.1" : ResolveProbeHost(command.IsPublic);
                 InnerDatabaseTarget readinessTarget;
+                command.Progress?.Report($"Waiting for {command.Engine} to accept connections");
                 try
                 {
                     readinessTarget = await ReadinessProbe.WaitForReadyAsync(
@@ -200,6 +205,7 @@ namespace KRINT.Application.Command.Database
 
                 if (needsExplicitDefaultDb)
                 {
+                    command.Progress?.Report($"Creating default database {databaseName}");
                     await innerDbs.Resolve(command.Engine).CreateAsync(readinessTarget, databaseName, cancellationToken);
                 }
 
@@ -210,6 +216,8 @@ namespace KRINT.Application.Command.Database
                 }
 
                 // Apply post-readiness plugin steps. Order doesn't matter - each is idempotent.
+                if (selectedPlugins.Count > 0)
+                    command.Progress?.Report($"Enabling {selectedPlugins.Count} plugin(s)");
                 foreach (var plugin in selectedPlugins)
                 {
                     switch (plugin.InstallMode)

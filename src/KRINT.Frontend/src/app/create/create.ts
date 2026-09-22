@@ -3,6 +3,8 @@ import { TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideEye,
+  lucideEyeOff,
   lucideArrowLeft,
   lucideArrowRight,
   lucideBrain,
@@ -48,6 +50,7 @@ import { NodesService } from '../api/api/nodes.service';
 import { NodeDto } from '../api/model/nodeDto';
 import { SupportedDatabaseDto } from '../api/model/supportedDatabaseDto';
 import { ProvisionResultDto } from '../api/model/provisionResultDto';
+import { ProvisionHubService } from './provision-hub.service';
 
 type WizardUser = { name: string; grantDatabases: string[] };
 
@@ -68,6 +71,8 @@ type WizardUser = { name: string; grantDatabases: string[] };
   ],
   providers: [
     provideIcons({
+      lucideEye,
+      lucideEyeOff,
       lucideArrowLeft,
       lucideArrowRight,
       lucideBrain,
@@ -101,6 +106,7 @@ type WizardUser = { name: string; grantDatabases: string[] };
 export class Create {
   private readonly api = inject(DatabaseService);
   private readonly nodesApi = inject(NodesService);
+  private readonly provisionHub = inject(ProvisionHubService);
   private readonly router = inject(Router);
 
   // ----- step state -----
@@ -135,6 +141,30 @@ export class Create {
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly result = signal<ProvisionResultDto | null>(null);
+  // What the server is doing right now, and everything it did before, while Launch runs.
+  protected readonly progressSteps = signal<ReadonlyArray<string>>([]);
+  protected readonly progressCurrent = computed(() => this.progressSteps().at(-1) ?? null);
+  // Credentials on the success screen stay masked until asked for; copying never needs the reveal.
+  protected readonly revealSecrets = signal(false);
+  protected readonly maskedConnectionString = computed(() => {
+    const res = this.result();
+    if (!res) return '';
+    const cs = res.instance.connectionString;
+    const pw = res.instance.password;
+    return this.revealSecrets() || !pw ? cs : cs.split(pw).join('••••••••');
+  });
+  protected readonly allCredentials = computed(() => {
+    const res = this.result();
+    if (!res) return '';
+    const lines = [
+      `# ${res.instance.containerName} (${res.instance.engine} ${res.instance.version})`,
+      `connection: ${res.instance.connectionString}`,
+      `root user: ${res.instance.username}`,
+      `root password: ${res.instance.password}`,
+      ...res.users.map((u) => `user ${u.name}: ${u.password}`),
+    ];
+    return lines.join('\n');
+  });
 
   // ----- computed -----
   protected readonly composeSnippet = computed(() =>
@@ -459,16 +489,52 @@ export class Create {
       nodeId: this.selectedNodeId(),
     };
 
-    this.api.apiDatabaseProvisionPost(payload).subscribe({
-      next: (res) => {
-        this.result.set(res);
-        this.submitting.set(false);
+    this.progressSteps.set(['Submitting request']);
+    let streamed = false;
+    this.provisionHub.stream(payload).subscribe({
+      next: (ev) => {
+        streamed = true;
+        if (ev.status === 'running') {
+          this.progressSteps.update((s) => [...s, ev.message]);
+        } else if (ev.status === 'done' && ev.result) {
+          this.result.set(ev.result);
+          this.submitting.set(false);
+        } else if (ev.status === 'failed') {
+          this.error.set(ev.error ?? ev.message);
+          this.submitting.set(false);
+        }
       },
       error: (err) => {
-        this.error.set(messageOf(err));
-        this.submitting.set(false);
+        // A hub that never delivered anything (blocked WebSocket, old proxy) falls back to the
+        // plain request; a stream that failed mid-way is reported as the failure it is.
+        if (streamed) {
+          this.error.set(messageOf(err));
+          this.submitting.set(false);
+          return;
+        }
+        this.progressSteps.update((s) => [...s, 'Live progress unavailable, waiting for the server']);
+        this.api.apiDatabaseProvisionPost(payload).subscribe({
+          next: (res) => {
+            this.result.set(res);
+            this.submitting.set(false);
+          },
+          error: (postErr) => {
+            this.error.set(messageOf(postErr));
+            this.submitting.set(false);
+          },
+        });
+      },
+      complete: () => {
+        if (this.submitting() && !this.result() && !this.error()) {
+          this.error.set('The server ended the provision without a result.');
+          this.submitting.set(false);
+        }
       },
     });
+  }
+
+  protected toggleReveal(): void {
+    this.revealSecrets.update((v) => !v);
   }
 
   protected goToInstances(): void {

@@ -219,6 +219,7 @@ if (localLogin)
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
 app.MapHub<DashboardHub>("/hubs/dashboard").RequireAuthorization();
 app.MapHub<MigrationHub>("/hubs/migration").RequireAuthorization();
+app.MapHub<ProvisionHub>("/hubs/provision").RequireAuthorization();
 // Nodes authenticate with a pre-shared token inside the hub, so no OIDC authorization here.
 app.MapHub<NodeHub>("/hubs/node");
 
