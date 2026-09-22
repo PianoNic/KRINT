@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\KRINT.API\KRINT.API.csproj" />
     <ProjectReference Include="..\KRINT.Application\KRINT.Application.csproj" />
     <ProjectReference Include="..\KRINT.Infrastructure\KRINT.Infrastructure.csproj" />
     <ProjectReference Include="..\KRINT.Domain\KRINT.Domain.csproj" />
