@@ -38,6 +38,8 @@ namespace KRINT.API
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["LocalLogin:SigningKey"] = Convert.ToBase64String(derived),
+                // There is no issuer to ask; leaving this on logs a warning on every request.
+                ["Oidc:FetchClaimsFromUserInfo"] = "false",
             });
         }
 

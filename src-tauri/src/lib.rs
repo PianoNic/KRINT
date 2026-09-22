@@ -59,6 +59,11 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
+                // The plugin's default is a 40 KB file that is replaced when full, which throws
+                // away the startup lines minutes after a start; keep a few megabytes and the
+                // previous file so a crash from earlier in the day is still readable.
+                .max_file_size(4_000_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
                 .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout))
                 .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview))
                 .target(tauri_plugin_log::Target::new(
