@@ -94,8 +94,23 @@ namespace KRINT.Application.Command.DatabaseInstance
                     // Inspect on the same daemon the DB runs on (the node's, when NodeId is set).
                     var docker = dockerResolver.Resolve(req.NodeId);
                     var inspect = await docker.InspectContainerAsync(req.ContainerId, cancellationToken);
+
+                    // Adopting a container unlocks exec, logs, start/stop and dump/restore on it, so
+                    // it has to be a database container: one KRINT labelled, or one whose image is
+                    // the engine being registered. Anything else is an authenticated user asking
+                    // for a shell in an unrelated container on the same daemon.
+                    var (image, _) = Queries.Database.DiscoverContainersQueryHandler.SplitImage(inspect.Config?.Image ?? string.Empty);
+                    var imageEngine = Queries.Database.DiscoverContainersQueryHandler.ImageToEngine(image);
+                    var managedByKrint = inspect.Config?.Labels is { } labels
+                        && labels.TryGetValue(Containers.KrintContainerLabels.Managed, out var managed)
+                        && string.Equals(managed, "true", StringComparison.OrdinalIgnoreCase);
+                    if (!managedByKrint && !string.Equals(imageEngine, req.Engine, StringComparison.OrdinalIgnoreCase))
+                        throw new ArgumentException($"Container '{req.ContainerName}' runs image '{image}', which is not a {req.Engine} image, so it cannot be adopted.");
+
                     adoptedContainerId = inspect.ID;
-                    adoptedContainerName = req.ContainerName;
+                    // The daemon's name, not the caller's: it is what backup paths and every later
+                    // docker call are keyed on.
+                    adoptedContainerName = (inspect.Name ?? req.ContainerName).TrimStart('/');
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {
