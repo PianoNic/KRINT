@@ -6,10 +6,9 @@ using KRINT.API.OpenApi;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
 using KRINT.Infrastructure.Interfaces;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Toamaisutaa.Abstractions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,9 +48,6 @@ builder.Services.AddSignalR(options =>
     options.MaximumReceiveMessageSize = null;
 });
 
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUserService, HttpCurrentUserService>();
-
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<OAuth2SecuritySchemeTransformer>();
@@ -88,41 +84,21 @@ builder.Services.AddHostedService<KRINT.API.NodeReconciliationHostedService>();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        var publicAuthority = builder.Configuration["Oidc:Authority"];
-        var internalAuthority = builder.Configuration["Oidc:InternalAuthority"] ?? publicAuthority;
-        options.MetadataAddress = $"{internalAuthority!.TrimEnd('/')}/.well-known/openid-configuration";
-        options.RequireHttpsMetadata = builder.Configuration.GetValue("Oidc:RequireHttpsMetadata", true);
-        options.TokenValidationParameters.ValidIssuer = publicAuthority;
-        options.TokenValidationParameters.NameClaimType = "name";
-        options.TokenValidationParameters.RoleClaimType = "roles";
-        options.TokenValidationParameters.ValidateAudience = false;
-
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                // /hubs/node carries a pre-shared node token, not an OIDC JWT - it authenticates inside
-                // the hub, so keep it out of JWT validation here.
-                if (!string.IsNullOrEmpty(accessToken)
-                    && context.Request.Path.StartsWithSegments("/hubs")
-                    && !context.Request.Path.StartsWithSegments("/hubs/node"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            },
-        };
-    });
-
-builder.Services.AddAuthorization(options =>
+// Toamaisutaa owns the resource-server half of OIDC: discovery against Oidc:InternalAuthority, issuer
+// validation against Oidc:Authority, raw JWT claim names (no WS-Federation remapping), userinfo
+// enrichment for issuers that keep roles out of the access token, and the ?access_token= read the
+// browser hubs need (scoped by Oidc:QueryToken in appsettings.json so /hubs/node keeps its own token).
+builder.Services.AddToamaisutaaBearer(builder.Configuration);
+// Authenticated by default; opt out per endpoint with [AllowAnonymous].
+builder.Services.AddToamaisutaaAuthorization(builder.Configuration);
+// ICurrentUser for activity-log actor names. No provisioning: the IdP owns the users, KRINT keeps none.
+builder.Services.AddToamaisutaaCurrentUser();
+// Deployments already set Krint:PublicUrl; let it feed the login redirect derivation too, so nobody
+// has to configure the same URL twice.
+builder.Services.PostConfigure<ToamaisutaaOidcOptions>(options =>
 {
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
+    if (string.IsNullOrWhiteSpace(options.PublicUrl))
+        options.PublicUrl = builder.Configuration["Krint:PublicUrl"];
 });
 
 var app = builder.Build();
