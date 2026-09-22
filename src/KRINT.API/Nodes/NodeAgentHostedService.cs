@@ -48,10 +48,12 @@ namespace KRINT.API.Nodes
             var name = configuration["Node:Name"];
             if (string.IsNullOrWhiteSpace(name)) name = Environment.MachineName;
 
-            var hubUrl = $"{controlPlaneUrl.TrimEnd('/')}/hubs/node?access_token={Uri.EscapeDataString(token)}";
+            // The token rides in a header rather than the query string, so it never lands in the
+            // control plane's access log or a reverse proxy's.
+            var hubUrl = $"{controlPlaneUrl.TrimEnd('/')}/hubs/node";
 
             _connection = new HubConnectionBuilder()
-                .WithUrl(hubUrl)
+                .WithUrl(hubUrl, options => options.Headers.Add(Infrastructure.Services.NodeTokenHasher.HeaderName, token))
                 .WithAutomaticReconnect()
                 .Build();
 

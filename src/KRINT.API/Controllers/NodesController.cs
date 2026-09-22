@@ -82,8 +82,8 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Create([FromBody] CreateNodeRequest request, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(request.Token))
-                return BadRequest("A token is required.");
+            if (!NodeTokenHasher.IsStrongEnough(request.Token))
+                return BadRequest($"A token of at least {NodeTokenHasher.MinimumLength} characters is required. Use the generated one, or paste a long random secret.");
 
             var name = string.IsNullOrWhiteSpace(request.Name) ? "node" : request.Name.Trim();
             var node = new Node { Name = name, TokenHash = NodeTokenHasher.Hash(request.Token) };

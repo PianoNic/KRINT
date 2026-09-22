@@ -39,6 +39,12 @@ namespace KRINT.API
                     continue;
                 }
 
+                if (!NodeTokenHasher.IsStrongEnough(entry.Secret))
+                {
+                    log.LogError("Config node '{Name}' has a secret shorter than {Min} characters; it was not registered. Use a long random secret.", entry.Name, NodeTokenHasher.MinimumLength);
+                    continue;
+                }
+
                 var hash = NodeTokenHasher.Hash(entry.Secret);
                 try
                 {
