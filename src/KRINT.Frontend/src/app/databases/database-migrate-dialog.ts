@@ -78,7 +78,7 @@ import { DatabasesStore } from '../shared/stores/databases.store';
 
           <div class="flex flex-col gap-1.5">
             <label hlmLabel for="mig-pw" class="text-muted-foreground text-xs uppercase tracking-wide">Source password</label>
-            <input hlmInput id="mig-pw" type="password" autocomplete="off" [value]="sourcePassword()" (input)="sourcePassword.set($any($event.target).value)" />
+            <input hlmInput id="mig-pw" type="password" autocomplete="off" [value]="sourcePassword()" [placeholder]="candidate.passwordAvailable ? 'read from the container when left blank' : ''" (input)="sourcePassword.set($any($event.target).value)" />
           </div>
 
           <div class="col-span-2 flex flex-col gap-1.5">
@@ -193,7 +193,8 @@ export class DatabaseMigrateDialog {
   protected readonly targetDisplayName = signal(this.defaultTargetName(this.candidate));
   protected readonly targetVersion = signal(this.candidate.version || 'latest');
   protected readonly sourceUsername = signal(this.candidate.username);
-  protected readonly sourcePassword = signal(this.candidate.password ?? '');
+  // Left blank, the API reads it from the source container itself (the list never carries it).
+  protected readonly sourcePassword = signal('');
   protected readonly sourceDatabaseName = signal(this.candidate.databaseName);
 
   protected readonly currentStep = signal(0);
@@ -218,7 +219,7 @@ export class DatabaseMigrateDialog {
     this.targetDisplayName().trim() !== '' &&
     this.targetVersion().trim() !== '' &&
     this.sourceUsername().trim() !== '' &&
-    this.sourcePassword() !== '' &&
+    (this.sourcePassword() !== '' || this.candidate.passwordAvailable) &&
     this.sourceDatabaseName().trim() !== '',
   );
 

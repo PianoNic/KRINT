@@ -13,7 +13,7 @@ namespace KRINT.Application.Dtos.Migration
         public required string SourceHost { get; init; }
         public required int SourcePort { get; init; }
         public required string SourceUsername { get; init; }
-        public required string SourcePassword { get; init; }
+        public string? SourcePassword { get; init; }
         public required string SourceDatabaseName { get; init; }
         public required string SourceEngine { get; init; }
         public required string TargetEngine { get; init; }

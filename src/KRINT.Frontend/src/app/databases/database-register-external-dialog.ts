@@ -101,7 +101,7 @@ import { DatabaseMigrateDialog } from './database-migrate-dialog';
                   @if (c.state !== 'running') {
                     <span hlmBadge variant="secondary" class="text-[10px] uppercase">{{ c.state }}</span>
                   }
-                  @if (!c.password) {
+                  @if (!c.passwordAvailable) {
                     <span hlmBadge variant="secondary" class="text-[10px] normal-case">password needed</span>
                   }
                 </span>
@@ -206,6 +206,7 @@ import { DatabaseMigrateDialog } from './database-migrate-dialog';
           type="password"
           autocomplete="off"
           [value]="password()"
+          [placeholder]="adoptedPasswordAvailable() ? 'read from the container when left blank' : ''"
           (input)="password.set($any($event.target).value)"
         />
       </div>
@@ -299,6 +300,9 @@ export class DatabaseRegisterExternalDialog {
   // "adopted Docker container" - KRINT enables upgrade/backup/exec against it even though
   // IsManaged stays false.
   protected readonly adoptedContainerId = signal<string | null>(null);
+  // The discovery list never carries the password; when the container has one, register-external
+  // reads it from the container itself and the field may stay blank.
+  protected readonly adoptedPasswordAvailable = signal(false);
   protected readonly adoptedContainerName = signal<string | null>(null);
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -317,7 +321,7 @@ export class DatabaseRegisterExternalDialog {
     this.host().trim() !== '' &&
     this.port() > 0 && this.port() <= 65535 &&
     this.username().trim() !== '' &&
-    this.password() !== '' &&
+    (this.password() !== '' || this.adoptedPasswordAvailable()) &&
     this.databaseName().trim() !== '',
   );
 
@@ -346,7 +350,8 @@ export class DatabaseRegisterExternalDialog {
     const portNum = c.port as unknown as number;
     if (portNum > 0) this.port.set(portNum);
     this.username.set(c.username);
-    if (c.password) this.password.set(c.password);
+    this.password.set('');
+    this.adoptedPasswordAvailable.set(c.passwordAvailable);
     this.databaseName.set(c.databaseName);
     this.adoptedContainerId.set(c.containerId);
     this.adoptedContainerName.set(c.containerName);

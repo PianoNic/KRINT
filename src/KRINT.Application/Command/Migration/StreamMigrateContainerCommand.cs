@@ -73,6 +73,7 @@ namespace KRINT.Application.Command.Migration
             // Only a container whose image is the claimed engine is a legitimate target; anything
             // else is an authenticated user asking for a shell in an unrelated container.
             string? sourceError = null;
+            var sourcePassword = req.SourcePassword;
             try
             {
                 var inspect = await dockerResolver.Resolve(null).InspectContainerAsync(req.SourceContainerId, cancellationToken);
@@ -80,6 +81,13 @@ namespace KRINT.Application.Command.Migration
                 var imageEngine = Queries.Database.DiscoverContainersQueryHandler.ImageToEngine(image);
                 if (!string.Equals(imageEngine, req.SourceEngine, StringComparison.OrdinalIgnoreCase))
                     sourceError = $"Container '{req.SourceContainerId}' runs image '{image}', which is not a {req.SourceEngine} image.";
+                // The discovery list never carries the password; read it from the container the
+                // caller is migrating from, the same source discovery itself looked at.
+                if (string.IsNullOrEmpty(sourcePassword))
+                    sourcePassword = Queries.Database.DiscoverContainersQueryHandler.ExtractPassword(
+                        req.SourceEngine, Queries.Database.DiscoverContainersQueryHandler.ParseEnv(inspect.Config?.Env));
+                if (string.IsNullOrEmpty(sourcePassword))
+                    sourceError ??= "No password was given and the source container's environment does not carry one.";
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
@@ -92,7 +100,7 @@ namespace KRINT.Application.Command.Migration
             }
 
             var inner = innerDbs.Resolve(req.SourceEngine);
-            var sourceTarget = new InnerDatabaseTarget(req.SourceEngine, req.SourceHost, req.SourcePort, req.SourceUsername, req.SourcePassword, req.SourceDatabaseName);
+            var sourceTarget = new InnerDatabaseTarget(req.SourceEngine, req.SourceHost, req.SourcePort, req.SourceUsername, sourcePassword!, req.SourceDatabaseName);
             string? probeError = null;
             try
             {
@@ -150,7 +158,7 @@ namespace KRINT.Application.Command.Migration
             string? dumpError = null;
             try
             {
-                var src = new BackupTarget(req.SourceContainerId, req.SourceContainerId, req.SourceEngine, req.SourceUsername, req.SourcePassword, req.SourceDatabaseName);
+                var src = new BackupTarget(req.SourceContainerId, req.SourceContainerId, req.SourceEngine, req.SourceUsername, sourcePassword!, req.SourceDatabaseName);
                 var dump = await backups.Resolve(req.SourceEngine).DumpAsync(src, cancellationToken);
                 dumpBytes = dump.Content;
             }
