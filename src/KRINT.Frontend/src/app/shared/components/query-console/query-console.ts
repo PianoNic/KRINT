@@ -34,6 +34,7 @@ export const QUERY_SUPPORTED_ENGINES = new Set<string>([
   'mysql', 'mariadb',
   'mssql',
   'clickhouse',
+  'cassandra',
 ]);
 
 @Component({
@@ -49,7 +50,7 @@ export const QUERY_SUPPORTED_ENGINES = new Set<string>([
     } @else if (!isSupported()) {
       <div class="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 m-4 flex items-center gap-2 rounded-md border p-3 text-sm">
         <ng-icon name="lucideTriangleAlert" size="16" />
-        The query console is not available for <code class="font-mono">{{ engine() }}</code> yet. Supported engines: postgres, timescaledb, pgvector, cockroachdb, mysql, mariadb, mssql, clickhouse.
+        The query console is not available for <code class="font-mono">{{ engine() }}</code> yet. Supported engines: postgres, timescaledb, pgvector, cockroachdb, mysql, mariadb, mssql, clickhouse, cassandra.
       </div>
     } @else {
       <div class="flex flex-col gap-2 p-4">

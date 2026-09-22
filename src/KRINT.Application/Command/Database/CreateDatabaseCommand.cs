@@ -157,12 +157,17 @@ namespace KRINT.Application.Command.Database
                 var needsExplicitDefaultDb = command.Engine.ToLowerInvariant() switch
                 {
                     // CouchDB never auto-creates, so even a blank (fallback) default db must be made.
-                    "couchdb" => true,
-                    "mssql" or "cockroachdb" or "cassandra"
+                    // Cassandra never auto-creates a keyspace either, and its default is a user keyspace.
+                    "couchdb" or "cassandra" => true,
+                    "mssql" or "cockroachdb"
                         => !string.Equals(databaseName, spec.DefaultDatabase, StringComparison.OrdinalIgnoreCase),
                     _ => false,
                 };
-                var probeDatabase = needsExplicitDefaultDb ? spec.DefaultDatabase : databaseName;
+                // Cassandra's probe lists keyspaces without selecting one, so any name works there;
+                // the other explicit-create engines probe their always-present system database.
+                var probeDatabase = needsExplicitDefaultDb
+                    ? (command.Engine.Equals("cassandra", StringComparison.OrdinalIgnoreCase) ? "system" : spec.DefaultDatabase)
+                    : databaseName;
 
                 // Wait for the engine inside the container to accept connections. The returned
                 // target carries whichever probe host actually responded - init steps below
@@ -314,7 +319,9 @@ namespace KRINT.Application.Command.Database
                     return new EngineSpec("clickhouse/clickhouse-server", "ch", 8123, "default", "default", "/var/lib/clickhouse");
                 case "cassandra":
                     // Cassandra image doesn't take a password env. We provision with auth disabled.
-                    return new EngineSpec("cassandra", "cass", 9042, "cassandra", "system", "/var/lib/cassandra");
+                    // The default keyspace is a real, user-owned one created after readiness - "system"
+                    // is not user-modifiable, so defaulting to it left nowhere to create a table.
+                    return new EngineSpec("cassandra", "cass", 9042, "cassandra", "cassandra", "/var/lib/cassandra");
                 case "couchdb":
                     // COUCHDB_USER / COUCHDB_PASSWORD seed the admin account on first boot.
                     return new EngineSpec("couchdb", "couch", 5984, "admin", "default", "/opt/couchdb/data");
