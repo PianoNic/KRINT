@@ -13,6 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="KRINT.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\KRINT.Domain\KRINT.Domain.csproj" />
     <ProjectReference Include="..\KRINT.Infrastructure\KRINT.Infrastructure.csproj" />
   </ItemGroup>
