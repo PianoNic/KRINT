@@ -63,6 +63,7 @@ builder.Services.AddSignalR(options =>
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<OAuth2SecuritySchemeTransformer>();
+    options.AddOperationTransformer<AnonymousOperationTransformer>();
 });
 
 builder.Services.AddMediator(options => { options.ServiceLifetime = ServiceLifetime.Scoped; });
@@ -172,14 +173,21 @@ if (app.Environment.IsDevelopment())
 {
     app.MapScalarApiReference(options =>
     {
-        options
-            .AddPreferredSecuritySchemes("OAuth2")
-            .AddAuthorizationCodeFlow("OAuth2", flow =>
-            {
-                flow.ClientId = builder.Configuration["Oidc:ClientId"];
-                flow.Pkce = Pkce.Sha256;
-                flow.SelectedScopes = ["openid", "profile", "email", "roles"];
-            });
+        if (localLogin)
+        {
+            options.AddPreferredSecuritySchemes(OAuth2SecuritySchemeTransformer.BearerSchemeName);
+        }
+        else
+        {
+            options
+                .AddPreferredSecuritySchemes(OAuth2SecuritySchemeTransformer.OAuth2SchemeName)
+                .AddAuthorizationCodeFlow(OAuth2SecuritySchemeTransformer.OAuth2SchemeName, flow =>
+                {
+                    flow.ClientId = builder.Configuration["Oidc:ClientId"];
+                    flow.Pkce = Pkce.Sha256;
+                    flow.SelectedScopes = ["openid", "profile", "email", "roles"];
+                });
+        }
     }).AllowAnonymous();
 }
 
