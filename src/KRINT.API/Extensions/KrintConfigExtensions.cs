@@ -7,6 +7,10 @@ namespace KRINT.API.Extensions;
 
 public static class KrintConfigExtensions
 {
+    /// <summary>Where krint.yaml was read from, or null when the process runs on defaults. Set
+    /// during registration so the startup banner can name it.</summary>
+    public static string? ResolvedConfigPath { get; private set; }
+
     private const string FileName = "krint.yaml";
     private const string EnvVar = "KRINT_CONFIG";
 
@@ -15,6 +19,7 @@ public static class KrintConfigExtensions
         var path = Environment.GetEnvironmentVariable(EnvVar);
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             path = FindUpwards(env.ContentRootPath);
+        ResolvedConfigPath = path is not null && File.Exists(path) ? Path.GetFullPath(path) : null;
 
         if (path is null || !File.Exists(path))
         {

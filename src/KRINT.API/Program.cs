@@ -65,6 +65,13 @@ builder.Services.AddScoped<KRINT.Application.ConfigManagedGuard>();
 
 builder.Services.AddKrintDatabase(builder.Configuration);
 
+// Fail fast on a bad vault key, say what the process runs with, and report an unreachable
+// Docker daemon at boot instead of on the first click.
+builder.Services.AddHostedService<KrintStartupCheck>();
+builder.Services.AddKrintHealthChecks();
+// Unhandled exceptions become RFC 9457 problem details (no stack trace) instead of an empty 500.
+builder.Services.AddProblemDetails();
+
 builder.Services.AddDocker(builder.Configuration);
 
 builder.Services.AddSecrets();
@@ -142,6 +149,9 @@ if (builder.Configuration.GetValue("Krint:TrustForwardedHeaders", false))
     app.UseForwardedHeaders(forwarded);
 }
 
+if (!app.Environment.IsDevelopment())
+    app.UseExceptionHandler();
+
 app.UseSecurityHeaders(builder.Configuration["Oidc:Authority"]);
 
 app.ApplyMigrations();
@@ -193,6 +203,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapControllers();
+app.MapKrintHealth();
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
 app.MapHub<DashboardHub>("/hubs/dashboard").RequireAuthorization();
 app.MapHub<MigrationHub>("/hubs/migration").RequireAuthorization();
