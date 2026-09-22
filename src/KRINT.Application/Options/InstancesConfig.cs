@@ -19,6 +19,9 @@ namespace KRINT.Application.Options
         /// remembers it and never rotates it on its own.</summary>
         public string? Password { get; set; }
         public bool IsPublic { get; set; }
+        /// <summary>Name of a registered node to place the instance on. Null means the control
+        /// plane's own Docker daemon. Only honoured on first provision.</summary>
+        public string? Node { get; set; }
         public List<string> Databases { get; set; } = new();
         public List<ConfigUser> Users { get; set; } = new();
         public List<string> Plugins { get; set; } = new();

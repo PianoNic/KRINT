@@ -50,6 +50,12 @@ namespace KRINT.API
                 return;
             }
 
+            if (!File.Exists(configPath))
+            {
+                log.LogWarning("krint.instances_file points at {Path}, but no such file exists. Nothing was reconciled.", configPath);
+                return;
+            }
+
             InstancesConfig config;
             try { config = loader.Load(); }
             catch (Exception ex)
@@ -124,11 +130,22 @@ namespace KRINT.API
         {
             log.LogInformation("Provisioning '{Name}' from config (engine={Engine}, version={Version}).", spec.DisplayName, spec.Engine, spec.Version);
 
+            Guid? nodeId = null;
+            if (!string.IsNullOrWhiteSpace(spec.Node))
+            {
+                nodeId = await db.Nodes
+                    .Where(n => n.Name == spec.Node)
+                    .Select(n => (Guid?)n.Id)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    ?? throw new InvalidOperationException($"Node '{spec.Node}' is not registered; add it on the Nodes page or in krint.yaml first.");
+            }
+
             var request = new ProvisionRequestDto
             {
                 Engine = spec.Engine,
                 Version = spec.Version,
                 DisplayName = spec.DisplayName,
+                NodeId = nodeId,
                 DefaultDatabaseName = spec.DefaultDatabaseName,
                 Databases = spec.Databases,
                 Users = spec.Users.Select(u => new ProvisionUserSpec

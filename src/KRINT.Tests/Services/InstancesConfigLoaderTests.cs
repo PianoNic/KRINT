@@ -25,6 +25,37 @@ namespace KRINT.Tests.Services
         }
 
         [Test]
+        public async Task Load_UnknownKey_FailsInsteadOfDroppingIt()
+        {
+            using var tempDir = new TempDir();
+            var path = Path.Combine(tempDir.Path, "instances.yaml");
+            await File.WriteAllTextAsync(path, """
+instances:
+  - engine: postgres
+    version: "18"
+    displayname: typo-db
+""");
+            var loader = new InstancesConfigLoader(tempDir.Path, "instances.yaml");
+            await Assert.That(() => loader.Load()).Throws<YamlDotNet.Core.YamlException>();
+        }
+
+        [Test]
+        public async Task Load_NodeName_IsParsed()
+        {
+            using var tempDir = new TempDir();
+            var path = Path.Combine(tempDir.Path, "instances.yaml");
+            await File.WriteAllTextAsync(path, """
+instances:
+  - engine: postgres
+    version: "18"
+    display_name: edge-db
+    node: node-eu-1
+""");
+            var config = new InstancesConfigLoader(tempDir.Path, "instances.yaml").Load();
+            await Assert.That(config.Instances[0].Node).IsEqualTo("node-eu-1");
+        }
+
+        [Test]
         public async Task Load_ValidYaml_ParsesEveryField()
         {
             using var tempDir = new TempDir();

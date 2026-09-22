@@ -29,6 +29,7 @@ instances:
     default_database_name: app
     password: "Sup3r-Secret-Root.~"   # optional; auto-generated if omitted
     is_public: false                  # bind 127.0.0.1 (default) vs 0.0.0.0
+    node: node-eu-1                   # optional; a registered node's name, else the control plane's Docker
     plugins:                          # engine-specific add-ons; see /supported endpoint
       - postgres-pg_stat_statements
     databases:
@@ -50,6 +51,8 @@ Field rules:
 - **`password`** uses the SafePasswordGuard alphabet: `A-Z a-z 0-9 - _ . ~`. Other characters reject the whole entry.
 - **`is_public: false`** binds the host port to `127.0.0.1` (only reachable from this host). `is_public: true` publishes on `0.0.0.0` so other machines on the LAN can reach it.
 - **`plugins`** values are the engine plugin keys returned by `GET /api/Database/supported`.
+- **`node`** places a new instance on a registered node (by the name shown on the Nodes page). Unknown names fail that entry. Ignored for instances that already exist.
+- **Unknown keys fail the file.** A misspelt key used to be dropped silently; now the parse error names it and nothing is reconciled until it is fixed.
 
 ## What reconcile does on startup
 
@@ -66,7 +69,7 @@ Reconcile is **additive only**:
 
 If you want to change one of those after the fact, edit it via the UI (after removing the entry from `instances.yaml` and restarting) or via the upgrade/visibility endpoints directly.
 
-Errors per entry are logged at `Error` level and skipped. KRINT comes up healthy even when one block in the file is wrong.
+Errors per entry are logged at `Error` level and skipped. KRINT comes up healthy even when one block in the file is wrong. A configured `instances_file` that does not exist is logged as a warning at startup.
 
 ## Frontend behavior for config-managed rows
 

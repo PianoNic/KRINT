@@ -26,9 +26,10 @@ namespace KRINT.Application.Options
                 return new InstancesConfig();
 
             // Same convention as krint.yaml so users don't have to flip naming styles mid-file.
+            // Strict on purpose: a misspelt key ("displayname", "grant_database") used to be dropped
+            // silently and the entry provisioned without it. Failing the parse names the key.
             var deserializer = new DeserializerBuilder()
                 .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                .IgnoreUnmatchedProperties()
                 .Build();
             using var reader = File.OpenText(ResolvedPath);
             return deserializer.Deserialize<InstancesConfig>(reader) ?? new InstancesConfig();
