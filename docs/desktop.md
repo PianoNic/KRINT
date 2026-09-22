@@ -4,11 +4,11 @@ KRINT ships two ways from one codebase:
 
 | Distribution | Database | Auth | Use case |
 | ------------ | -------- | ---- | -------- |
-| **Docker image** (`docs/self-host.md`) | PostgreSQL | Keycloak (OIDC) | Servers, multi-user, always-on |
-| **Desktop app** (this doc) | SQLite | bundled mock OIDC | Single user on their own machine |
+| **Docker image** (`docs/self-host.md`) | PostgreSQL | Your OIDC provider, or local login | Servers, multi-user, always-on |
+| **Desktop app** (this doc) | SQLite | Local login, signed in automatically | Single user on their own machine |
 
 The desktop build is a [Tauri v2](https://v2.tauri.app) window wrapped around the **same
-`KRINT.API` binary** the Docker image runs. The API serves the SPA + its OIDC config itself
+`KRINT.API` binary** the Docker image runs. The API serves the SPA itself
 (Production `MapFallbackToFile`), so the webview just points at the local backend - no separate
 frontend build, no API changes.
 
@@ -31,19 +31,20 @@ building the app from source.
 On launch the desktop shell (`src-tauri/src/lib.rs`):
 
 1. Creates an app-data dir and a stable `vault.key` (AES-256, generated once, reused).
-2. Starts a tiny **in-process OIDC issuer** (`src-tauri/src/oidc.rs`) that auto-issues tokens
-   (no login screen) - zero-config local sign-in, no Docker or Java needed.
+2. Creates a stable `local-login.key` next to it: the password of the one local account
+   (`desktop`) the API seeds on first boot. No identity provider, no Docker or Java for auth.
 3. Spawns `KRINT.API` as a **sidecar** with `Database__Provider=Sqlite` and the SQLite file in
    the app-data dir.
-4. Picks two free loopback ports at launch (API and issuer), polls the API port until it
-   answers, then navigates the window to it.
-5. On exit, kills the API child; the in-process OIDC issuer stops with the app.
+4. Picks a free loopback port at launch, polls it until the API answers, then navigates the
+   window to `/login#krint_desktop=…`. The fragment carries the desktop credentials, never
+   reaches the API, and the login page signs in with it and clears it.
+5. On exit, kills the API child.
 
 ### Why Docker is still required
 
 KRINT provisions database instances as **sibling Docker containers**, so the desktop app - like
-the server - needs a Docker engine (Docker Desktop on Windows/macOS) running on the host. Auth,
-however, no longer needs Docker: it's the in-process issuer above.
+the server - needs a Docker engine (Docker Desktop on Windows/macOS) running on the host. Auth
+needs nothing at all: it is the API's own local login, signed in automatically.
 
 ## Prerequisites
 

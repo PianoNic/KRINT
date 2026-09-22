@@ -1,0 +1,55 @@
+name: Desktop check
+
+# Compiles the Tauri shell on every change to it, without producing installers. The release
+# workflow is the only other place the Rust code is built, and finding a compile error there
+# means a broken release rather than a red pull request.
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/**'
+      - 'scripts/publish-sidecar.mjs'
+      - '.github/workflows/desktop-check.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: cargo check (Windows)
+    runs-on: windows-latest
+    env:
+      CARGO_NET_RETRY: "10"
+      CARGO_HTTP_MULTIPLEXING: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Bun (frontend)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri-build validates that the sidecar and the resources exist, so they are produced
+      # exactly as the release does it before the crate is checked.
+      - name: Build the SPA and publish the sidecar
+        run: node scripts/publish-sidecar.mjs
+
+      - name: cargo check
+        working-directory: src-tauri
+        run: |
+          cargo check
+          cargo check --features portable

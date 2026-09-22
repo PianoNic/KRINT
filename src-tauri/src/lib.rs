@@ -2,15 +2,15 @@
 //
 // The desktop app is a thin Tauri window around the same `KRINT.API` binary the Docker
 // image runs. On startup we:
-//   1. ensure a stable vault key + SQLite path under the OS app-data dir,
-//   2. start a tiny in-process OIDC issuer (zero-config local sign-in, no Docker/Java),
-//   3. spawn `KRINT.API` as a sidecar configured for SQLite,
-//   4. wait until the API port accepts connections, then point the window at it.
+//   1. ensure a stable vault key, a local-login password and the SQLite path under the OS
+//      app-data dir,
+//   2. spawn `KRINT.API` as a sidecar configured for SQLite and local password login
+//      (no identity provider, no Docker/Java for auth),
+//   3. wait until the API port accepts connections, then point the window at the login
+//      page with the desktop credentials in the URL fragment, which signs it in on its own.
 //
-// The API serves the SPA + OIDC config itself (Production `MapFallbackToFile`), so the
-// webview talks to a single local origin exactly like the Docker deployment.
-
-mod oidc;
+// The API serves the SPA itself (Production `MapFallbackToFile`), so the webview talks to a
+// single local origin exactly like the Docker deployment.
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -20,9 +20,9 @@ use tauri::{Manager, RunEvent};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-// The single OIDC client id. Ports are chosen at runtime (see free_port) so two instances —
-// or anything already bound to a fixed port — can't collide.
-const CLIENT_ID: &str = "krint";
+// The one local account the desktop app signs in as. Ports are chosen at runtime (see
+// free_port) so two instances — or anything already bound to a fixed port — can't collide.
+const DESKTOP_USER: &str = "desktop";
 
 // Lock the webview down to a native-app feel: no right-click context menu and no devtools
 // keyboard shortcuts. Devtools are already off (no `devtools` Cargo feature); this also blocks
@@ -90,8 +90,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building KRINT desktop app")
         .run(|app, event| {
-            // Tear the API sidecar down when the app exits. The OIDC issuer is in-process
-            // and stops automatically with the app.
+            // Tear the API sidecar down when the app exits.
             if let RunEvent::ExitRequested { .. } = event {
                 if let Some(child) = app.state::<Backend>().0.lock().unwrap().take() {
                     let _ = child.kill();
@@ -153,16 +152,13 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
 
     let db_path = data_dir.join("krint.db");
     let vault_key = load_or_create_vault_key(&data_dir)?;
+    let local_password = load_or_create_local_password(&data_dir)?;
 
-    // Pick free ports up front so nothing collides with a port already in use.
+    // Pick a free port up front so nothing collides with a port already in use.
     let api_port = free_port()?;
-    let oidc_port = free_port()?;
 
-    // Use 127.0.0.1 (not "localhost"): the issuer binds to 127.0.0.1, and on Windows
-    // "localhost" resolves to ::1 first, so metadata/token fetches would eat a failed-IPv6
-    // -then-IPv4 fallback delay on every call.
-    let authority = format!("http://127.0.0.1:{oidc_port}");
-    start_oidc(authority.clone(), oidc_port);
+    // Use 127.0.0.1 (not "localhost"): on Windows "localhost" resolves to ::1 first, so every
+    // call would eat a failed-IPv6-then-IPv4 fallback delay.
     let urls = format!("http://127.0.0.1:{api_port}");
     let conn = format!("Data Source={}", db_path.to_string_lossy());
     // Where the API binary + its resources (krint.yaml + the SPA's wwwroot) come from: Tauri's
@@ -178,11 +174,9 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
         .env("ConnectionStrings__KrintDatabase", &conn)
         .env("KRINT_CONFIG", krint_yaml.to_string_lossy().to_string())
         .env("Vault__MasterKey", vault_key)
-        .env("Oidc__Authority", &authority)
-        .env("Oidc__InternalAuthority", &authority)
-        .env("Oidc__RequireHttpsMetadata", "false")
-        .env("Oidc__ClientId", CLIENT_ID)
-        .env("Oidc__Scope", "openid profile email roles")
+        // No Oidc__Authority: the API runs local password login and seeds this one account.
+        .env("LocalLogin__AdminUserName", DESKTOP_USER)
+        .env("LocalLogin__AdminPassword", &local_password)
         .env("Cors__AllowedOrigins__0", &urls);
 
     let (mut rx, child) = sidecar.spawn()?;
@@ -214,6 +208,13 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
 
     // Readiness by connection probe, not log-string matching: poll the API port until it
     // accepts a TCP connection, then navigate. Robust against logging config / wording.
+    // The credentials ride in the URL fragment: it never reaches the API or its log, and the
+    // login page reads it, signs in and clears it before anything else renders.
+    let login_url = format!(
+        "http://127.0.0.1:{api_port}/login#krint_desktop={}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(format!("{DESKTOP_USER}:{local_password}"))
+    );
     let handle = app.clone();
     std::thread::spawn(move || {
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], api_port));
@@ -221,7 +222,7 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
             if std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(500)).is_ok()
             {
                 if let Some(window) = handle.get_webview_window("main") {
-                    if let Ok(url) = url::Url::parse(&format!("http://127.0.0.1:{api_port}/")) {
+                    if let Ok(url) = url::Url::parse(&login_url) {
                         let _ = window.navigate(url);
                     }
                 }
@@ -358,21 +359,20 @@ fn load_or_create_vault_key(data_dir: &PathBuf) -> Result<String, Box<dyn std::e
     Ok(key)
 }
 
-/// Start the in-process OIDC issuer on its own thread + Tokio runtime so it's independent
-/// of Tauri's runtime. It auto-issues tokens (no login screen) for zero-config local sign-in.
-fn start_oidc(issuer: String, port: u16) {
-    std::thread::spawn(move || {
-        let runtime = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
-            Ok(rt) => rt,
-            Err(err) => {
-                log::error!("failed to build OIDC runtime: {err}");
-                return;
-            }
-        };
-        runtime.block_on(async move {
-            if let Err(err) = oidc::serve(issuer, CLIENT_ID.to_string(), port).await {
-                log::error!("OIDC issuer stopped: {err}");
-            }
-        });
-    });
+/// The password of the desktop account. Like the vault key it is generated once and kept in
+/// the app-data dir, so the same account survives restarts and updates. Readable only by the
+/// user the app runs as, which is exactly who may use this KRINT.
+fn load_or_create_local_password(data_dir: &PathBuf) -> Result<String, Box<dyn std::error::Error>> {
+    let file = data_dir.join("local-login.key");
+    if let Ok(existing) = std::fs::read_to_string(&file) {
+        let trimmed = existing.trim().to_string();
+        if !trimmed.is_empty() {
+            return Ok(trimmed);
+        }
+    }
+    let mut bytes = [0u8; 24];
+    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut bytes);
+    let password = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+    std::fs::write(&file, &password)?;
+    Ok(password)
 }
