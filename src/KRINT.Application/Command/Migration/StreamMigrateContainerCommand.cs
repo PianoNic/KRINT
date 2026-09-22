@@ -61,7 +61,7 @@ namespace KRINT.Application.Command.Migration
             yield return Running(1, "probe-source", "Probing source database connection");
 
             string? hostError = null;
-            try { KRINT.Infrastructure.Services.ProbeHostGuard.Require(req.SourceHost); }
+            try { await KRINT.Infrastructure.Services.ProbeHostGuard.RequireAsync(req.SourceHost, cancellationToken); }
             catch (ArgumentException ex) { hostError = ex.Message; }
             if (hostError is not null)
             {
