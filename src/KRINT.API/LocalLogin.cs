@@ -54,6 +54,15 @@ namespace KRINT.API
             return services;
         }
 
+        /// <summary>20 characters from an alphabet without look-alikes, for accounts whose
+        /// password is issued rather than chosen.</summary>
+        internal static string GeneratePassword()
+        {
+            const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+            var bytes = RandomNumberGenerator.GetBytes(20);
+            return new string(bytes.Select(b => alphabet[b % alphabet.Length]).ToArray());
+        }
+
         public static void MapKrintLocalLogin(this WebApplication app)
         {
             app.MapToamaisutaaPasswordEndpoints();
@@ -107,12 +116,6 @@ namespace KRINT.API
 
             public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-            private static string GeneratePassword()
-            {
-                const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-                var bytes = RandomNumberGenerator.GetBytes(20);
-                return new string(bytes.Select(b => alphabet[b % alphabet.Length]).ToArray());
-            }
         }
 
         private sealed class LogNotifier(ILogger<LogNotifier> logger) : IPasswordResetNotifier, IAdminPasswordIssuedNotifier

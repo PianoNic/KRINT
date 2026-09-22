@@ -138,7 +138,8 @@ docker compose up -d     # postgres + krint on http://localhost:56722, sign in a
 ```
 
 Change the password after signing in (Settings). Local login has no roles: every local account is an
-admin, and new accounts are created through the API (`POST /auth/users`) rather than a sign-up page.
+admin. Further accounts are created under **Settings → Local accounts**, where a password can also be
+reset or an account deleted; there is no self-service sign-up page.
 Point `Oidc__Authority` at an identity provider whenever you have one; the local tables stay but are
 no longer used for sign-in.
 
