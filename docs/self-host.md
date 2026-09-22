@@ -14,7 +14,7 @@ You need a Linux/Windows host with **Docker + Compose v2**, and a directory to k
 | You have… | Do this |
 | --- | --- |
 | Your own OIDC provider (Pocket ID, Authentik, Auth0, Keycloak…) | [Quickstart](#quickstart) below - two files, no clone. |
-| Nothing yet, want zero-config auth | [Bundled Keycloak](#no-oidc-provider-bundled-keycloak) - clone the repo. |
+| Nothing yet, want to try it first | [Demo login](#no-oidc-provider-try-the-demo-login) - clone the repo, one command. |
 | A single machine, just you | The [desktop app](./desktop.md) - SQLite, built-in login, no Docker auth setup. |
 
 ## Quickstart
@@ -119,17 +119,24 @@ On your IdP, register KRINT as a **public client** (PKCE, no secret) with redire
 KRINT has no roles of its own: anyone your IdP signs in can provision, browse and delete every database, and read every password. On a shared IdP, create a group (say `krint-admin`), put the operators in it, and set `Oidc__AdminRole=krint-admin` plus `Oidc__RequireAdminRoleGlobally=true`. If your IdP publishes groups under a claim other than `roles`, also set `Oidc__RoleClaim` (Pocket ID, Authentik and Entra use `groups`).
 :::
 
-## No OIDC provider? Bundled Keycloak
+## No OIDC provider? Try the demo login
 
-For zero-config auth, clone the repo. Its `compose.yml` ships Keycloak with a ready-to-import realm:
+To try KRINT before wiring an identity provider, clone the repo. Its `compose.yml` boots Postgres, a
+mock OIDC issuer and KRINT with nothing to configure:
 
 ```bash
 git clone https://github.com/PianoNic/KRINT.git && cd KRINT
-cp .env.example .env     # edit before first start
-docker compose up -d     # postgres + keycloak + krint
+docker compose up -d     # postgres + mock issuer + krint on http://localhost:56722
 ```
 
-First boot imports the `krint` realm (~30-60s). Then open Keycloak at <http://localhost:8080>, log in as the bootstrap admin from `.env`, switch to the **krint** realm, and add a user under **Users → Add user**. Log in to KRINT at <http://localhost:5000>.
+Open <http://localhost:56722>: the mock issuer signs everyone in as **Demo Admin**, no password.
+
+::: danger Demo only
+Anyone who can reach that port is an admin, and the vault key in `compose.yml` is public. Use it on
+your own machine to evaluate KRINT, then move to the [Quickstart](#quickstart) with a real IdP for
+anything that stays up. For a single user on one machine, the [desktop app](./desktop) needs no
+identity provider at all.
+:::
 
 ---
 
