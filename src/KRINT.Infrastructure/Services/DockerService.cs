@@ -257,9 +257,13 @@ namespace KRINT.Infrastructure.Services
             using var tar = new MemoryStream();
             await using (var writer = new TarWriter(tar, TarEntryFormat.Ustar, leaveOpen: true))
             {
+                // The archive is extracted by the daemon as root, so the file lands owned by root.
+                // The shell that reads it runs as the image's user - "mssql" for SQL Server, root
+                // for most others - so it has to be world-readable or the restore dies with
+                // "Permission denied" before the engine ever sees the dump.
                 var entry = new UstarTarEntry(TarEntryType.RegularFile, tmpName)
                 {
-                    Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                    Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead,
                     DataStream = new MemoryStream(dumpBytes),
                 };
                 await writer.WriteEntryAsync(entry, ct);
