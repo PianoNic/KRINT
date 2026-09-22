@@ -83,7 +83,7 @@ namespace KRINT.Application.Queries.Database
                     Host = "localhost",
                     Port = port,
                     Username = spec.Username,
-                    Password = ExtractPassword(engine, env),
+                    PasswordAvailable = ExtractPassword(engine, env) is not null,
                     DatabaseName = ExtractDatabase(engine, env) ?? spec.DefaultDatabase,
                     State = c.State ?? "unknown",
                     ComposeProject = string.IsNullOrEmpty(composeProject) ? null : composeProject,
@@ -161,7 +161,7 @@ namespace KRINT.Application.Queries.Database
             _ => ("", "", 0),
         };
 
-        private static Dictionary<string, string> ParseEnv(IList<string>? env)
+        internal static Dictionary<string, string> ParseEnv(IList<string>? env)
         {
             var dict = new Dictionary<string, string>(StringComparer.Ordinal);
             if (env is null) return dict;
@@ -174,7 +174,7 @@ namespace KRINT.Application.Queries.Database
             return dict;
         }
 
-        private static string? ExtractPassword(string engine, Dictionary<string, string> env)
+        internal static string? ExtractPassword(string engine, Dictionary<string, string> env)
         {
             string? Try(params string[] keys)
             {

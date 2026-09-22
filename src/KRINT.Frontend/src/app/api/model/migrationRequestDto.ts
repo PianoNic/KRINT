@@ -15,7 +15,7 @@ export interface MigrationRequestDto {
     sourceHost: string;
     sourcePort: DashboardStatsDtoTotalInstances;
     sourceUsername: string;
-    sourcePassword: string;
+    sourcePassword?: string | null;
     sourceDatabaseName: string;
     sourceEngine: string;
     targetEngine: string;

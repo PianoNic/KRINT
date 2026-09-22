@@ -18,7 +18,9 @@ namespace KRINT.Application.Dtos.DatabaseInstance
         public required string Username { get; init; }
         /// <summary>Parsed from container env vars (POSTGRES_PASSWORD, MYSQL_ROOT_PASSWORD, ...).
         /// Null if not discoverable - the user has to type it.</summary>
-        public string? Password { get; init; }
+        /// <summary>Whether the container's environment carries a password KRINT can read when
+        /// the container is adopted. The password itself is never listed.</summary>
+        public bool PasswordAvailable { get; init; }
         public required string DatabaseName { get; init; }
         /// <summary>Container state from Docker: "running", "exited", etc. The UI greys out
         /// non-running entries since the connection probe at register time would fail anyway.</summary>

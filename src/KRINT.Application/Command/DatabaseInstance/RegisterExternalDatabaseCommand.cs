@@ -37,8 +37,25 @@ namespace KRINT.Application.Command.DatabaseInstance
             ValidateString(req.DatabaseName, nameof(req.DatabaseName));
             if (req.Port is <= 0 or > 65535)
                 throw new ArgumentException("Port must be between 1 and 65535.");
-            if (string.IsNullOrEmpty(req.Password))
-                throw new ArgumentException("Password must not be empty.");
+            // A discovered container's password is read here, from its environment, rather than
+            // handed to the browser by the discovery list: the caller adopts the container, KRINT
+            // reads the credential it already has access to.
+            var password = req.Password;
+            if (string.IsNullOrEmpty(password) && !string.IsNullOrWhiteSpace(req.ContainerId))
+            {
+                try
+                {
+                    var inspected = await dockerResolver.Resolve(req.NodeId).InspectContainerAsync(req.ContainerId, cancellationToken);
+                    password = Queries.Database.DiscoverContainersQueryHandler.ExtractPassword(
+                        req.Engine, Queries.Database.DiscoverContainersQueryHandler.ParseEnv(inspected.Config?.Env));
+                }
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new ArgumentException($"Container '{req.ContainerName ?? req.ContainerId}' could not be inspected for its password: {ex.Message}");
+                }
+            }
+            if (string.IsNullOrEmpty(password))
+                throw new ArgumentException("Password must not be empty, and this container's environment does not carry one.");
 
             // Probe the engine before persisting anything. ListAsync is the same readiness check
             // used after provisioning - if we can list databases we trust host+port+creds are
@@ -60,13 +77,13 @@ namespace KRINT.Application.Command.DatabaseInstance
                 // over a shared Docker network, which also covers a container published only on the
                 // node's loopback; it falls back to the host address above when that isn't available.
                 target = new InnerDatabaseTarget(
-                    req.Engine, preferredHost, req.Port, req.Username, req.Password, req.DatabaseName,
+                    req.Engine, preferredHost, req.Port, req.Username, password, req.DatabaseName,
                     probeNodeId, req.ContainerName, InnerDatabaseTargetLoader.EngineInternalPort(req.Engine));
             }
             else
             {
                 var probeHost = await InnerDatabaseTargetLoader.PickReachableHostAsync(preferredHost, req.Port, cancellationToken);
-                target = new InnerDatabaseTarget(req.Engine, probeHost, req.Port, req.Username, req.Password, req.DatabaseName);
+                target = new InnerDatabaseTarget(req.Engine, probeHost, req.Port, req.Username, password, req.DatabaseName);
             }
             try
             {
@@ -137,12 +154,12 @@ namespace KRINT.Application.Command.DatabaseInstance
             db.DatabaseInstances.Add(instance);
             await db.SaveChangesAsync(cancellationToken);
 
-            await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(instance), req.Password, cancellationToken);
+            await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(instance), password, cancellationToken);
 
             await activity.LogAsync("instance.register-external", instance.DisplayName, instance.Id, instance.Engine, $"host={req.Host}:{req.Port}", cancellationToken);
 
-            var connectionString = ConnectionStringBuilder.Build(req.Engine, req.Host, req.Port, req.Username, req.Password, req.DatabaseName);
-            return instance.ToProvisionedDto(req.Password, connectionString);
+            var connectionString = ConnectionStringBuilder.Build(req.Engine, req.Host, req.Port, req.Username, password, req.DatabaseName);
+            return instance.ToProvisionedDto(password, connectionString);
         }
 
         private IInnerDatabaseService ResolveInner(string engine)

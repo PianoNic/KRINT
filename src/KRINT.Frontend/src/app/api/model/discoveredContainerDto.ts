@@ -19,7 +19,10 @@ export interface DiscoveredContainerDto {
     host: string;
     port: DashboardStatsDtoTotalInstances;
     username: string;
-    password?: string | null;
+    /**
+     * Whether the container's environment carries a password KRINT can read when the container is adopted. The password itself is never listed.
+     */
+    passwordAvailable: boolean;
     databaseName: string;
     state: string;
     composeProject?: string | null;
