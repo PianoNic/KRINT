@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Text;
+using KRINT.Domain;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +10,7 @@ namespace KRINT.Tests.Services
 {
     public class SecretsVaultServiceTests
     {
-        private static (SecretsVaultService vault, KrintDbContext db) CreateVault()
+        private static (SecretsVaultService vault, KrintDbContext db, byte[] key) CreateVault()
         {
             var options = new DbContextOptionsBuilder<KrintDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -25,13 +27,13 @@ namespace KRINT.Tests.Services
                 })
                 .Build();
 
-            return (new SecretsVaultService(db, configuration), db);
+            return (new SecretsVaultService(db, configuration), db, key);
         }
 
         [Test]
         public async Task RetrieveAsync_AfterStore_ReturnsOriginalValue()
         {
-            var (vault, _) = CreateVault();
+            var (vault, _, _) = CreateVault();
 
             await vault.StoreAsync("db.prod", "p4ssw0rd!!");
             var result = await vault.RetrieveAsync("db.prod");
@@ -42,7 +44,7 @@ namespace KRINT.Tests.Services
         [Test]
         public async Task StoreAsync_SameNameTwice_OverwritesExistingValue()
         {
-            var (vault, db) = CreateVault();
+            var (vault, db, _) = CreateVault();
 
             await vault.StoreAsync("k", "first");
             await vault.StoreAsync("k", "second");
@@ -54,9 +56,42 @@ namespace KRINT.Tests.Services
         }
 
         [Test]
+        public async Task RetrieveAsync_RowMovedUnderAnotherName_Fails()
+        {
+            var (vault, db, _) = CreateVault();
+            await vault.StoreAsync("db.a", "secret-a");
+            var row = await db.Secrets.SingleAsync(s => s.Name == "db.a");
+            db.Secrets.Add(new Secret { Name = "db.b", Ciphertext = row.Ciphertext, Nonce = row.Nonce, Tag = row.Tag });
+            await db.SaveChangesAsync();
+
+            await Assert.That(async () => await vault.RetrieveAsync("db.b")).Throws<CryptographicException>();
+        }
+
+        [Test]
+        public async Task RetrieveAsync_LegacyUnboundRow_ReadsAndRebinds()
+        {
+            var (vault, db, key) = CreateVault();
+            // A row written by the previous vault: same key, no associated data.
+            var plain = Encoding.UTF8.GetBytes("legacy-secret");
+            var nonce = RandomNumberGenerator.GetBytes(12);
+            var cipher = new byte[plain.Length];
+            var tag = new byte[16];
+            using (var gcm = new AesGcm(key, 16)) gcm.Encrypt(nonce, plain, cipher, tag);
+            db.Secrets.Add(new Secret { Name = "db.legacy", Ciphertext = cipher, Nonce = nonce, Tag = tag });
+            await db.SaveChangesAsync();
+
+            await Assert.That(await vault.RetrieveAsync("db.legacy")).IsEqualTo("legacy-secret");
+
+            // Second read goes through the bound path: the row was rewritten with the name as AAD.
+            var rebound = await db.Secrets.SingleAsync(s => s.Name == "db.legacy");
+            await Assert.That(rebound.Nonce.SequenceEqual(nonce)).IsFalse();
+            await Assert.That(await vault.RetrieveAsync("db.legacy")).IsEqualTo("legacy-secret");
+        }
+
+        [Test]
         public async Task RetrieveAsync_MissingName_ReturnsNull()
         {
-            var (vault, _) = CreateVault();
+            var (vault, _, _) = CreateVault();
 
             var result = await vault.RetrieveAsync("nope");
 
@@ -66,7 +101,7 @@ namespace KRINT.Tests.Services
         [Test]
         public async Task DeleteAsync_ExistingName_ReturnsTrueAndRemovesRow()
         {
-            var (vault, db) = CreateVault();
+            var (vault, db, _) = CreateVault();
 
             await vault.StoreAsync("k", "v");
             var deleted = await vault.DeleteAsync("k");
@@ -78,7 +113,7 @@ namespace KRINT.Tests.Services
         [Test]
         public async Task DeleteAsync_MissingName_ReturnsFalse()
         {
-            var (vault, _) = CreateVault();
+            var (vault, _, _) = CreateVault();
 
             var deleted = await vault.DeleteAsync("nope");
 
@@ -88,7 +123,7 @@ namespace KRINT.Tests.Services
         [Test]
         public async Task RetrieveAsync_TamperedCiphertext_ThrowsCryptographicException()
         {
-            var (vault, db) = CreateVault();
+            var (vault, db, _) = CreateVault();
 
             await vault.StoreAsync("k", "secret");
             var row = await db.Secrets.SingleAsync();
@@ -101,7 +136,7 @@ namespace KRINT.Tests.Services
         [Test]
         public async Task RetrieveAsync_TamperedTag_ThrowsCryptographicException()
         {
-            var (vault, db) = CreateVault();
+            var (vault, db, _) = CreateVault();
 
             await vault.StoreAsync("k", "secret");
             var row = await db.Secrets.SingleAsync();

@@ -13,7 +13,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task StoreAsync(string name, string plaintext, CancellationToken cancellationToken = default)
         {
-            var (ciphertext, nonce, tag) = Encrypt(plaintext);
+            var (ciphertext, nonce, tag) = Encrypt(name, plaintext);
 
             var existing = await db.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken);
             if (existing is null)
@@ -44,7 +44,23 @@ namespace KRINT.Infrastructure.Services
                 return null;
             }
 
-            return Decrypt(secret.Ciphertext, secret.Nonce, secret.Tag);
+            // Rows written before the name became associated data still decrypt without it.
+            // Re-encrypt such a row on first read so the whole table converges on the bound form
+            // without a migration or a re-key.
+            try
+            {
+                return Decrypt(name, secret.Ciphertext, secret.Nonce, secret.Tag);
+            }
+            catch (CryptographicException)
+            {
+                var plaintext = Decrypt(null, secret.Ciphertext, secret.Nonce, secret.Tag);
+                var (ciphertext, nonce, tag) = Encrypt(name, plaintext);
+                secret.Ciphertext = ciphertext;
+                secret.Nonce = nonce;
+                secret.Tag = tag;
+                await db.SaveChangesAsync(cancellationToken);
+                return plaintext;
+            }
         }
 
         public async Task<bool> DeleteAsync(string name, CancellationToken cancellationToken = default)
@@ -60,7 +76,12 @@ namespace KRINT.Infrastructure.Services
             return true;
         }
 
-        private (byte[] ciphertext, byte[] nonce, byte[] tag) Encrypt(string plaintext)
+        // The secret's name goes in as associated data: the tag then only verifies under that
+        // name, so a row's ciphertext cannot be moved under another name by someone with write
+        // access to the table. Null means the legacy unbound form, read-only.
+        private static byte[]? AssociatedData(string? name) => name is null ? null : Encoding.UTF8.GetBytes(name);
+
+        private (byte[] ciphertext, byte[] nonce, byte[] tag) Encrypt(string name, string plaintext)
         {
             var plainBytes = Encoding.UTF8.GetBytes(plaintext);
             var ciphertext = new byte[plainBytes.Length];
@@ -68,17 +89,17 @@ namespace KRINT.Infrastructure.Services
             var tag = new byte[AesGcm.TagByteSizes.MaxSize];
 
             using var gcm = new AesGcm(_masterKey, AesGcm.TagByteSizes.MaxSize);
-            gcm.Encrypt(nonce, plainBytes, ciphertext, tag);
+            gcm.Encrypt(nonce, plainBytes, ciphertext, tag, AssociatedData(name));
 
             return (ciphertext, nonce, tag);
         }
 
-        private string Decrypt(byte[] ciphertext, byte[] nonce, byte[] tag)
+        private string Decrypt(string? name, byte[] ciphertext, byte[] nonce, byte[] tag)
         {
             var plainBytes = new byte[ciphertext.Length];
 
             using var gcm = new AesGcm(_masterKey, AesGcm.TagByteSizes.MaxSize);
-            gcm.Decrypt(nonce, ciphertext, tag, plainBytes);
+            gcm.Decrypt(nonce, ciphertext, tag, plainBytes, AssociatedData(name));
 
             return Encoding.UTF8.GetString(plainBytes);
         }
