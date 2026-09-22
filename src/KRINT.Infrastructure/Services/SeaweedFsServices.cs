@@ -46,14 +46,14 @@ namespace KRINT.Infrastructure.Services
 
         public async Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
+            BucketNameValidator.Require(name);
             using var s3 = SeaweedFsS3.Build(target);
             await s3.PutBucketAsync(name, cancellationToken);
         }
 
         public async Task DropAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
+            BucketNameValidator.Require(name);
             using var s3 = SeaweedFsS3.Build(target);
             await s3.DeleteBucketAsync(name, cancellationToken);
         }
@@ -85,7 +85,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<TableRows> FetchRowsAsync(InnerDatabaseTarget target, string database, string table, int limit, int offset, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(database);
+            BucketNameValidator.Require(database);
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
@@ -130,7 +130,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task UploadObjectAsync(InnerDatabaseTarget target, string database, string key, Stream content, string? contentType, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(database);
+            BucketNameValidator.Require(database);
             if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Object key is required.", nameof(key));
             using var s3 = SeaweedFsS3.Build(target);
             // PutObject overwrites an existing key, so "replace" is just re-upload.
@@ -149,7 +149,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task DeleteRowAsync(InnerDatabaseTarget target, string database, string table, DeleteRowRequest request, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(database);
+            BucketNameValidator.Require(database);
             var keyIndex = -1;
             for (var i = 0; i < request.Columns.Count; i++)
                 if (request.Columns[i] == "key") keyIndex = i;
