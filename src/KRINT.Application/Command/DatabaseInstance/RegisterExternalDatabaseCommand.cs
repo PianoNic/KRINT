@@ -32,6 +32,7 @@ namespace KRINT.Application.Command.DatabaseInstance
             ValidateString(req.Version, nameof(req.Version));
             ValidateString(req.DisplayName, nameof(req.DisplayName));
             ValidateString(req.Host, nameof(req.Host));
+            KRINT.Infrastructure.Services.ProbeHostGuard.Require(req.Host);
             ValidateString(req.Username, nameof(req.Username));
             ValidateString(req.DatabaseName, nameof(req.DatabaseName));
             if (req.Port is <= 0 or > 65535)
