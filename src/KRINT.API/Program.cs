@@ -12,6 +12,22 @@ using Toamaisutaa.Abstractions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Settings the process cannot run correctly without, as the lowest-priority configuration
+// source: appsettings.json, environment variables and user secrets all override them. They
+// used to live only in appsettings.json, which a host that moves the content root (the
+// desktop sidecar points it at its resources folder) never loads - and then audience
+// validation was on with no audience, so local login refused to start.
+builder.Configuration.Sources.Insert(0, new Microsoft.Extensions.Configuration.Memory.MemoryConfigurationSource
+{
+    InitialData = new Dictionary<string, string?>
+    {
+        ["Krint:Role"] = "control",
+        ["Oidc:ValidateAudience"] = "false",
+        ["Oidc:QueryToken:IncludePaths:0"] = "/hubs",
+        ["Oidc:QueryToken:ExcludePaths:0"] = "/hubs/node",
+    },
+});
+
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
 // KRINT runs in one of two roles from the same image. "node" is a stripped worker that does nothing

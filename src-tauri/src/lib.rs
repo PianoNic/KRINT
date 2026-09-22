@@ -197,10 +197,26 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
                     log::info!(target: "krint-api", "{}", String::from_utf8_lossy(&bytes).trim_end());
                 }
                 CommandEvent::Terminated(payload) => {
-                    // The backend is the whole app — if it exits, there's nothing to show, so
-                    // bring the window down too instead of leaving a dead shell open.
-                    log::warn!("API sidecar exited ({payload:?}); shutting down");
-                    exit_handle.exit(payload.code.unwrap_or(1));
+                    // The backend is the whole app, but closing the window the moment it dies
+                    // looks like a crash and hides the reason. Say so on the loading screen and
+                    // point at the log; the user closes the window when they have read it.
+                    log::warn!("API sidecar exited ({payload:?})");
+                    let log_dir = exit_handle
+                        .path()
+                        .app_log_dir()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    if let Some(window) = exit_handle.get_webview_window("main") {
+                        let message = format!(
+                            "The local backend stopped (exit code {}). The reason is in the log under {}.",
+                            payload.code.unwrap_or(1),
+                            log_dir
+                        );
+                        let _ = window.eval(&format!(
+                            "document.querySelector('.muted')?.replaceChildren(document.createTextNode({}));",
+                            serde_json::to_string(&message).unwrap_or_default()
+                        ));
+                    }
                 }
                 _ => {}
             }
