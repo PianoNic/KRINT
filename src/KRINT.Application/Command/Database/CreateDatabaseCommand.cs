@@ -428,11 +428,10 @@ namespace KRINT.Application.Command.Database
                     return mysqlEnv;
                 case "mariadb":
                     // The mariadb image accepts both MARIADB_* and MYSQL_* env vars (the latter for
-                    // drop-in compatibility); we send the modern MARIADB_* names.
-                    var mariaEnv = new List<string> { $"MARIADB_ROOT_PASSWORD={password}" };
-                    if (!string.Equals(databaseName, defaultDatabaseName, StringComparison.Ordinal))
-                        mariaEnv.Add($"MARIADB_DATABASE={databaseName}");
-                    return mariaEnv;
+                    // drop-in compatibility); we send the modern MARIADB_* names. Unlike mysql, whose
+                    // default "mysql" is the system schema and always exists, nothing in the image
+                    // creates a database called "mariadb" - so the default is requested explicitly too.
+                    return [$"MARIADB_ROOT_PASSWORD={password}", $"MARIADB_DATABASE={databaseName}"];
                 case "mongo":
                     // Mongo creates databases lazily; the env vars only seed the root user/auth db.
                     // The chosen databaseName is recorded in the connection string but not pre-created.
