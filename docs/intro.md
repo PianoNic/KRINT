@@ -8,7 +8,7 @@ KRINT is a self-hosted platform for provisioning and operating databases. Pick a
 - **Back up and upgrade**. Manual or cron-scheduled dumps; restore or upgrade the engine version in place.
 - **Manage users and access**. Create logins, reset passwords, grant per-database access.
 - **Distribute across nodes**. Provision databases onto remote Docker hosts over a single connection.
-- **Bring your own auth**. OIDC with any provider (Pocket ID, Authentik, Auth0…), or the bundled Keycloak.
+- **Bring your own auth**. OIDC with any provider (Pocket ID, Authentik, Auth0, Keycloak…); a demo login is built in for trying it out.
 
 There is no limit to the number of databases or nodes you can run.
 
@@ -29,7 +29,7 @@ KRINT ships two ways from the same codebase.
 
 | Distribution | Metadata DB | Auth | Use case |
 | --- | --- | --- | --- |
-| **Docker image** | Postgres or SQLite | OIDC (bring-your-own or bundled Keycloak) | Servers, multi-user, always-on |
+| **Docker image** | Postgres or SQLite | OIDC (bring your own provider) | Servers, multi-user, always-on |
 | **Desktop app** | SQLite | Built-in, zero-config | A single user on their own machine |
 
 ## Get started
