@@ -67,6 +67,41 @@ namespace KRINT.Infrastructure.Services
         }
     }
 
+    /// <summary>
+    /// CQL console. One statement per run, executed in the chosen keyspace. Cassandra reports no
+    /// affected-row count for writes, so a statement without a result set answers "0 rows".
+    /// </summary>
+    public class CassandraInnerQueryService : IInnerQueryService
+    {
+        public virtual string Engine => "cassandra";
+
+        public async Task<QueryResult> RunAsync(InnerDatabaseTarget target, string database, string sql, int rowLimit, CancellationToken cancellationToken = default)
+        {
+            InnerDatabaseNameValidator.Require(database);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            using var cluster = CassandraConnect.Build(target);
+            using var session = await cluster.ConnectAsync(database);
+            var rs = await session.ExecuteAsync(new SimpleStatement(sql));
+
+            var columns = rs.Columns.Select(c => new QueryResultColumn(c.Name, c.TypeCode.ToString().ToLowerInvariant())).ToList();
+            var rows = new List<IReadOnlyList<string?>>();
+            var truncated = false;
+            foreach (var r in rs)
+            {
+                if (rows.Count >= rowLimit) { truncated = true; break; }
+                var row = new string?[columns.Count];
+                for (var c = 0; c < columns.Count; c++)
+                {
+                    var v = r[c];
+                    row[c] = v is null ? null : Convert.ToString(v, CultureInfo.InvariantCulture);
+                }
+                rows.Add(row);
+            }
+            sw.Stop();
+            return new QueryResult(columns, rows, rows.Count, sw.ElapsedMilliseconds, truncated);
+        }
+    }
+
     public class CassandraInnerUserService : IInnerUserService
     {
         public virtual string Engine => "cassandra";

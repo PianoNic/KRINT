@@ -78,6 +78,7 @@ namespace KRINT.Infrastructure.Extensions
             services.AddSingleton<IInnerQueryService, MariaDbInnerQueryService>();
             services.AddSingleton<IInnerQueryService, MsSqlInnerQueryService>();
             services.AddSingleton<IInnerQueryService, ClickHouseInnerQueryService>();
+            services.AddSingleton<IInnerQueryService, CassandraInnerQueryService>();
             services.AddSingleton<IInnerQueryServiceResolver, InnerQueryServiceResolver>();
 
             services.AddScoped<IBackupService, PostgresBackupService>();

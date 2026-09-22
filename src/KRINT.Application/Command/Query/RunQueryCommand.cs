@@ -14,7 +14,7 @@ namespace KRINT.Application.Command.Query
         {
             var target = await InnerDatabaseTargetLoader.LoadAsync(db, vault, command.InstanceId, cancellationToken);
             var svc = resolver.TryResolve(target.Engine)
-                ?? throw new NotSupportedException($"The query console is not available for engine '{target.Engine}' yet. " + "Supported: postgres, timescaledb, pgvector, cockroachdb, mysql, mariadb, mssql, clickhouse.");
+                ?? throw new NotSupportedException($"The query console is not available for engine '{target.Engine}' yet. " + "Supported: postgres, timescaledb, pgvector, cockroachdb, mysql, mariadb, mssql, clickhouse, cassandra.");
 
             var result = await svc.RunAsync(target, command.Database, command.Sql, command.RowLimit, cancellationToken);
 
