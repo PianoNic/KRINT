@@ -77,7 +77,9 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 
 ## Get started
 
-- 📦 **[Self-hosting guide](https://docs.krint.pianonic.ch/self-host)** - run the image with `docker compose`.
+- ⚡ **Try it in a minute** - `git clone https://github.com/PianoNic/KRINT.git && cd KRINT && docker compose up -d`, then open <http://localhost:56722> (demo login, no identity provider needed).
+- 📦 **[Self-hosting guide](https://docs.krint.pianonic.ch/self-host)** - run the image with `docker compose` against your own OIDC provider.
+- 🖥️ **[Desktop app](https://docs.krint.pianonic.ch/desktop)** - single user, SQLite, no identity provider.
 - 🛠️ **[Developer setup](https://docs.krint.pianonic.ch/dev-setup)** - local dev with `dotnet run` + Bun, migrations, tests.
 
 Full documentation: **[docs.krint.pianonic.ch](https://docs.krint.pianonic.ch)**

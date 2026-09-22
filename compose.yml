@@ -36,7 +36,10 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    env_file: .env
+    # Optional overrides; the values below already boot a demo stack without one.
+    env_file:
+      - path: .env
+        required: false
     environment:
       Database__Provider: "Postgres"
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=d4vpas8w0rd13!!!"
@@ -48,6 +51,8 @@ services:
       Oidc__PostLogoutRedirectUri: "http://localhost:56722/"
       Oidc__Scope: "openid profile email roles"
       Cors__AllowedOrigins__0: "http://localhost:56722"
+      Krint__PublicUrl: "http://localhost:56722"
+      # Demo key for this local stack only. Real deployments generate their own (openssl rand -base64 32).
       Vault__MasterKey: "2P+vvGUw5v3weZdFU04YOicpVNs9eIyRKo6NliiDR4c="
     depends_on:
       db:
