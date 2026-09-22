@@ -98,7 +98,7 @@ namespace KRINT.Application.Queries.Database
                 .ToList();
         }
 
-        private static (string Image, string Tag) SplitImage(string image)
+        internal static (string Image, string Tag) SplitImage(string image)
         {
             if (string.IsNullOrEmpty(image)) return ("", "");
             // Strip @sha256:... digest if present, then split on the last ':' (registries can
@@ -117,7 +117,7 @@ namespace KRINT.Application.Queries.Database
 
         // Maps a Docker image name to one of KRINT's supported engine keys. Unknown images
         // return null so the caller can skip them.
-        private static string? ImageToEngine(string image)
+        internal static string? ImageToEngine(string image)
         {
             var i = image.ToLowerInvariant();
             return i switch

@@ -25,10 +25,13 @@ namespace KRINT.Infrastructure.Services
             // dump --all-databases, consistent snapshot via single-transaction. Pick whichever
             // client binary the image actually has.
             var bin = $"$(command -v {DumpBinary} || command -v {DumpFallback})";
+            // Credentials as argv ($1, $2): the shell never parses them, so an adopted external's
+            // typed password cannot break out of the script.
             var cmd = new List<string>
             {
                 "bash", "-c",
-                $"{bin} -h 127.0.0.1 -u {target.Username} -p'{target.Password}' --single-transaction --all-databases {DumpExtraArgs}".TrimEnd(),
+                $"MYSQL_PWD=\"$1\" {bin} -h 127.0.0.1 -u \"$2\" --single-transaction --all-databases {DumpExtraArgs}".TrimEnd(),
+                "krint", target.Password, target.Username,
             };
             var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
             return new BackupOutput(bytes, "sql");
@@ -41,7 +44,8 @@ namespace KRINT.Infrastructure.Services
             var cmd = new List<string>
             {
                 "bash", "-c",
-                $"{bin} -h 127.0.0.1 -u {target.Username} -p'{target.Password}'",
+                $"MYSQL_PWD=\"$1\" {bin} -h 127.0.0.1 -u \"$2\"",
+                "krint", target.Password, target.Username,
             };
             await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
         }

@@ -24,6 +24,7 @@ namespace KRINT.Application.Command.Migration
         KrintDbContext db,
         IBackupServiceResolver backups,
         IInnerDatabaseServiceResolver innerDbs,
+        IDockerServiceResolver dockerResolver,
         IActivityLogger activity)
         : IStreamCommandHandler<StreamMigrateContainerCommand, MigrationProgressDto>
     {
@@ -58,6 +59,28 @@ namespace KRINT.Application.Command.Migration
 
             // 1. Probe source - cheap connection test before we provision anything expensive.
             yield return Running(1, "probe-source", "Probing source database connection");
+
+            // The dump runs as a docker exec inside SourceContainerId, which the browser chose.
+            // Only a container whose image is the claimed engine is a legitimate target; anything
+            // else is an authenticated user asking for a shell in an unrelated container.
+            string? sourceError = null;
+            try
+            {
+                var inspect = await dockerResolver.Resolve(null).InspectContainerAsync(req.SourceContainerId, cancellationToken);
+                var (image, _) = Queries.Database.DiscoverContainersQueryHandler.SplitImage(inspect.Config?.Image ?? string.Empty);
+                var imageEngine = Queries.Database.DiscoverContainersQueryHandler.ImageToEngine(image);
+                if (!string.Equals(imageEngine, req.SourceEngine, StringComparison.OrdinalIgnoreCase))
+                    sourceError = $"Container '{req.SourceContainerId}' runs image '{image}', which is not a {req.SourceEngine} image.";
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                sourceError = $"Source container '{req.SourceContainerId}' could not be inspected: {ex.Message}";
+            }
+            if (sourceError is not null)
+            {
+                yield return Failed(1, sourceError);
+                yield break;
+            }
 
             var inner = innerDbs.Resolve(req.SourceEngine);
             var sourceTarget = new InnerDatabaseTarget(req.SourceEngine, req.SourceHost, req.SourcePort, req.SourceUsername, req.SourcePassword, req.SourceDatabaseName);

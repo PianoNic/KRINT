@@ -37,32 +37,30 @@ namespace KRINT.Infrastructure.Services
             // INIT overwrites whatever lives at the path (defence against a stale file from a
             // previous failed run). COPY_ONLY skips the log chain bookkeeping so this doesn't
             // interfere with the user's own backup strategy.
-            var backup = $"{SqlcmdPath} {ToolsArgs} -S localhost -U {target.Username} -P '{Escape(target.Password)}' " +
+            InnerDatabaseNameValidator.Require(target.DefaultDatabase);
+            // The credentials travel as argv ($1, $2) so the shell never parses them; the database
+            // name is validated above because it sits inside the T-SQL text.
+            var backup = $"{SqlcmdPath} {ToolsArgs} -S localhost -U \"$2\" -P \"$1\" " +
                          $"-Q \"BACKUP DATABASE [{target.DefaultDatabase}] TO DISK = '{tmp}' WITH FORMAT, INIT, COPY_ONLY\"";
             // 1>&2 routes sqlcmd's progress chatter to stderr so only the binary .bak content
             // ends up in our captured stdout.
             var script = $"{backup} 1>&2 && cat '{tmp}' && rm -f '{tmp}'";
 
-            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, new List<string> { "bash", "-c", script }, cancellationToken);
+            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, new List<string> { "bash", "-c", script, "krint", target.Password, target.Username }, cancellationToken);
             return new BackupOutput(bytes, "bak");
         }
 
         public async Task RestoreAsync(BackupTarget target, Stream dump, CancellationToken cancellationToken = default)
         {
             var tmp = $"/tmp/krint-{Guid.NewGuid():N}.bak";
-            var restore = $"{SqlcmdPath} {ToolsArgs} -S localhost -U {target.Username} -P '{Escape(target.Password)}' " +
+            InnerDatabaseNameValidator.Require(target.DefaultDatabase);
+            var restore = $"{SqlcmdPath} {ToolsArgs} -S localhost -U \"$2\" -P \"$1\" " +
                           $"-Q \"RESTORE DATABASE [{target.DefaultDatabase}] FROM DISK = '{tmp}' WITH REPLACE\"";
             // `cat > file` lands stdin on disk before RESTORE runs - reading a partial file
             // would corrupt the operation.
             var script = $"cat > '{tmp}' && {restore} && rm -f '{tmp}'";
 
-            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, new List<string> { "bash", "-c", script }, dump, cancellationToken);
+            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, new List<string> { "bash", "-c", script, "krint", target.Password, target.Username }, dump, cancellationToken);
         }
-
-        // sqlcmd's -P argument is passed inside single quotes in the bash script, so any single
-        // quote in the password would break out. SafePasswordGuard restricts root passwords to
-        // [A-Za-z0-9-_.~] and would catch this for managed instances; this guard handles
-        // adopted externals where the user typed their own password.
-        private static string Escape(string value) => value.Replace("'", "'\\''");
     }
 }
