@@ -151,6 +151,7 @@ Test files (`src/KRINT.Tests/E2E/`):
 - `KrintSessionHooks.cs`: TUnit `[Before/After(TestSession)]` for stack lifecycle
 - `WizardHelper.cs`: drives the `/create` wizard
 - `NavigationTests`, `WizardTests`, `InstanceDialogTests`, `BackupTests`, `ActivityLogTests`, `InstanceLifecycleTests`
+- `EngineTests.cs` - provisions MySQL, MariaDB, MongoDB, Redis, Valkey and ClickHouse through the wizard and checks each comes up and lists.
 
 Headless by default. Set `KrintTestFixture.Headless = false` in `KrintSessionHooks.StartStack` for visible browser windows during local debugging.
 
