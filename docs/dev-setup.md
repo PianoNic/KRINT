@@ -8,6 +8,7 @@ This is what a fresh checkout needs to be productive locally.
 - **Docker** + **Docker Compose** (for Postgres and Keycloak)
 - **Node.js 20+** and **Bun 1.3+** (the frontend uses bun as its package manager)
 - **Apache Maven** (only if you want to rebuild the Keycloak theme JAR, see Notes)
+- **Java 11+** (only for `bun run apigen`, which runs the OpenAPI generator; the generated client is committed, so most changes never need it)
 - **dotnet-ef** global tool (only if you'll add EF migrations)
 
 ## 1. Backend secrets
@@ -50,19 +51,19 @@ Verify with `dotnet user-secrets list --project src/KRINT.API`.
 
 Non-secret app config lives in **`krint.yaml`** at the repo root. The API loads it via `services.AddKrintConfig(env)` (see `src/KRINT.API/Extensions/KrintConfigExtensions.cs`), which walks up from the content root to find the file. Override the path with the `KRINT_CONFIG` environment variable.
 
-Currently used to declare which host ports each engine is allowed to bind:
+It declares the host port range each engine may bind (one entry per engine; the repo's `krint.yaml` lists all of them), the storage mode for instance data, declared nodes and an optional `instances_file`:
 
 ```yaml
 krint:
+  storage:
+    mode: Volume
   port_ranges:
-    postgres: 30000-30199
+    postgres: 30000-30099
     mysql:    30200-30399
-    mariadb:  30400-30599
-    mssql:    30600-30799
-    mongo:    30800-30999
+    # ... one range per engine, see the file at the repo root
 ```
 
-Bind into a handler via `IOptions<KrintOptions>` (in `KRINT.Application/Options/`). The file is reload-on-change, so edits are picked up without a restart.
+Bind into a handler via `IOptions<KrintOptions>` (in `KRINT.Application/Options/`). The file is read once at startup; restart the API after editing it.
 
 ## 3. Dev infrastructure (Postgres + Keycloak)
 
@@ -97,13 +98,13 @@ cd src/KRINT.Frontend
 bun install
 ```
 
-With the backend running, generate the typed API client:
+The typed API client under `src/app/api/` is committed, so a fresh checkout builds without generating anything. Regenerate it only after changing the backend's contract (a controller, a DTO), with the backend running:
 
 ```powershell
 bun run apigen
 ```
 
-This reads `openapitools.json`, fetches `http://localhost:5165/openapi/v1.json`, and writes the `typescript-angular` client into `src/app/api/`. Rerun any time the backend's contract changes.
+This reads `openapitools.json`, fetches `http://localhost:5165/openapi/v1.json`, and writes the `typescript-angular` client into `src/app/api/`. It needs a Java runtime on `PATH`.
 
 Then start the dev server:
 

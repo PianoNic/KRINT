@@ -13,7 +13,7 @@ You need a Linux/Windows host with **Docker + Compose v2**, and a directory to k
 
 | You have… | Do this |
 | --- | --- |
-| Your own OIDC provider (Pocket ID, Authentik, Auth0, Keycloak…) | [Quickstart](#quickstart) below - two files, no clone. |
+| Your own OIDC provider (Pocket ID, Authentik, Auth0, Keycloak…) | [Quickstart](#quickstart) below - three files, no clone. |
 | Nothing yet, want to try it first | [Demo login](#no-oidc-provider-try-the-demo-login) - clone the repo, one command. |
 | A single machine, just you | The [desktop app](./desktop.md) - SQLite, built-in login, no Docker auth setup. |
 
