@@ -84,6 +84,7 @@ namespace KRINT.Infrastructure.Services
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
 
             long? total = null;
+            InnerDatabaseNameValidator.Require(table);
             var countResult = await session.RunAsync($"MATCH (n:`{table}`) RETURN count(n) AS c");
             var countRecord = await countResult.SingleAsync(cancellationToken);
             total = countRecord["c"].As<long>();
@@ -134,6 +135,7 @@ namespace KRINT.Infrastructure.Services
             var props = PropsFromJson(request.Values[Idx(request.Columns, "properties")]);
             using var driver = Neo4jConnect.Build(target);
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
+            InnerDatabaseNameValidator.Require(table);
             await session.RunAsync($"CREATE (n:`{table}`) SET n = $props", new { props });
         }
 
@@ -161,6 +163,7 @@ namespace KRINT.Infrastructure.Services
             // Drop = remove the label from every matching node. The label itself "vanishes" once no nodes carry it.
             using var driver = Neo4jConnect.Build(target);
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
+            InnerDatabaseNameValidator.Require(table);
             await session.RunAsync($"MATCH (n:`{table}`) DETACH DELETE n");
         }
     }
