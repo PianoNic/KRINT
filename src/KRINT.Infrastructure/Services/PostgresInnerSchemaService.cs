@@ -155,7 +155,7 @@ namespace KRINT.Infrastructure.Services
                 InnerDatabaseNameValidator.Require(request.Columns[i]);
                 var p = $"@n{k}";
                 setClauses.Add($"\"{request.Columns[i]}\" = {p}");
-                cmd.Parameters.AddWithValue(p, (object?)request.NewValues[i] ?? DBNull.Value);
+                cmd.Parameters.Add(UntypedValue(p, request.NewValues[i]));
             }
             for (var i = 0; i < request.Columns.Count; i++)
             {
@@ -206,7 +206,7 @@ namespace KRINT.Infrastructure.Services
             var placeholders = string.Join(", ", request.Values.Select((_, i) => $"@v{i}"));
             await using var cmd = new NpgsqlCommand($"INSERT INTO {qualified} ({cols}) VALUES ({placeholders})", conn);
             for (var i = 0; i < request.Values.Count; i++)
-                cmd.Parameters.AddWithValue($"@v{i}", (object?)request.Values[i] ?? DBNull.Value);
+                cmd.Parameters.Add(UntypedValue($"@v{i}", request.Values[i]));
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -255,6 +255,15 @@ namespace KRINT.Infrastructure.Services
             if (affected != 1) throw new InvalidOperationException($"Expected to delete 1 row, got {affected}.");
             await tx.CommitAsync(cancellationToken);
         }
+
+        /// <summary>
+        /// The browser edits every cell as text, but a text-typed parameter is rejected by Postgres
+        /// for any other column type (42804: column "id" is of type integer but expression is of
+        /// type text). Sending the value with an unknown type lets the server coerce it to the
+        /// column's type exactly as a quoted literal in a psql INSERT would be.
+        /// </summary>
+        private static NpgsqlParameter UntypedValue(string name, string? value) =>
+            new(name, NpgsqlTypes.NpgsqlDbType.Unknown) { Value = (object?)value ?? DBNull.Value };
 
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {
