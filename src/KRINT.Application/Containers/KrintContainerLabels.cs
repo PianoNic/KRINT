@@ -20,11 +20,14 @@ namespace KRINT.Application.Containers
         /// </summary>
         public const string ComposeProject = "krint-databases";
 
+        /// <summary>Label every KRINT-provisioned container carries, with the value "true".</summary>
+        public const string Managed = "krint.managed";
+
         public static Dictionary<string, string> For(string engine, Guid instanceId, string? displayName = null)
         {
             return new Dictionary<string, string>
             {
-                ["krint.managed"] = "true",
+                [Managed] = "true",
                 ["krint.engine"] = engine,
                 ["krint.instance-id"] = instanceId.ToString(),
                 // Compose project labels: make Docker Desktop cluster these under their own
