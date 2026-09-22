@@ -51,14 +51,23 @@ namespace KRINT.Infrastructure.Services
             foreach (var db in databases)
             {
                 await using var dbConn = await OpenAsync(target with { DefaultDatabase = db }, cancellationToken);
-                await using var reassign = new NpgsqlCommand($"REASSIGN OWNED BY \"{name}\" TO \"{target.Username}\"; DROP OWNED BY \"{name}\"", dbConn);
-                try { await reassign.ExecuteNonQueryAsync(cancellationToken); }
+                try { await DetachRoleAsync(dbConn, db, name, target.Username, cancellationToken); }
                 catch (Npgsql.PostgresException ex) when (ex.SqlState == "42704") { /* role doesn't exist in this db's catalog */ }
             }
 
             await using var dropConn = await OpenAsync(target, cancellationToken);
             await using var dropCmd = new NpgsqlCommand($"DROP ROLE IF EXISTS \"{name}\"", dropConn);
             await dropCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Strips everything that would make DROP ROLE refuse: ownership moves to the superuser,
+        /// remaining grants are dropped. Runs once per logical database, on a connection to it.
+        /// </summary>
+        protected virtual async Task DetachRoleAsync(NpgsqlConnection dbConn, string database, string name, string superuser, CancellationToken cancellationToken)
+        {
+            await using var cmd = new NpgsqlCommand($"REASSIGN OWNED BY \"{name}\" TO \"{superuser}\"; DROP OWNED BY \"{name}\"", dbConn);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
         public virtual async Task ResetPasswordAsync(InnerDatabaseTarget target, string name, string newPassword, CancellationToken cancellationToken = default)
