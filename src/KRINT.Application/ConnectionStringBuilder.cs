@@ -23,14 +23,22 @@ namespace KRINT.Application
                 "couchdb" => $"http://{username}:{password}@{host}:{port}/",
                 "pgvector" => $"postgres://{username}:{password}@{host}:{port}/{database}",
                 "neo4j" => $"bolt://{username}:{password}@{host}:{port}",
-                "qdrant" => $"http://{host}:{port} (api-key: {password})",
+                // Qdrant authenticates with an api-key header, not a URL credential; the key is the
+                // instance password shown beside this string.
+                "qdrant" => $"http://{host}:{port}",
                 "valkey" => $"redis://default:{password}@{host}:{port}/{database}",
                 "mssql" => $"Server={host},{port};User Id={username};Password={password};Database={database};TrustServerCertificate=true",
-                "seaweedfs" => $"http://{host}:{port} (S3 access-key: {username}, secret-key: {password})",
-                "azurite" => $"DefaultEndpointsProtocol=http;AccountName={username};AccountKey=<azurite-dev-key>;BlobEndpoint=http://{host}:{port}/{username};",
+                // S3 endpoint; access key and secret are the instance username and password.
+                "seaweedfs" => $"http://{host}:{port}",
+                // Azurite's fixed development account and its published, well-known key.
+                "azurite" => $"DefaultEndpointsProtocol=http;AccountName={username};AccountKey={AzuriteDevelopmentKey};BlobEndpoint=http://{host}:{port}/{username};",
                 _ => throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine)),
             };
         }
+
+        /// <summary>The account key every Azurite instance accepts for devstoreaccount1. It is
+        /// documented by Microsoft and identical on every emulator, so it is not a secret.</summary>
+        public const string AzuriteDevelopmentKey = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
 
         public static string VaultKeyFor(string containerName) => $"db.{containerName}.password";
 
