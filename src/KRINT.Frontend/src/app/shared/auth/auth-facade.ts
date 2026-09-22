@@ -11,8 +11,8 @@ export type AuthUser = { name: string; email: string; avatar: string };
 
 /**
  * What the rest of the app needs from authentication, whichever mode the backend runs in.
- * OIDC keeps angular-auth-oidc-client underneath; local mode talks to Toamaisutaa's password
- * endpoints served by the API itself. Components only ever see this.
+ * OIDC keeps angular-auth-oidc-client underneath; local mode talks to the session endpoints
+ * the API serves. Components only ever see this.
  */
 export interface AuthFacade {
   readonly mode: AuthMode;
@@ -28,8 +28,10 @@ export const authGuard: CanActivateFn = (route, state) => {
   const facade = inject(AUTH_FACADE);
   if (facade.mode === 'oidc') return autoLoginPartialRoutesGuard(route, state);
   const local = facade as LocalAuthService;
-  if (local.isSignedIn()) return true;
-  return inject(Router).createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
+  const router = inject(Router);
+  return local
+    .ensureSession()
+    .then((ok) => (ok ? true : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } })));
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -63,28 +65,19 @@ export class OidcAuthFacade implements AuthFacade {
 // Local password login
 // ---------------------------------------------------------------------------------------------
 
-type TokenResponse = {
-  access_token?: string;
-  refresh_token?: string;
-  expires_in?: number;
-  two_factor_required?: boolean;
-  error_description?: string;
-};
-
-const STORAGE_KEY = 'krint.local-session';
+type SessionTokenResponse = { accessToken?: string; expiresIn?: number; error_description?: string };
 
 /**
- * Holds the token pair for local mode. The access token lives in memory and sessionStorage
- * (so a reload does not sign the user out); the refresh token sits in sessionStorage too,
- * which is the trade-off a same-origin SPA without a cookie-setting backend makes - it is
- * gone when the tab closes, and the Content-Security-Policy the API sends keeps script
- * injection out.
+ * Local mode session. The refresh token never reaches this code: the API keeps it in an
+ * HttpOnly cookie scoped to /auth/session, and this class only ever holds the short-lived
+ * access token, in memory. A reload calls /auth/session/refresh with the cookie and is signed
+ * in again before the first route renders.
  */
 export class LocalAuthService implements AuthFacade {
   readonly mode: AuthMode = 'local';
   private readonly router = inject(Router);
   private readonly accessToken = signal<string | null>(null);
-  private readonly refreshToken = signal<string | null>(null);
+  private expiresAt = 0;
   private refreshing: Promise<boolean> | null = null;
 
   readonly isSignedIn = computed(() => this.accessToken() !== null);
@@ -98,40 +91,37 @@ export class LocalAuthService implements AuthFacade {
     };
   });
 
-  constructor() {
-    try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as { access?: string; refresh?: string };
-        this.accessToken.set(saved.access ?? null);
-        this.refreshToken.set(saved.refresh ?? null);
-      }
-    } catch {
-      // storage unavailable or corrupt - start signed out
-    }
+  /** True when a session exists or could be restored from the cookie. */
+  async ensureSession(): Promise<boolean> {
+    if (this.accessToken() && Date.now() < this.expiresAt - 30_000) return true;
+    // The session cookie itself is HttpOnly; the API sets a readable marker beside it so a
+    // browser that never signed in does not fire a refresh that can only answer 401.
+    if (!document.cookie.split(';').some((c) => c.trim().startsWith('krint.session.present='))) return false;
+    return this.refresh();
   }
 
   async getAccessToken(): Promise<string> {
+    if (!this.accessToken() || Date.now() >= this.expiresAt - 30_000) await this.refresh();
     return this.accessToken() ?? '';
   }
 
   /** Returns null on success, otherwise the message to show. */
   async signIn(identifier: string, password: string): Promise<string | null> {
-    const response = await fetch(`${environment.apiBaseUrl}/auth/login`, {
+    const response = await fetch(`${environment.apiBaseUrl}/auth/session/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ identifier, password }),
     });
-    const body = (await response.json().catch(() => ({}))) as TokenResponse;
+    const body = (await response.json().catch(() => ({}))) as SessionTokenResponse;
     if (response.status === 401) return body.error_description ?? 'The credentials are not valid.';
     if (!response.ok) return `Sign-in failed (${response.status}).`;
-    if (body.two_factor_required) return 'This account requires a second factor, which the KRINT UI does not support yet.';
-    if (!body.access_token) return 'The server returned no token.';
-    this.store(body.access_token, body.refresh_token ?? null);
+    if (!body.accessToken) return 'The server returned no token.';
+    this.store(body.accessToken, body.expiresIn ?? 900);
     return null;
   }
 
-  /** Single-flight refresh: parallel 401s must not each spend the rotating refresh token. */
+  /** Single-flight: the refresh token rotates on every use, so parallel refreshes look like theft. */
   refresh(): Promise<boolean> {
     this.refreshing ??= this.refreshOnce().finally(() => {
       this.refreshing = null;
@@ -140,24 +130,18 @@ export class LocalAuthService implements AuthFacade {
   }
 
   private async refreshOnce(): Promise<boolean> {
-    const refreshToken = this.refreshToken();
-    if (!refreshToken) return false;
     try {
-      const response = await fetch(`${environment.apiBaseUrl}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
+      const response = await fetch(`${environment.apiBaseUrl}/auth/session/refresh`, { method: 'POST', credentials: 'include' });
       if (!response.ok) {
         this.clear();
         return false;
       }
-      const body = (await response.json()) as TokenResponse;
-      if (!body.access_token) {
+      const body = (await response.json()) as SessionTokenResponse;
+      if (!body.accessToken) {
         this.clear();
         return false;
       }
-      this.store(body.access_token, body.refresh_token ?? refreshToken);
+      this.store(body.accessToken, body.expiresIn ?? 900);
       return true;
     } catch {
       return false;
@@ -165,36 +149,19 @@ export class LocalAuthService implements AuthFacade {
   }
 
   logout(): void {
-    const refreshToken = this.refreshToken();
     this.clear();
-    if (refreshToken) {
-      void fetch(`${environment.apiBaseUrl}/auth/logout`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      }).catch(() => undefined);
-    }
+    void fetch(`${environment.apiBaseUrl}/auth/session/logout`, { method: 'POST', credentials: 'include' }).catch(() => undefined);
     void this.router.navigate(['/login']);
   }
 
-  private store(access: string, refresh: string | null): void {
+  private store(access: string, expiresInSeconds: number): void {
     this.accessToken.set(access);
-    this.refreshToken.set(refresh);
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ access, refresh }));
-    } catch {
-      // storage unavailable - the session lives for this page load only
-    }
+    this.expiresAt = Date.now() + expiresInSeconds * 1000;
   }
 
   private clear(): void {
     this.accessToken.set(null);
-    this.refreshToken.set(null);
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    this.expiresAt = 0;
   }
 }
 
@@ -205,7 +172,7 @@ export const localAuthInterceptor: HttpInterceptorFn = (req, next) => {
   const local = facade as LocalAuthService;
 
   const withToken = (token: string) =>
-    token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req;
+    token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` }, withCredentials: true }) : req;
 
   return from(local.getAccessToken()).pipe(
     switchMap((token) => next(withToken(token))),

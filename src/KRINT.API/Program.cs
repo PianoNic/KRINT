@@ -102,7 +102,9 @@ builder.Services.AddHostedService<KRINT.API.NodeReconciliationHostedService>();
 // Defaults to no cross-origin allowlist when unset. The desktop build serves the SPA
 // same-origin from the sidecar, so it needs none; server deployments set it explicitly.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
+// AllowCredentials is what lets a split-origin dev SPA (ng serve on :4200) carry the local login
+// session cookie; with explicit origins rather than a wildcard the browser permits it.
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 // Toamaisutaa owns the resource-server half of OIDC: discovery against Oidc:InternalAuthority, issuer
 // validation against Oidc:Authority, raw JWT claim names (no WS-Federation remapping), userinfo
@@ -223,7 +225,10 @@ app.Use(async (context, next) =>
 app.MapControllers();
 app.MapKrintHealth();
 if (localLogin)
+{
     app.MapKrintLocalLogin();
+    app.MapKrintLocalSession();
+}
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
 app.MapHub<DashboardHub>("/hubs/dashboard").RequireAuthorization();
 app.MapHub<MigrationHub>("/hubs/migration").RequireAuthorization();
