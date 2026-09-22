@@ -8,7 +8,7 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command.Provision
 {
-    public record ProvisionDatabaseCommand(ProvisionRequestDto Request) : ICommand<ProvisionResultDto>;
+    public record ProvisionDatabaseCommand(ProvisionRequestDto Request, IProgress<string>? Progress = null) : ICommand<ProvisionResultDto>;
 
     public class ProvisionDatabaseCommandHandler(IMediator mediator, IActivityLogger activity)
         : ICommandHandler<ProvisionDatabaseCommand, ProvisionResultDto>
@@ -20,7 +20,7 @@ namespace KRINT.Application.Command.Provision
             // 1. Create the instance (provisions the container, opens host port, stores root password).
             // Plugins propagate down so CreateDatabaseCommand can swap the image, set env vars,
             // and/or run post-readiness install steps.
-            var instance = await mediator.Send(new CreateDatabaseCommand(req.Engine, req.Version, req.DisplayName, req.DefaultDatabaseName, req.Plugins, req.IsPublic, req.Password, req.NodeId), cancellationToken);
+            var instance = await mediator.Send(new CreateDatabaseCommand(req.Engine, req.Version, req.DisplayName, req.DefaultDatabaseName, req.Plugins, req.IsPublic, req.Password, req.NodeId, command.Progress), cancellationToken);
 
             var createdDatabases = new List<string>();
             var createdUsers = new List<InnerUserPasswordDto>();
@@ -31,6 +31,7 @@ namespace KRINT.Application.Command.Provision
                 if (string.Equals(name, instance.DatabaseName, StringComparison.OrdinalIgnoreCase))
                     continue; // already created as the default
 
+                command.Progress?.Report($"Creating database {name}");
                 await mediator.Send(new CreateInnerDatabaseCommand(instance.Id, name), cancellationToken);
                 createdDatabases.Add(name);
             }
@@ -44,6 +45,7 @@ namespace KRINT.Application.Command.Provision
             // 3. Create users + grant access to each requested database.
             foreach (var user in req.Users)
             {
+                command.Progress?.Report($"Creating user {user.Name}");
                 var credential = await mediator.Send(new CreateInnerUserCommand(instance.Id, user.Name, user.Password), cancellationToken);
                 createdUsers.Add(credential);
 
