@@ -71,7 +71,7 @@ Set these on the node process (environment variables; `__` maps to nested config
 | --- | --- | --- |
 | `Krint__Role` | Set to `node` to boot in node role. | `control plane` |
 | `Node__ControlPlaneUrl` | Base URL of the control plane, e.g. `https://krint.example.com`. | — |
-| `Node__Token` | The token from the Add-node modal, or the secret you declared in `krint.yaml`. | — |
+| `Node__Token` | The token from the Add-node modal, or the secret you declared in `krint.yaml`. At least 16 characters; the node sends it in an `X-Node-Token` header, never in the URL. | — |
 | `Node__Name` | Display name. Ignored if the node was named in the UI or config. | machine name |
 
 ```yaml

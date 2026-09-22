@@ -27,7 +27,15 @@ namespace KRINT.API.Hubs
 
         public override async Task OnConnectedAsync()
         {
-            var token = Context.GetHttpContext()?.Request.Query["access_token"].ToString();
+            var http = Context.GetHttpContext();
+            var token = http?.Request.Headers[Infrastructure.Services.NodeTokenHasher.HeaderName].ToString();
+            if (string.IsNullOrEmpty(token))
+            {
+                // Agents from before the header transport still send it in the query string.
+                token = http?.Request.Query["access_token"].ToString();
+                if (!string.IsNullOrEmpty(token))
+                    logger.LogWarning("Node connection {ConnectionId} sent its token in the query string; upgrade the node image so it uses the {Header} header.", Context.ConnectionId, Infrastructure.Services.NodeTokenHasher.HeaderName);
+            }
             if (string.IsNullOrEmpty(token))
             {
                 logger.LogWarning("Rejected node connection {ConnectionId}: missing token.", Context.ConnectionId);
@@ -52,7 +60,7 @@ namespace KRINT.API.Hubs
 
             // Fall back to the legacy static allow-list; those nodes self-report their Id.
             var allowed = configuration.GetSection("Node:Tokens").Get<string[]>() ?? [];
-            if (!allowed.Contains(token, StringComparer.Ordinal))
+            if (!allowed.Any(candidate => Infrastructure.Services.NodeTokenHasher.ConstantTimeEquals(candidate, token)))
             {
                 logger.LogWarning("Rejected node connection {ConnectionId}: unknown token.", Context.ConnectionId);
                 Context.Abort();
@@ -80,11 +88,22 @@ namespace KRINT.API.Hubs
                 return;
             }
 
-            registry.Register(nodeId, Context.ConnectionId);
-
             await using var scope = scopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<KrintDbContext>();
             var node = await db.Nodes.FirstOrDefaultAsync(n => n.Id == nodeId);
+
+            // A legacy allow-list token identifies nobody in particular, so it must not be able to
+            // claim the id of a node that authenticates with its own token: that would reroute
+            // every RPC for that node - container specs with passwords included - to this agent.
+            var resolvedByToken = Context.Items.ContainsKey(ResolvedNodeIdKey);
+            if (!resolvedByToken && node?.TokenHash is not null)
+            {
+                logger.LogWarning("Node on {ConnectionId} presented a legacy token but claimed id {NodeId}, which belongs to a token-bound node; aborting.", Context.ConnectionId, nodeId);
+                Context.Abort();
+                return;
+            }
+
+            registry.Register(nodeId, Context.ConnectionId);
             if (node is null)
             {
                 db.Nodes.Add(new Node
