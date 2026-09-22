@@ -63,6 +63,10 @@ jobs:
 
       - name: cargo check
         working-directory: src-tauri
-        run: |
-          cargo check
-          cargo check --features portable
+        run: cargo check
+
+      # The portable feature embeds the Windows sidecar exe; the release builds it on Windows only.
+      - name: cargo check (portable)
+        if: runner.os == 'Windows'
+        working-directory: src-tauri
+        run: cargo check --features portable
