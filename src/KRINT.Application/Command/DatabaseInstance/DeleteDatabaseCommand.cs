@@ -30,8 +30,16 @@ namespace KRINT.Application.Command.DatabaseInstance
                 // We don't know whether THIS instance was provisioned in Volume or HostFolder mode
                 // (settings can change between create and delete), so we try both cleanups. Each is
                 // idempotent / harmless if the target doesn't exist.
-                try { await docker.RemoveVolumeAsync(volumeName, force: true, cancellationToken); }
-                catch { /* volume may already be gone */ }
+                // Docker answers the forced container removal before the volume is released, so the
+                // first attempt regularly fails with "volume is in use" and the data volume used to
+                // outlive the instance. Retry briefly; a missing volume (HostFolder mode) ends it.
+                for (var attempt = 1; attempt <= 6; attempt++)
+                {
+                    try { await docker.RemoveVolumeAsync(volumeName, force: true, cancellationToken); break; }
+                    catch (Docker.DotNet.DockerApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound) { break; }
+                    catch when (attempt < 6) { await Task.Delay(500, cancellationToken); }
+                    catch { /* still held after retries; nothing more this process can do */ }
+                }
 
                 // Host-folder cleanup only makes sense for local instances - the folder lives on the
                 // node's filesystem otherwise, which this process can't see.

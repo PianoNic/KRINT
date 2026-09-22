@@ -136,14 +136,16 @@ namespace KRINT.Application.Command.Database
                 Labels = Containers.KrintContainerLabels.For(command.Engine, instanceId, command.DisplayName),
             };
 
-            var createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
-
-            // From here on, any exception means we own a half-provisioned container that the
+            // From here on, any exception means we may own a half-provisioned container that the
             // caller never sees. Track success and clean up in a finally, otherwise stale
-            // containers hold ports and break the next provision attempt.
+            // containers hold ports and break the next provision attempt. Creation itself sits
+            // inside the guarded block: a request cancelled mid-create used to leave a created,
+            // never-started container behind.
             var provisionedOk = false;
+            Docker.DotNet.Models.CreateContainerResponse? createResult = null;
             try
             {
+                createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
                 await docker.StartContainerAsync(createResult.ID, cancellationToken);
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
@@ -175,13 +177,26 @@ namespace KRINT.Application.Command.Database
                 // Node-hosted: probe runs on the node against its loopback (carry NodeId so the inner
                 // resolver dispatches there); local: the deployment-aware probe host.
                 var probeHostInitial = command.NodeId is not null ? "127.0.0.1" : ResolveProbeHost(command.IsPublic);
-                var readinessTarget = await ReadinessProbe.WaitForReadyAsync(
-                    innerDbs.Resolve(command.Engine),
-                    new InnerDatabaseTarget(command.Engine, probeHostInitial, hostPort, spec.DefaultUsername, password, probeDatabase, command.NodeId),
-                    command.IsPublic,
-                    cancellationToken,
-                    containerName,
-                    spec.InternalPort);
+                InnerDatabaseTarget readinessTarget;
+                try
+                {
+                    readinessTarget = await ReadinessProbe.WaitForReadyAsync(
+                        innerDbs.Resolve(command.Engine),
+                        new InnerDatabaseTarget(command.Engine, probeHostInitial, hostPort, spec.DefaultUsername, password, probeDatabase, command.NodeId),
+                        command.IsPublic,
+                        cancellationToken,
+                        containerName,
+                        spec.InternalPort);
+                }
+                catch (InvalidOperationException ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // The probe only knows the engine never answered. The container's own log
+                    // usually says why (a refused data layout, a rejected password policy), and it
+                    // is about to be removed, so this is the last chance to show it.
+                    var tail = await TryReadLogTailAsync(docker, createResult.ID);
+                    throw new InvalidOperationException(
+                        tail is null ? ex.Message : $"{ex.Message} The container's last log lines:\n{tail}", ex);
+                }
 
                 if (needsExplicitDefaultDb)
                 {
@@ -260,7 +275,11 @@ namespace KRINT.Application.Command.Database
                 {
                     // Tear down the container + vault entry + (if HostFolder mode) the data dir
                     // so a retry isn't blocked by a half-provisioned state holding the host port.
-                    try { await docker.RemoveContainerAsync(createResult.ID, force: true, CancellationToken.None); } catch { }
+                    if (createResult is not null)
+                    {
+                        try { await docker.RemoveContainerAsync(createResult.ID, force: true, CancellationToken.None); } catch { }
+                        try { await docker.RemoveVolumeAsync($"{containerName}-data", force: true, CancellationToken.None); } catch { }
+                    }
                     try { await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(containerName), CancellationToken.None); } catch { }
                     var hostFolder = _options.Storage.TryResolveHostFolderForContainer(containerName);
                     if (hostFolder is not null)
@@ -359,6 +378,30 @@ namespace KRINT.Application.Command.Database
                         CmdFactory: _ => new[] { "azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--location", "/data", "--skipApiVersionCheck" });
                 default:
                     throw new ArgumentException($"Unsupported engine '{engine}'.", nameof(engine));
+            }
+        }
+
+        /// <summary>Last log lines of a container, or null when they cannot be read (a node-hosted
+        /// container streams through the relay, not this service). Bounded to a few seconds so a
+        /// failure report never hangs on the log stream.</summary>
+        private static async Task<string?> TryReadLogTailAsync(KRINT.Infrastructure.Interfaces.IDockerService docker, string containerId)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                var chunks = new System.Text.StringBuilder();
+                await foreach (var chunk in docker.StreamLogsAsync(containerId, 25, cts.Token))
+                {
+                    chunks.Append(chunk);
+                    if (chunks.Length > 4000) break;
+                }
+                var text = chunks.ToString().Trim();
+                if (text.Length > 2000) text = text[^2000..];
+                return text.Length == 0 ? null : text;
+            }
+            catch
+            {
+                return null;
             }
         }
 
