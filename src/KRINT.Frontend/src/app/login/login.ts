@@ -67,6 +67,24 @@ export class Login {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  constructor() {
+    // The desktop shell opens this page with its own account in the URL fragment
+    // (#krint_desktop=<base64url user:password>). The fragment never reaches the server; it
+    // is read once, cleared from the address bar, and used to sign in without a form.
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const desktop = fragment.get('krint_desktop');
+    if (desktop) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      const decoded = decodeBase64Url(desktop);
+      const separator = decoded.indexOf(':');
+      if (separator > 0) {
+        this.identifier.set(decoded.slice(0, separator));
+        this.password.set(decoded.slice(separator + 1));
+        void this.submit(new Event('desktop'));
+      }
+    }
+  }
+
   protected async submit(event: Event): Promise<void> {
     event.preventDefault();
     if (this.busy()) return;
@@ -85,5 +103,15 @@ export class Login {
     } finally {
       this.busy.set(false);
     }
+  }
+}
+
+function decodeBase64Url(value: string): string {
+  try {
+    const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4);
+    const bytes = Uint8Array.from(atob(padded), (ch) => ch.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return '';
   }
 }
