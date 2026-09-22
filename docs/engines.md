@@ -3,27 +3,29 @@
 KRINT supports 16 engines. **Every** engine lets you browse data and use the container console (live
 logs + an interactive shell). The table below shows the capabilities that differ between engines.
 
-| Engine | Edit rows | Multiple DBs | Users & grants | Backups | Plugins |
-| --- | :---: | :---: | :---: | :---: | :---: |
-| PostgreSQL | ✅ | ✅ | ✅ | ✅ | ✅ |
-| MariaDB | ✅ | ✅ | ✅ | ✅ | ❌ |
-| MySQL | ✅ | ✅ | ✅ | ✅ | ❌ |
-| SQL Server | ✅ | ✅ | ✅ | ✅ | ❌ |
-| MongoDB | ✅ | ✅ | ✅ | ✅ | ❌ |
-| TimescaleDB | ✅ | ✅ | ✅ | ✅ | ✅ |
-| CockroachDB | ✅ | ✅ | ✅ | ❌ | ❌ |
-| ClickHouse | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Cassandra | ✅ | ✅ | ❌ | ❌ | ❌ |
-| CouchDB | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Redis | ✅ | ❌ | ❌ | ✅ | ✅ |
-| Valkey | ✅ | ❌ | ❌ | ✅ | ❌ |
-| Qdrant | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Neo4j | ❌ | ❌ | ❌ | ❌ | ✅ |
-| SeaweedFS (S3) | ⬆️ | ✅ | ❌ | ❌ | ❌ |
-| Azurite (Azure Blob) | ⬆️ | ✅ | ❌ | ❌ | ❌ |
+| Engine | Edit rows | Query console | Multiple DBs | Users & grants | Backups | Plugins |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| PostgreSQL | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| MariaDB | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| MySQL | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| SQL Server | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| MongoDB | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| TimescaleDB | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| CockroachDB | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| ClickHouse | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Cassandra | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| CouchDB | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Redis | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Valkey | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Qdrant | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Neo4j | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| SeaweedFS (S3) | ⬆️ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Azurite (Azure Blob) | ⬆️ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 - **Edit rows** - in-cell editing of table rows. ⬆️ = object stores use file upload instead.
-- **Multiple DBs** - create more than one database/keyspace/bucket per instance.
+- **Query console** - run ad-hoc SQL (or CQL on Cassandra) against a database from the browser.
+- **Multiple DBs** - create more than one database/keyspace/bucket per instance. Bucket names on
+  SeaweedFS and Azurite follow the S3/Azure rule: 3-63 lowercase letters, digits or single hyphens.
 - **Users & grants** - manage logins and per-database access.
 - **Backups** - scheduled or manual dump/restore, plus in-place version upgrade.
 - **Plugins** - opt-in extensions at provision time: pgvector, PostGIS, pg_trgm and more (Postgres),
