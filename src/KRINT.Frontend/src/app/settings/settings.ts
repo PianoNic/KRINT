@@ -10,11 +10,13 @@ import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey
 import { SettingsService } from '../api/api/settings.service';
 import { SettingsDto } from '../api/model/settingsDto';
 import { ChangePasswordCard } from './change-password-card';
+import { LocalUsersCard } from './local-users-card';
 
 @Component({
   selector: 'app-settings',
   imports: [
     ChangePasswordCard,
+    LocalUsersCard,
     ContentHeader,
     NgIcon,
     HlmBadgeImports,
@@ -119,6 +121,7 @@ import { ChangePasswordCard } from './change-password-card';
         </section>
         </div>
 
+        <app-local-users-card />
         <app-change-password-card />
         @if (!s.vaultMasterKeyConfigured) {
           <!-- Only surface the vault card when the master key is missing, since that's the
