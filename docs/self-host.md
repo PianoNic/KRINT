@@ -115,6 +115,10 @@ With `HostFolder` storage, `/data/krint` must be writable by the engine containe
 
 On your IdP, register KRINT as a **public client** (PKCE, no secret) with redirect URI `http://localhost:5000/*`. That's it - the rest is reference below.
 
+::: warning Who gets in
+KRINT has no roles of its own: anyone your IdP signs in can provision, browse and delete every database, and read every password. On a shared IdP, create a group (say `krint-admin`), put the operators in it, and set `Oidc__AdminRole=krint-admin` plus `Oidc__RequireAdminRoleGlobally=true`. If your IdP publishes groups under a claim other than `roles`, also set `Oidc__RoleClaim` (Pocket ID, Authentik and Entra use `groups`).
+:::
+
 ## No OIDC provider? Bundled Keycloak
 
 For zero-config auth, clone the repo. Its `compose.yml` ships Keycloak with a ready-to-import realm:
@@ -147,6 +151,8 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Oidc__Scope` | `openid profile email roles` (`roles` optional). |
 | `Oidc__RequireHttpsMetadata` | `true` (set `false` only for a plain-HTTP IdP). |
 | `Oidc__RoleClaim` | Claim that carries group membership. Defaults to `roles` (Keycloak); Pocket ID, Authentik and Entra publish `groups`. |
+| `Oidc__AdminRole` | Name of the role/group that may use KRINT, e.g. `krint-admin`. Unset means **every user your IdP signs in is a full admin** - fine for a personal IdP, not for a shared one. |
+| `Oidc__RequireAdminRoleGlobally` | `true` puts `Oidc__AdminRole` in front of every endpoint, so users without it get a 403 instead of a working dashboard. Ignored when no admin role is set. |
 | `Oidc__ValidateAudience` | `false` by default: KRINT accepts whatever audience the IdP stamps on the token. Set `true` once the IdP puts the client ID in `aud` (Keycloak needs an audience mapper for that). |
 | `Cors__AllowedOrigins__0` | Browser origin allowed to call the API - KRINT URL **without** trailing slash. Add more as `__1`, `__2`. |
 | `Krint__TrustForwardedHeaders` | `true` only behind a reverse proxy: honour `X-Forwarded-For/Proto/Host` from it. |
