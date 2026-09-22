@@ -11,6 +11,7 @@ import { ContentHeader } from '../shared/components/content-header/content-heade
 import { NodesService } from '../api/api/nodes.service';
 import { NodeDto } from '../api/model/nodeDto';
 import { AddNodeDialogService } from './add-node-dialog';
+import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
 
 @Component({
   selector: 'app-nodes',
@@ -141,6 +142,7 @@ import { AddNodeDialogService } from './add-node-dialog';
 export class Nodes {
   private readonly api = inject(NodesService);
   private readonly addNodeDialog = inject(AddNodeDialogService);
+  private readonly confirmService = inject(ConfirmService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly nodes = signal<ReadonlyArray<NodeDto>>([]);
@@ -178,8 +180,15 @@ export class Nodes {
     if (created) this.reload(true);
   }
 
-  protected remove(node: NodeDto): void {
-    if (!confirm(`Remove node "${node.name}"? Its token will stop working.`)) return;
+  protected async remove(node: NodeDto): Promise<void> {
+    const ok = await this.confirmService.open({
+      title: `Remove node "${node.name}"?`,
+      message:
+        'Its token stops working immediately and the agent is disconnected. Instances provisioned on this node keep running on its host, but KRINT can no longer reach them until the node is added again.',
+      confirmLabel: 'Remove node',
+      destructive: true,
+    });
+    if (!ok) return;
     this.deleting.update((d) => ({ ...d, [node.id]: true }));
     this.api.apiNodesIdDelete(node.id).subscribe({
       next: () => {

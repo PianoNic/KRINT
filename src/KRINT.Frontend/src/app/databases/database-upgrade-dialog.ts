@@ -6,6 +6,7 @@ import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { DatabaseService } from '../api/api/database.service';
 import { DatabasesStore } from '../shared/stores/databases.store';
+import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
 
 type DialogContext = { id: string; engine: string; containerName: string; currentVersion: string };
 
@@ -55,6 +56,7 @@ type DialogContext = { id: string; engine: string; containerName: string; curren
 export class DatabaseUpgradeDialog {
   protected readonly store = inject(DatabasesStore);
   private readonly api = inject(DatabaseService);
+  private readonly confirmService = inject(ConfirmService);
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
   protected readonly ctx = injectBrnDialogContext<DialogContext>();
 
@@ -69,9 +71,17 @@ export class DatabaseUpgradeDialog {
 
   protected readonly canSubmit = computed(() => !this.upgrading() && this.targetVersion() !== null);
 
-  protected submit(): void {
+  protected async submit(): Promise<void> {
     const v = this.targetVersion();
     if (!v) return;
+    const ok = await this.confirmService.open({
+      title: `Upgrade ${this.ctx.containerName} from ${this.ctx.currentVersion} to ${v}?`,
+      message:
+        'KRINT dumps the data, starts a fresh container on the new version, restores the dump and swaps the two. Connections drop while that runs, and a restore that fails leaves the old container in place. Take a backup first if the data matters.',
+      confirmLabel: 'Upgrade',
+      destructive: true,
+    });
+    if (!ok) return;
     this.upgrading.set(true);
     this.error.set(null);
     this.api.apiDatabaseIdUpgradePost(this.ctx.id, { targetVersion: v }).subscribe({
