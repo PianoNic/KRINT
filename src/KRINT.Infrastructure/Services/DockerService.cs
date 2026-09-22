@@ -255,7 +255,7 @@ namespace KRINT.Infrastructure.Services
             // streaming directly would re-introduce the original hang). Then tar it.
             using var dumpCopy = new MemoryStream();
             await stdin.CopyToAsync(dumpCopy, 81920, ct);
-            var dumpBytes = dumpCopy.ToArray();
+            dumpCopy.Position = 0;
 
             using var tar = new MemoryStream();
             await using (var writer = new TarWriter(tar, TarEntryFormat.Ustar, leaveOpen: true))
@@ -267,7 +267,7 @@ namespace KRINT.Infrastructure.Services
                 var entry = new UstarTarEntry(TarEntryType.RegularFile, tmpName)
                 {
                     Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead,
-                    DataStream = new MemoryStream(dumpBytes),
+                    DataStream = dumpCopy,
                 };
                 await writer.WriteEntryAsync(entry, ct);
             }

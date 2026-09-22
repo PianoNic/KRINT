@@ -42,9 +42,16 @@ builder.Services.AddSpaStaticFiles(options => { options.RootPath = "wwwroot"; })
 builder.Services.AddControllers();
 builder.Services.AddSignalR(options =>
 {
-    // Container output can burst over the default 32 KB cap when a server logs verbose startup
-    // or a user runs ls in a huge directory. Node RPC also returns whole backup dumps as one
-    // message. Lift the cap (dumps are already fully buffered in memory) so neither gets axed.
+    // What a browser may send in one message. Keystrokes and pasted text for the container
+    // shell are the largest legitimate payload; 1 MB leaves room for a big paste without letting
+    // any signed-in client push arbitrary amounts through the hubs.
+    options.MaximumReceiveMessageSize = 1024 * 1024;
+})
+.AddHubOptions<NodeHub>(options =>
+{
+    // Node RPC returns whole backup dumps and container logs as single messages, and a node is
+    // authenticated by a pre-shared token rather than a browser session. The cap is lifted for
+    // this hub alone (dumps are already fully buffered in memory).
     options.MaximumReceiveMessageSize = null;
 });
 
