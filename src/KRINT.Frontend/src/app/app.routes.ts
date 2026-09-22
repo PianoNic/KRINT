@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
-import { autoLoginPartialRoutesGuard } from 'angular-auth-oidc-client';
+import { authGuard } from './shared/auth/auth-facade';
+import { Login } from './login/login';
 import { AppLayout } from './shared/layouts/app-layout/app-layout';
 import { Home } from './home/home';
 import { Databases } from './databases/databases';
@@ -12,10 +13,12 @@ import { Nodes } from './nodes/nodes';
 import { Settings } from './settings/settings';
 
 export const routes: Routes = [
+  // Local password login only; OIDC mode never routes here.
+  { path: 'login', component: Login },
   {
     path: '',
     component: AppLayout,
-    canActivateChild: [autoLoginPartialRoutesGuard],
+    canActivateChild: [authGuard],
     children: [
       { path: '', component: Home },
       { path: 'create', component: Create },

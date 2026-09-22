@@ -14,7 +14,8 @@ namespace KRINT.API.Controllers
     public class AppController(
         IMediator mediator,
         IToamaisutaaClientConfigurationProvider clientConfiguration,
-        IOptions<ToamaisutaaOidcOptions> oidc) : ControllerBase
+        IOptions<ToamaisutaaOidcOptions> oidc,
+        IConfiguration configuration) : ControllerBase
     {
         [AllowAnonymous]
         [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(SecurityHeaders.AnonymousPolicy)]
@@ -43,7 +44,7 @@ namespace KRINT.API.Controllers
                 };
             }
 
-            return Ok(await mediator.Send(new AppQuery(client), cancellationToken));
+            return Ok(await mediator.Send(new AppQuery(client, LocalLogin.ModeOf(configuration)), cancellationToken));
         }
     }
 }

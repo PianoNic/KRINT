@@ -8,7 +8,7 @@ namespace KRINT.Application.Queries.App
     /// <summary>What the SPA reads at startup. The OIDC half comes from Toamaisutaa's client
     /// configuration provider (the API layer resolves it, since it needs the request); this handler
     /// only adds the app version on top.</summary>
-    public record AppQuery(ToamaisutaaClientConfiguration Client) : IQuery<AppDto>;
+    public record AppQuery(ToamaisutaaClientConfiguration Client, string AuthMode) : IQuery<AppDto>;
 
     public class AppQueryHandler : IQueryHandler<AppQuery, AppDto>
     {
@@ -31,6 +31,7 @@ namespace KRINT.Application.Queries.App
                 PostLogoutRedirectUri = query.Client.PostLogoutRedirectUri,
                 Scope = query.Client.Scope,
                 Version = AppVersion,
+                AuthMode = query.AuthMode,
             });
     }
 }

@@ -9,10 +9,12 @@ import { ContentHeader } from '../shared/components/content-header/content-heade
 import { customAzurite, customMssql, customQdrant, customSeaweedfs, customValkey } from '../shared/icons/custom-icons';
 import { SettingsService } from '../api/api/settings.service';
 import { SettingsDto } from '../api/model/settingsDto';
+import { ChangePasswordCard } from './change-password-card';
 
 @Component({
   selector: 'app-settings',
   imports: [
+    ChangePasswordCard,
     ContentHeader,
     NgIcon,
     HlmBadgeImports,
@@ -117,6 +119,7 @@ import { SettingsDto } from '../api/model/settingsDto';
         </section>
         </div>
 
+        <app-change-password-card />
         @if (!s.vaultMasterKeyConfigured) {
           <!-- Only surface the vault card when the master key is missing, since that's the
                actionable case. When it's configured we just hide it - no point telling the

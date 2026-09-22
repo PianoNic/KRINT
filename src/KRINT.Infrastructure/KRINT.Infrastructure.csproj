@@ -32,6 +32,7 @@
     <PackageReference Include="Neo4j.Driver" Version="5.26.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
     <PackageReference Include="Toamaisutaa.Abstractions" Version="0.7.0" />
+    <PackageReference Include="Toamaisutaa.EntityFrameworkCore" Version="0.7.0" />
   </ItemGroup>
 
   <ItemGroup>

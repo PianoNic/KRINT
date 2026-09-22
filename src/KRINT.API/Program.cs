@@ -37,6 +37,11 @@ if (string.Equals(builder.Configuration["Krint:Role"], "node", StringComparison.
 
 builder.Services.AddKrintConfig(builder.Environment);
 
+// No identity provider configured: run with local password login instead (see LocalLogin.cs).
+var localLogin = LocalLogin.IsEnabled(builder.Configuration);
+if (localLogin)
+    LocalLogin.AddDerivedSigningKey(builder);
+
 builder.Services.AddSpaStaticFiles(options => { options.RootPath = "wwwroot"; });
 
 builder.Services.AddControllers();
@@ -107,6 +112,8 @@ builder.Services.AddToamaisutaaBearer(builder.Configuration);
 builder.Services.AddToamaisutaaAuthorization(builder.Configuration);
 // ICurrentUser for activity-log actor names. No provisioning: the IdP owns the users, KRINT keeps none.
 builder.Services.AddToamaisutaaCurrentUser();
+if (localLogin)
+    builder.Services.AddKrintLocalLogin(builder.Configuration);
 // Deployments already set Krint:PublicUrl; let it feed the login redirect derivation too, so nobody
 // has to configure the same URL twice.
 builder.Services.PostConfigure<ToamaisutaaOidcOptions>(options =>
@@ -207,6 +214,8 @@ app.Use(async (context, next) =>
 
 app.MapControllers();
 app.MapKrintHealth();
+if (localLogin)
+    app.MapKrintLocalLogin();
 app.MapHub<ContainerHub>("/hubs/container").RequireAuthorization();
 app.MapHub<DashboardHub>("/hubs/dashboard").RequireAuthorization();
 app.MapHub<MigrationHub>("/hubs/migration").RequireAuthorization();

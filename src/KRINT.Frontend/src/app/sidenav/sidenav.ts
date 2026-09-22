@@ -2,14 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   effect,
   inject,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
-import { OidcSecurityService } from 'angular-auth-oidc-client';
+import { AUTH_FACADE } from '../shared/auth/auth-facade';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideActivity,
@@ -61,8 +60,7 @@ import { AppService } from '../api/api/app.service';
 })
 export class Sidenav {
   private readonly sidebarService = inject(HlmSidebarService);
-  private readonly oidcSecurityService = inject(OidcSecurityService);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AUTH_FACADE);
   private readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
 
@@ -129,24 +127,13 @@ export class Sidenav {
     { initialValue: '' },
   );
 
-  private readonly userData = this.oidcSecurityService.userData;
-  protected readonly user = computed(() => {
-    const data = this.userData().userData;
-    return {
-      name: data?.preferred_username ?? data?.email ?? '',
-      email: data?.email ?? '',
-      avatar: data?.picture ?? '',
-    };
-  });
+  protected readonly user = this.auth.user;
 
   protected setTheme(mode: ThemeMode): void {
     this.theme.set(mode);
   }
 
   protected logout(): void {
-    this.oidcSecurityService
-      .logoffAndRevokeTokens()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
+    this.auth.logout();
   }
 }

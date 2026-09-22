@@ -16,5 +16,9 @@ export interface AppDto {
     postLogoutRedirectUri: string;
     scope: string;
     version: string;
+    /**
+     * \"oidc\" when an identity provider is configured, \"local\" for password login against KRINT's own user table.
+     */
+    authMode: string;
 }
 

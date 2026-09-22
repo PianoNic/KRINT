@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toamaisutaa.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using KRINT.Domain;
 using KRINT.Infrastructure.Extensions;
@@ -17,6 +18,10 @@ namespace KRINT.Infrastructure
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(KrintDbContext).Assembly);
+            // Local login users, credentials and refresh tokens live next to KRINT's own tables.
+            // Mapped unconditionally so both migration sets carry them; the tables stay empty on a
+            // deployment that authenticates against an identity provider.
+            modelBuilder.ApplyToamaisutaaConfiguration();
         }
 
         public override int SaveChanges(bool acceptAllChangesOnSuccess)

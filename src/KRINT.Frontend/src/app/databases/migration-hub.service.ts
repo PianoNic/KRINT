@@ -6,9 +6,8 @@ import {
   HttpTransportType,
   LogLevel,
 } from '@microsoft/signalr';
-import { OidcSecurityService } from 'angular-auth-oidc-client';
+import { AUTH_FACADE } from '../shared/auth/auth-facade';
 import { Observable } from 'rxjs';
-import { firstValueFrom } from 'rxjs';
 import { environment } from '../shared/environments/environment';
 import { MigrationProgressDto } from '../api/model/migrationProgressDto';
 import { MigrationRequestDto } from '../api/model/migrationRequestDto';
@@ -20,7 +19,7 @@ import { MigrationRequestDto } from '../api/model/migrationRequestDto';
  */
 @Injectable({ providedIn: 'root' })
 export class MigrationHubService {
-  private readonly oidc = inject(OidcSecurityService);
+  private readonly auth = inject(AUTH_FACADE);
   private connection: HubConnection | null = null;
   private connectPromise: Promise<HubConnection> | null = null;
 
@@ -31,7 +30,7 @@ export class MigrationHubService {
     this.connectPromise = (async () => {
       const conn = new HubConnectionBuilder()
         .withUrl(`${environment.apiBaseUrl}/hubs/migration`, {
-          accessTokenFactory: async () => (await firstValueFrom(this.oidc.getAccessToken())) ?? '',
+          accessTokenFactory: async () => await this.auth.getAccessToken(),
           transport: HttpTransportType.WebSockets,
           skipNegotiation: true,
         })

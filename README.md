@@ -72,12 +72,12 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 - **Container console**: live log tailing and an interactive shell, in the browser.
 - **Backups**: manual, scheduled, or upload your own; restore or upgrade in place.
 - **Users & access**: logins, password resets, per-database grants.
-- **OIDC auth**: bring your own provider (Keycloak, Pocket ID, Authentik, Auth0, Entra…).
+- **Auth your way**: bring your own OIDC provider (Keycloak, Pocket ID, Authentik, Auth0, Entra…) or use the built-in local login.
 - **Nodes** (experimental): provision onto remote Docker hosts over one connection. See [docs/nodes.md](docs/nodes.md).
 
 ## Get started
 
-- ⚡ **Try it in a minute** - `git clone https://github.com/PianoNic/KRINT.git && cd KRINT && docker compose up -d`, then open <http://localhost:56722> (demo login, no identity provider needed).
+- ⚡ **Try it in a minute** - `git clone https://github.com/PianoNic/KRINT.git && cd KRINT && docker compose up -d`, then open <http://localhost:56722> and sign in as `admin` / `krint-admin` (local login, no identity provider needed).
 - 📦 **[Self-hosting guide](https://docs.krint.pianonic.ch/self-host)** - run the image with `docker compose` against your own OIDC provider.
 - 🖥️ **[Desktop app](https://docs.krint.pianonic.ch/desktop)** - single user, SQLite, no identity provider.
 - 🛠️ **[Developer setup](https://docs.krint.pianonic.ch/dev-setup)** - local dev with `dotnet run` + Bun, migrations, tests.
