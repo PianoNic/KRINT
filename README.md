@@ -72,7 +72,7 @@ KRINT is a self-hosted database-provisioning platform. Pick an engine, click Lau
 - **Container console**: live log tailing and an interactive shell, in the browser.
 - **Backups**: manual, scheduled, or upload your own; restore or upgrade in place.
 - **Users & access**: logins, password resets, per-database grants.
-- **OIDC auth**: bring your own provider or use the bundled Keycloak.
+- **OIDC auth**: bring your own provider (Keycloak, Pocket ID, Authentik, Auth0, Entra…).
 - **Nodes** (experimental): provision onto remote Docker hosts over one connection. See [docs/nodes.md](docs/nodes.md).
 
 ## Get started
@@ -91,7 +91,7 @@ Full documentation: **[docs.krint.pianonic.ch](https://docs.krint.pianonic.ch)**
 - **Angular 21** + Signals + Spartan UI.
 - **SignalR** for the live dashboard, log tailing, and interactive shell; **xterm.js** for the console.
 - **Docker.DotNet** for container lifecycle.
-- **Toamaisutaa** for OIDC bearer validation against any provider (or the bundled Keycloak).
+- **Toamaisutaa** for OIDC bearer validation against any provider.
 - **TUnit** + **Microsoft.Playwright** for tests; **OpenAPI** client via `bun run apigen`.
 
 </details>

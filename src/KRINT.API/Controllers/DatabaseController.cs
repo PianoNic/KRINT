@@ -29,11 +29,15 @@ namespace KRINT.API.Controllers
     [Route("api/[controller]")]
     public class DatabaseController(IMediator mediator) : ControllerBase
     {
+        /// <summary>Lists instances. <paramref name="displayName"/> narrows to an exact,
+        /// case-insensitive match, so a script can find "the staging db" without a GUID.</summary>
         [HttpGet]
         [ProducesResponseType(typeof(IReadOnlyList<DatabaseInstanceDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> List(CancellationToken cancellationToken)
+        public async Task<IActionResult> List([FromQuery] string? displayName, CancellationToken cancellationToken)
         {
             var result = await mediator.Send(new ListDatabasesQuery(), cancellationToken);
+            if (!string.IsNullOrWhiteSpace(displayName))
+                result = result.Where(d => string.Equals(d.DisplayName, displayName.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
             return Ok(result);
         }
 

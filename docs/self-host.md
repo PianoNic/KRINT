@@ -226,6 +226,25 @@ KRINT's SPA uses Authorization Code Flow + **PKCE**, so register a **public clie
 </details>
 
 <details>
+<summary><strong>Using KRINT from another project or CI</strong></summary>
+
+Everything the UI does goes through the REST API, and the OpenAPI document is served at `GET /openapi/v1.json` on every deployment. Authenticate with a bearer token from the same identity provider the UI uses (for a CI job, a client-credentials token whose subject is in `Oidc__AdminRole`).
+
+```bash
+TOKEN=...   # access token from your IdP
+# find an instance by the name shown in the UI
+curl -s -H "Authorization: Bearer $TOKEN" "https://krint.example.com/api/database?displayName=staging-db"
+# full details incl. password and connection string
+curl -s -H "Authorization: Bearer $TOKEN" "https://krint.example.com/api/database/<id>"
+# provision one
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"   -d '{"engine":"postgres","version":"18","displayName":"staging-db"}' "https://krint.example.com/api/database/provision"
+```
+
+Prefer configuration over scripts? Declare instances in `instances.yaml` and let KRINT reconcile them at startup - see [Declarative instances](./declarative-instances). A provisioned instance's page also offers **Copy as YAML** for exactly that file.
+
+</details>
+
+<details>
 <summary><strong>Health and startup checks</strong></summary>
 
 `GET /health` needs no token and answers `{"status":"healthy","checks":{"database":…,"docker":…}}`, or `503` when the metadata database or the Docker daemon is unreachable. Point your orchestrator's probe at it.
@@ -250,7 +269,7 @@ Oidc__RequireHttpsMetadata=true
 Cors__AllowedOrigins__0=https://krint.example.com
 ```
 
-With the bundled Keycloak, also set `KC_HOSTNAME=https://sso.example.com` and the matching `Oidc__Authority`. `Oidc__InternalAuthority` stays the in-cluster URL.
+When the identity provider runs on the same host, keep `Oidc__Authority` as the public HTTPS issuer URL the browser sees and set `Oidc__InternalAuthority` to the in-cluster URL KRINT uses for discovery.
 
 </details>
 

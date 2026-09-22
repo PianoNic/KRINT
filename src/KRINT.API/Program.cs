@@ -157,9 +157,12 @@ app.UseSecurityHeaders(builder.Configuration["Oidc:Authority"]);
 app.ApplyMigrations();
 await app.ApplySeedsAsync();
 
+// The document is what a client generator or a curious integrator reads first, so it is served
+// everywhere; the interactive reference stays a development tool.
+app.MapOpenApi().AllowAnonymous().RequireRateLimiting(SecurityHeaders.AnonymousPolicy);
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi().AllowAnonymous();
     app.MapScalarApiReference(options =>
     {
         options
