@@ -11,7 +11,10 @@ services:
     volumes:
       - postgres-data-dev:/var/lib/postgresql
 
+  # Only for testing the OIDC path: `docker compose -f compose.dev.yml --profile oidc up -d`.
+  # The default dev setup runs the API with local login and needs no identity provider.
   keycloak:
+    profiles: [oidc]
     image: quay.io/keycloak/keycloak:26.6
     container_name: krint-keycloak-dev
     restart: unless-stopped
