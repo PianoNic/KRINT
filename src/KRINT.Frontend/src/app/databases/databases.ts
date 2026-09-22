@@ -165,11 +165,24 @@ export class Databases {
     });
   }
 
+  // Engines whose catalog entry can dump and restore. Upgrade is dump-restore-swap, so
+  // offering it for the others ends in a failed step rather than a new version.
+  protected readonly backupCapable = signal<ReadonlySet<string>>(new Set());
+  private readonly loadCatalog = this.api.apiDatabaseSupportedGet().subscribe({
+    next: (engines) =>
+      this.backupCapable.set(new Set(engines.filter((e) => e.capabilities?.supportsBackup).map((e) => e.key))),
+    error: () => this.backupCapable.set(new Set()),
+  });
+
+  protected canUpgrade(db: DatabaseInstanceDto): boolean {
+    return db.isManaged && !db.isConfigManaged && this.backupCapable().has(db.engine);
+  }
+
   protected upgradeInstance(db: DatabaseInstanceDto): void {
     // Upgrade is dump-restore-swap and creates a fresh container under a new name. For
     // externals (managed by docker compose or similar), that would diverge from the user's
     // declared state - so we gate it on IsManaged, not on container presence.
-    if (!db.isManaged || !db.containerName) return;
+    if (!db.isManaged || !db.containerName || !this.backupCapable().has(db.engine)) return;
     this.dialog.open(DatabaseUpgradeDialog, {
       context: {
         id: db.id,

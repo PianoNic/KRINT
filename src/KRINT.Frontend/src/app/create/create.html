@@ -199,10 +199,11 @@
                 placeholder="e.g. Pangolin"
                 [value]="displayName()"
                 (input)="displayName.set($any($event.target).value)"
-                [attr.data-matches-spartan-invalid]="!!displayNameError()"
-                [attr.aria-invalid]="!!displayNameError() || null"
+                (blur)="displayNameTouched.set(true)"
+                [attr.data-matches-spartan-invalid]="displayNameTouched() && !!displayNameError()"
+                [attr.aria-invalid]="(displayNameTouched() && !!displayNameError()) || null"
               />
-              @if (displayNameError(); as err) {
+              @if (displayNameTouched() && displayNameError(); as err) {
                 <span class="text-destructive text-sm">{{ err }}</span>
               } @else {
                 <span class="text-muted-foreground text-xs">
