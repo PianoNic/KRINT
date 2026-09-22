@@ -13,6 +13,37 @@ internal static class WizardHelper
     /// </summary>
     public record ProvisionedInstance(string DisplayName, string ContainerName, string DefaultDb);
 
+    /// <summary>
+    /// Drives the wizard for any catalog engine with its defaults: the newest version is
+    /// preselected, the suggested name is replaced by a unique one, and Next is pressed until
+    /// Launch appears (the Databases step is hidden for engines without logical databases, so
+    /// the number of steps varies).
+    /// </summary>
+    public static async Task<ProvisionedInstance> ProvisionAsync(IPage page, KrintStack stack, string engineTile, int readyTimeoutMs = 240000)
+    {
+        var instanceName = "Test_" + DateTime.UtcNow.ToString("HHmmssfff");
+
+        await page.GotoAsync(stack.AppUrl + "/create");
+        await page.Locator($"button:has-text('{engineTile}')").First.ClickAsync();
+        await page.Locator("button:has-text('Next')").ClickAsync();
+        await page.GetByRole(AriaRole.Textbox, new() { Name = "Name", Exact = true }).FillAsync(instanceName);
+
+        // Angular swaps Next for Launch on the Review step a tick after the click, so give the
+        // render a moment before looking; otherwise the loop asks for a Next that is gone.
+        for (var i = 0; i < 6; i++)
+        {
+            await page.WaitForTimeoutAsync(250);
+            if (await page.Locator("button:has-text('Launch')").CountAsync() > 0) break;
+            await page.Locator("button:has-text('Next')").ClickAsync(new() { Timeout = 10000 });
+        }
+
+        await page.Locator("button:has-text('Launch')").ClickAsync();
+        await Assertions.Expect(page.Locator("text=Instance ready")).ToBeVisibleAsync(new() { Timeout = readyTimeoutMs });
+
+        var containerName = (await page.Locator("code").First.InnerTextAsync()).Trim();
+        return new ProvisionedInstance(instanceName, containerName, string.Empty);
+    }
+
     public static async Task<ProvisionedInstance> ProvisionPostgresAsync(IPage page, KrintStack stack, string defaultDbName)
     {
         var instanceName = "Test_" + DateTime.UtcNow.ToString("HHmmssfff");
