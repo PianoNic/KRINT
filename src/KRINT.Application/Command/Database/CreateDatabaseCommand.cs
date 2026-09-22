@@ -286,17 +286,11 @@ namespace KRINT.Application.Command.Database
             switch (engine)
             {
                 case "postgres":
-                    // pg 18+ stores data in /var/lib/postgresql/<major>/docker - mount the parent.
-                    // pg <=17 uses PGDATA=/var/lib/postgresql/data - mount that directly.
-                    // Unknown/"latest" tags resolve to the modern (18+) layout: "latest" is 18+ today
-                    // and every future release will be too, so only known <=17 majors use the legacy path.
-                    var pgDataPath = TryGetMajorVersion(version) is { } major && major <= 17
-                        ? "/var/lib/postgresql/data"
-                        : "/var/lib/postgresql";
-                    return new EngineSpec("postgres", "pg", 5432, "postgres", "postgres", pgDataPath);
+                    return new EngineSpec("postgres", "pg", 5432, "postgres", "postgres", PostgresDataPath(version));
                 case "timescaledb":
-                    // timescale/timescaledb tags use Postgres <=17 layout (PGDATA=/var/lib/postgresql/data).
-                    return new EngineSpec("timescale/timescaledb", "tsdb", 5432, "postgres", "postgres", "/var/lib/postgresql/data");
+                    // Tags are latest-pg<major>; the image is built on the matching upstream postgres
+                    // image, so it follows the same data layout rule.
+                    return new EngineSpec("timescale/timescaledb", "tsdb", 5432, "postgres", "postgres", PostgresDataPath(version));
                 case "mysql":
                     return new EngineSpec("mysql", "mysql", 3306, "root", "mysql", "/var/lib/mysql");
                 case "mariadb":
@@ -325,9 +319,9 @@ namespace KRINT.Application.Command.Database
                     // COUCHDB_USER / COUCHDB_PASSWORD seed the admin account on first boot.
                     return new EngineSpec("couchdb", "couch", 5984, "admin", "default", "/opt/couchdb/data");
                 case "pgvector":
-                    // pgvector/pgvector tags use Postgres <=17 layout. CREATE EXTENSION vector runs
-                    // after the container is ready (see InitSqlFactory below).
-                    return new EngineSpec("pgvector/pgvector", "pgvec", 5432, "postgres", "postgres", "/var/lib/postgresql/data");
+                    // pgvector/pgvector tags are pg<major>, built on the upstream postgres image of that
+                    // major. CREATE EXTENSION vector runs after the container is ready.
+                    return new EngineSpec("pgvector/pgvector", "pgvec", 5432, "postgres", "postgres", PostgresDataPath(version));
                 case "neo4j":
                     // NEO4J_AUTH is read as "user/password" - we pass it via env. Default DB is "neo4j".
                     // Community Edition is single-database, so the name can't be customised.
@@ -365,6 +359,34 @@ namespace KRINT.Application.Command.Database
         {
             var head = version.Split('.', '-')[0];
             return int.TryParse(head, out var major) ? major : null;
+        }
+
+        /// <summary>
+        /// Where a postgres-based image keeps its data. Postgres 18+ stores it in
+        /// /var/lib/postgresql/&lt;major&gt;/docker and refuses to start when a volume sits at the old
+        /// PGDATA (/var/lib/postgresql/data) - so mount the parent for 18+ and the old PGDATA for
+        /// &lt;=17. Unknown or "latest" tags resolve to the modern layout: "latest" is 18+ today and
+        /// every future release will be too, so only a known &lt;=17 major uses the legacy path.
+        /// </summary>
+        internal static string PostgresDataPath(string version) =>
+            TryGetPostgresMajor(version) is { } major && major <= 17
+                ? "/var/lib/postgresql/data"
+                : "/var/lib/postgresql";
+
+        /// <summary>
+        /// The Postgres major behind a tag, whatever shape the image family uses: "18.6" / "18"
+        /// (postgres), "pg18" (pgvector), "latest-pg18" or "2.17.2-pg16" (timescaledb).
+        /// </summary>
+        internal static int? TryGetPostgresMajor(string version)
+        {
+            if (string.IsNullOrWhiteSpace(version)) return null;
+            var pg = version.LastIndexOf("pg", StringComparison.OrdinalIgnoreCase);
+            if (pg >= 0)
+            {
+                var digits = new string(version[(pg + 2)..].TakeWhile(char.IsDigit).ToArray());
+                return int.TryParse(digits, out var tagged) ? tagged : null;
+            }
+            return TryGetMajorVersion(version);
         }
 
         // pgvector/pgvector tags are pg<major>. The user picks an upstream Postgres version
