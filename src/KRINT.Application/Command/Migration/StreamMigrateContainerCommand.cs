@@ -60,6 +60,15 @@ namespace KRINT.Application.Command.Migration
             // 1. Probe source - cheap connection test before we provision anything expensive.
             yield return Running(1, "probe-source", "Probing source database connection");
 
+            string? hostError = null;
+            try { KRINT.Infrastructure.Services.ProbeHostGuard.Require(req.SourceHost); }
+            catch (ArgumentException ex) { hostError = ex.Message; }
+            if (hostError is not null)
+            {
+                yield return Failed(1, hostError);
+                yield break;
+            }
+
             // The dump runs as a docker exec inside SourceContainerId, which the browser chose.
             // Only a container whose image is the claimed engine is a legitimate target; anything
             // else is an authenticated user asking for a shell in an unrelated container.
