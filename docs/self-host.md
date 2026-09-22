@@ -14,7 +14,7 @@ You need a Linux/Windows host with **Docker + Compose v2**, and a directory to k
 | You have… | Do this |
 | --- | --- |
 | Your own OIDC provider (Pocket ID, Authentik, Auth0, Keycloak…) | [Quickstart](#quickstart) below - three files, no clone. |
-| Nothing yet, want to try it first | [Demo login](#no-oidc-provider-try-the-demo-login) - clone the repo, one command. |
+| No identity provider | [Local login](#no-oidc-provider-local-login) - leave `Oidc__Authority` unset, sign in with a local account. |
 | A single machine, just you | The [desktop app](./desktop.md) - SQLite, built-in login, no Docker auth setup. |
 
 ## Quickstart
@@ -119,24 +119,28 @@ On your IdP, register KRINT as a **public client** (PKCE, no secret) with redire
 KRINT has no roles of its own: anyone your IdP signs in can provision, browse and delete every database, and read every password. On a shared IdP, create a group (say `krint-admin`), put the operators in it, and set `Oidc__AdminRole=krint-admin` plus `Oidc__RequireAdminRoleGlobally=true`. If your IdP publishes groups under a claim other than `roles`, also set `Oidc__RoleClaim` (Pocket ID, Authentik and Entra use `groups`).
 :::
 
-## No OIDC provider? Try the demo login
+## No OIDC provider? Local login
 
-To try KRINT before wiring an identity provider, clone the repo. Its `compose.yml` boots Postgres, a
-mock OIDC issuer and KRINT with nothing to configure:
+Leave `Oidc__Authority` unset and KRINT signs users in against its own user table: a login form in the
+UI, rotating refresh tokens, lockout after repeated failures. On first boot it creates one account:
+
+| Variable | What it does |
+| --- | --- |
+| `LocalLogin__AdminUserName` | Name of the first account. Default `admin`. |
+| `LocalLogin__AdminPassword` | Its password. Leave unset and a random one is printed once in the container log (`docker logs krint`). |
+| `LocalLogin__SigningKey` | Optional. Base64 key (32+ bytes) that signs the session tokens; derived from `Vault__MasterKey` when unset, so nothing extra to configure. |
+
+The quickest way to see it is the repo's own stack, which uses exactly this:
 
 ```bash
 git clone https://github.com/PianoNic/KRINT.git && cd KRINT
-docker compose up -d     # postgres + mock issuer + krint on http://localhost:56722
+docker compose up -d     # postgres + krint on http://localhost:56722, sign in as admin / krint-admin
 ```
 
-Open <http://localhost:56722>: the mock issuer signs everyone in as **Demo Admin**, no password.
-
-::: danger Demo only
-Anyone who can reach that port is an admin, and the vault key in `compose.yml` is public. Use it on
-your own machine to evaluate KRINT, then move to the [Quickstart](#quickstart) with a real IdP for
-anything that stays up. For a single user on one machine, the [desktop app](./desktop) needs no
-identity provider at all.
-:::
+Change the password after signing in (Settings). Local login has no roles: every local account is an
+admin, and new accounts are created through the API (`POST /auth/users`) rather than a sign-up page.
+Point `Oidc__Authority` at an identity provider whenever you have one; the local tables stay but are
+no longer used for sign-in.
 
 ---
 
@@ -152,7 +156,7 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Vault__MasterKey` | AES-256 key for the secrets vault. **32 random bytes, base64** (`openssl rand -base64 32`). Encrypts every instance password. |
 | `ConnectionStrings__KrintDatabase` | KRINT's own metadata DB. Postgres: `Host=db;Port=5432;Database=krint;Username=postgres;Password=…`. SQLite: `Data Source=/data/krint.db`. |
 | `Database__Provider` | `Postgres` or `Sqlite` (default). Picks the metadata store. |
-| `Oidc__Authority` | Public IdP discovery URL. Must match the `issuer` in `<authority>/.well-known/openid-configuration` **byte-for-byte** (scheme, port, trailing slash). |
+| `Oidc__Authority` | Public IdP discovery URL. Unset = [local login](#no-oidc-provider-local-login). Must match the `issuer` in `<authority>/.well-known/openid-configuration` **byte-for-byte** (scheme, port, trailing slash). |
 | `Oidc__ClientId` | Client ID registered on the IdP (public/PKCE). |
 | `Oidc__RedirectUri` / `…PostLogoutRedirectUri` | Return URL after login/logout. Must be registered on the IdP, keep the trailing slash. |
 | `Oidc__Scope` | `openid profile email roles` (`roles` optional). |

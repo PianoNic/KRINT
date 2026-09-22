@@ -16,17 +16,6 @@ services:
       timeout: 3s
       retries: 30
 
-  mock-oauth2:
-    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
-    container_name: krint-mock-oauth2
-    restart: unless-stopped
-    environment:
-      JSON_CONFIG_PATH: /app/config.json
-    volumes:
-      - ./e2e/mock-oauth2-config.json:/app/config.json:ro
-    ports:
-      - "57538:8080"
-
   krint:
     image: ghcr.io/pianonic/krint:latest
     build:
@@ -43,13 +32,10 @@ services:
     environment:
       Database__Provider: "Postgres"
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=d4vpas8w0rd13!!!"
-      Oidc__Authority: "http://localhost:57538/default"
-      Oidc__InternalAuthority: "http://mock-oauth2:8080/default"
-      Oidc__RequireHttpsMetadata: "false"
-      Oidc__ClientId: krint
-      Oidc__RedirectUri: "http://localhost:56722/"
-      Oidc__PostLogoutRedirectUri: "http://localhost:56722/"
-      Oidc__Scope: "openid profile email roles"
+      # No Oidc__Authority: KRINT runs with local password login and seeds this admin account.
+      # Set Oidc__* (see docs/self-host.md) to use your own identity provider instead.
+      LocalLogin__AdminUserName: admin
+      LocalLogin__AdminPassword: krint-admin
       Cors__AllowedOrigins__0: "http://localhost:56722"
       Krint__PublicUrl: "http://localhost:56722"
       # Demo key for this local stack only. Real deployments generate their own (openssl rand -base64 32).
@@ -57,8 +43,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      mock-oauth2:
-        condition: service_started
     ports:
       - "56722:8080"
     volumes:

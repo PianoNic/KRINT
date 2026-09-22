@@ -51,7 +51,7 @@ namespace KRINT.API
                 origins.Length);
 
             if (string.IsNullOrWhiteSpace(authority))
-                logger.LogError("Oidc__Authority is not set. Nobody can sign in until it points at your identity provider's issuer URL.");
+                logger.LogInformation("Oidc__Authority is not set: running with local password login. Set it to your identity provider's issuer URL to use OIDC instead.");
 
             if (krintOptions.Value.PortRanges.Count == 0)
                 logger.LogWarning("No port ranges configured (krint.yaml -> krint.port_ranges). Provisioning will refuse every engine until they are.");

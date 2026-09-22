@@ -6,13 +6,12 @@ import {
   HttpTransportType,
   LogLevel,
 } from '@microsoft/signalr';
-import { OidcSecurityService } from 'angular-auth-oidc-client';
-import { firstValueFrom } from 'rxjs';
+import { AUTH_FACADE } from '../shared/auth/auth-facade';
 import { environment } from '../shared/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class DashboardHubService {
-  private readonly oidc = inject(OidcSecurityService);
+  private readonly auth = inject(AUTH_FACADE);
   private connection: HubConnection | null = null;
   private connectPromise: Promise<HubConnection> | null = null;
 
@@ -23,7 +22,7 @@ export class DashboardHubService {
     this.connectPromise = (async () => {
       const conn = new HubConnectionBuilder()
         .withUrl(`${environment.apiBaseUrl}/hubs/dashboard`, {
-          accessTokenFactory: async () => (await firstValueFrom(this.oidc.getAccessToken())) ?? '',
+          accessTokenFactory: async () => await this.auth.getAccessToken(),
           transport: HttpTransportType.WebSockets,
           skipNegotiation: true,
         })
