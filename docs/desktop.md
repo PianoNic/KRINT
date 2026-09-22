@@ -12,6 +12,20 @@ The desktop build is a [Tauri v2](https://v2.tauri.app) window wrapped around th
 (Production `MapFallbackToFile`), so the webview just points at the local backend - no separate
 frontend build, no API changes.
 
+## Download
+
+Installers for every release are on the [GitHub Releases page](https://github.com/PianoNic/KRINT/releases/latest):
+
+| Platform | File |
+| --- | --- |
+| Windows | `KRINT_<version>_x64-setup.exe` (installer) or `KRINT-portable-win-x64.exe` (no install) |
+| macOS (Apple Silicon) | `KRINT-portable-osx-arm64.zip` |
+| Linux | `KRINT_<version>_amd64.AppImage`, `.deb` or `.rpm` |
+
+Docker Desktop (or a Docker daemon) must be running: the app provisions databases as containers.
+Installed builds check the release feed on start and update themselves. Everything below is for
+building the app from source.
+
 ## How it works
 
 On launch the desktop shell (`src-tauri/src/lib.rs`):
@@ -21,8 +35,8 @@ On launch the desktop shell (`src-tauri/src/lib.rs`):
    (no login screen) - zero-config local sign-in, no Docker or Java needed.
 3. Spawns `KRINT.API` as a **sidecar** with `Database__Provider=Sqlite` and the SQLite file in
    the app-data dir.
-4. Waits for the API to log `Application started`, then navigates the window to
-   `http://127.0.0.1:5111/`.
+4. Picks two free loopback ports at launch (API and issuer), polls the API port until it
+   answers, then navigates the window to it.
 5. On exit, kills the API child; the in-process OIDC issuer stops with the app.
 
 ### Why Docker is still required
@@ -130,8 +144,5 @@ work - the rest of the desktop build still does.
 
 - **Keep ICU**: the sidecar is published *without* `InvariantGlobalization` because the MSSQL
   client needs ICU. Single-file self-contained bundles ICU by default.
-- **Ports** (`5111` API, `18080` OIDC) are currently fixed in `src-tauri/src/lib.rs`. Binding the
-  API to port `0` and parsing the chosen port from stdout would avoid collisions - a good
-  follow-up.
 - The desktop SQLite database lives in the OS app-data dir (e.g. `%APPDATA%/app.krint.desktop`,
   `~/Library/Application Support/app.krint.desktop`, `~/.local/share/app.krint.desktop`).
