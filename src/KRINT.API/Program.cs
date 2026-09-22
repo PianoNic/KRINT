@@ -22,6 +22,12 @@ builder.Configuration.Sources.Insert(0, new Microsoft.Extensions.Configuration.M
     InitialData = new Dictionary<string, string?>
     {
         ["Krint:Role"] = "control",
+        // The same log levels appsettings.json carries; without them every request and every
+        // SQL statement is logged at Information and a small log file turns over in a minute.
+        ["Logging:LogLevel:Default"] = "Information",
+        ["Logging:LogLevel:Microsoft.AspNetCore"] = "Warning",
+        ["Logging:LogLevel:Microsoft.EntityFrameworkCore"] = "Warning",
+        ["Logging:LogLevel:System.Net.Http"] = "Warning",
         ["Oidc:ValidateAudience"] = "false",
         ["Oidc:QueryToken:IncludePaths:0"] = "/hubs",
         ["Oidc:QueryToken:ExcludePaths:0"] = "/hubs/node",
