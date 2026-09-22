@@ -34,6 +34,29 @@ namespace KRINT.Infrastructure.Services
 
         public override Task ResetPasswordAsync(InnerDatabaseTarget target, string name, string newPassword, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("CockroachDB runs in insecure mode, which has no user passwords.");
+
+        // CockroachDB only implements DROP OWNED BY in its declarative schema changer, and refuses
+        // it from a driver session (0A000). Explicit REVOKEs on the database and its public schema
+        // objects leave the role with nothing DROP ROLE would object to.
+        protected override async Task DetachRoleAsync(Npgsql.NpgsqlConnection dbConn, string database, string name, string superuser, CancellationToken cancellationToken)
+        {
+            // The catalog lists CockroachDB's own "system" database too; nothing there is grantable.
+            if (string.Equals(database, "system", StringComparison.OrdinalIgnoreCase)) return;
+
+            foreach (var sql in new[]
+            {
+                $"REASSIGN OWNED BY \"{name}\" TO \"{superuser}\"",
+                $"REVOKE ALL ON DATABASE \"{database}\" FROM \"{name}\"",
+                $"REVOKE ALL ON SCHEMA public FROM \"{name}\"",
+                $"REVOKE ALL ON ALL TABLES IN SCHEMA public FROM \"{name}\"",
+                $"REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM \"{name}\"",
+            })
+            {
+                await using var cmd = new Npgsql.NpgsqlCommand(sql, dbConn);
+                try { await cmd.ExecuteNonQueryAsync(cancellationToken); }
+                catch (Npgsql.PostgresException ex) when (ex.SqlState == "42501") { /* system object in this database - nothing to revoke */ }
+            }
+        }
     }
 
     public sealed class CockroachDbInnerSchemaService : PostgresInnerSchemaService
