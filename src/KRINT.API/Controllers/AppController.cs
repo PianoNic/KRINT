@@ -17,6 +17,7 @@ namespace KRINT.API.Controllers
         IOptions<ToamaisutaaOidcOptions> oidc) : ControllerBase
     {
         [AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(SecurityHeaders.AnonymousPolicy)]
         [HttpGet]
         [ProducesResponseType(typeof(AppDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get(CancellationToken cancellationToken)

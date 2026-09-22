@@ -101,7 +101,41 @@ builder.Services.PostConfigure<ToamaisutaaOidcOptions>(options =>
         options.PublicUrl = builder.Configuration["Krint:PublicUrl"];
 });
 
+// The anonymous endpoints (SPA configuration, health) are the only ones reachable without a
+// token, so they are the only ones a stranger can hammer. Per caller address, generous enough
+// that a dashboard reloading in a loop never notices.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(SecurityHeaders.AnonymousPolicy, context =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+});
+
 var app = builder.Build();
+
+// Behind a TLS-terminating proxy the scheme and host KRINT sees are the proxy's, which breaks
+// the derived login redirect (http:// where the IdP expects https://). Opt-in, because trusting
+// these headers from just anyone lets a direct caller spoof its address and scheme.
+if (builder.Configuration.GetValue("Krint:TrustForwardedHeaders", false))
+{
+    var forwarded = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+    {
+        ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost,
+    };
+    forwarded.KnownNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwarded);
+}
+
+app.UseSecurityHeaders(builder.Configuration["Oidc:Authority"]);
 
 app.ApplyMigrations();
 await app.ApplySeedsAsync();
@@ -129,6 +163,7 @@ if (app.Environment.IsProduction())
 
 app.UseRouting();
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

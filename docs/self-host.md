@@ -149,6 +149,7 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Oidc__RoleClaim` | Claim that carries group membership. Defaults to `roles` (Keycloak); Pocket ID, Authentik and Entra publish `groups`. |
 | `Oidc__ValidateAudience` | `false` by default: KRINT accepts whatever audience the IdP stamps on the token. Set `true` once the IdP puts the client ID in `aud` (Keycloak needs an audience mapper for that). |
 | `Cors__AllowedOrigins__0` | Browser origin allowed to call the API - KRINT URL **without** trailing slash. Add more as `__1`, `__2`. |
+| `Krint__TrustForwardedHeaders` | `true` only behind a reverse proxy: honour `X-Forwarded-For/Proto/Host` from it. |
 | `Krint__PublicUrl` | Public URL this control plane is served on (e.g. `https://krint.example.com`). Drives the [Add-node](./nodes#add-a-node) compose, and backs the OIDC redirect + CORS when those aren't set explicitly. **Required to add nodes** - it must be reachable from each node's host (not `localhost`); the Add-node dialog refuses to generate a compose until it's set. |
 | `Backup__Directory` | Where dumps are written. Optional - defaults to `/app/backups` (the path the compose bind-mounts). |
 | `Docker__Endpoint` | Docker daemon URI, e.g. `unix:///var/run/docker.sock`. Optional - auto-detected (Unix socket / Windows named pipe) when unset. |
@@ -214,7 +215,7 @@ KRINT's SPA uses Authorization Code Flow + **PKCE**, so register a **public clie
 <details>
 <summary><strong>Reverse proxy (Caddy/Traefik/nginx)</strong></summary>
 
-Make the public origin match `Oidc__RedirectUri` and `Cors__AllowedOrigins__0`, trust `X-Forwarded-*`, and serve over HTTPS.
+Make the public origin match `Oidc__RedirectUri` and `Cors__AllowedOrigins__0`, serve over HTTPS, and set `Krint__TrustForwardedHeaders: "true"` so KRINT reads the proxy's `X-Forwarded-Proto` / `X-Forwarded-Host` instead of seeing plain `http://krint:8080`. Leave it unset when KRINT is reached directly - with it on, any caller could spoof its scheme and address.
 
 ```caddy
 krint.example.com { reverse_proxy krint:8080 }
