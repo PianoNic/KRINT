@@ -33,11 +33,11 @@
         <span hlmBadge variant="destructive">{{ err }}</span>
       </div>
     }
-    @if (store.isEmpty()) {
+    @if (store.isEmpty() && !store.error()) {
       <p class="text-muted-foreground p-4 text-sm">
         No instances yet. Click <strong>Create</strong> to provision one.
       </p>
-    } @else {
+    } @else if (!store.isEmpty()) {
       <table hlmTable>
         <thead hlmTableHeader>
           <tr hlmTableRow>
@@ -181,7 +181,8 @@
                       <button
                         hlmDropdownMenuItem
                         (click)="upgradeInstance(db)"
-                        [disabled]="!db.isManaged || db.isConfigManaged"
+                        [disabled]="!canUpgrade(db)"
+                        [attr.title]="db.isManaged && !backupCapable().has(db.engine) ? 'This engine has no dump/restore, which the upgrade needs.' : null"
                       >
                         <ng-icon name="lucideArrowUpCircle" />
                         Upgrade version

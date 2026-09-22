@@ -54,7 +54,7 @@ export const DatabasesStore = signalStore(
   { providedIn: 'root' },
   withState(initialState),
   withComputed((store) => ({
-    isEmpty: computed(() => !store.loading() && store.instances().length === 0),
+    isEmpty: computed(() => !store.loading() && !store.error() && store.instances().length === 0),
   })),
   withMethods((store, api = inject(DatabaseService)) => ({
     load: rxMethod<void>(

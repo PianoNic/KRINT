@@ -152,10 +152,14 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
           </div>
           <div class="flex items-center gap-1">
             @if (selectedInstanceId()) {
-              <button hlmBtn type="button" size="sm" [disabled]="creating()" (click)="create()">
-                <ng-icon name="lucidePlus" size="14" />
-                {{ creating() ? 'Snapshotting...' : 'Create backup' }}
-              </button>
+              @if (selectedSupportsBackup()) {
+                <button hlmBtn type="button" size="sm" [disabled]="creating()" (click)="create()">
+                  <ng-icon name="lucidePlus" size="14" />
+                  {{ creating() ? 'Snapshotting...' : 'Create backup' }}
+                </button>
+              } @else {
+                <span class="text-muted-foreground text-[11px]">This engine has no dump/restore yet, so backups and restores are not available for it.</span>
+              }
               <button hlmBtn variant="outline" type="button" size="sm" [disabled]="importing()" (click)="fileInput.click()">
                 <ng-icon name="lucideUpload" size="14" />
                 {{ importing() ? 'Uploading...' : 'Import backup' }}
@@ -373,6 +377,17 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
 export class Backups {
   private readonly api = inject(BackupsService);
   private readonly dbApi = inject(DatabaseService);
+  protected readonly backupCapable = signal<ReadonlySet<string>>(new Set());
+  private readonly loadCatalog = this.dbApi.apiDatabaseSupportedGet().subscribe({
+    next: (engines) =>
+      this.backupCapable.set(new Set(engines.filter((e) => e.capabilities?.supportsBackup).map((e) => e.key))),
+    error: () => this.backupCapable.set(new Set()),
+  });
+  protected readonly selectedSupportsBackup = computed(() => {
+    const id = this.selectedInstanceId();
+    const engine = this.instances().find((i) => i.id === id)?.engine;
+    return engine ? this.backupCapable().has(engine) : false;
+  });
   private readonly http = inject(HttpClient);
   private readonly confirmService = inject(ConfirmService);
   private readonly scheduleDialog = inject(BackupScheduleDialogService);

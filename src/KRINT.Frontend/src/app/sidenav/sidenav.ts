@@ -14,6 +14,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideActivity,
   lucideArchive,
+  lucideHouse,
   lucideChevronsUpDown,
   lucideDatabase,
   lucideLogOut,
@@ -39,6 +40,7 @@ import { AppService } from '../api/api/app.service';
   providers: [
     provideIcons({
       lucideActivity,
+      lucideHouse,
       lucideArchive,
       lucideChevronsUpDown,
       lucideDatabase,
@@ -103,6 +105,7 @@ export class Sidenav {
 
   protected readonly themeMode = this.theme.mode;
   protected readonly navItems: ReadonlyArray<{ route: string; label: string; icon: string }> = [
+    { route: '/', label: 'Home', icon: 'lucideHouse' },
     { route: '/instances', label: 'Instances', icon: 'lucideServer' },
     { route: '/browser', label: 'Browser', icon: 'lucideTable' },
     { route: '/backups', label: 'Backups', icon: 'lucideArchive' },

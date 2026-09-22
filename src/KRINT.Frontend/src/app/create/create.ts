@@ -1,11 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -117,6 +110,7 @@ export class Create {
   protected readonly engine = signal<string | null>(null);
   protected readonly version = signal<string | null>(null);
   protected readonly displayName = signal('');
+  protected readonly displayNameTouched = signal(false);
   protected readonly defaultDbName = signal('');
   protected readonly databases = signal<string[]>([]);
   protected readonly users = signal<WizardUser[]>([]);
@@ -297,10 +291,15 @@ export class Create {
     });
 
     effect(() => {
-      // Reset version + plugins when engine changes.
-      this.engine();
-      this.version.set(null);
+      // Engine changed (or the catalog arrived): start from its newest version rather than an
+      // empty select, drop plugins that belonged to the previous engine, and suggest a name so
+      // the first screen never starts with a red "Required." for someone who just clicked a tile.
+      const engine = this.engine();
+      this.version.set(this.versions()[0] ?? null);
       this.selectedPlugins.set(new Set());
+      if (engine && untracked(() => this.displayName()).trim() === '') {
+        this.displayName.set(`${engine}-1`);
+      }
     });
   }
 
