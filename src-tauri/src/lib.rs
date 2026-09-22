@@ -149,6 +149,7 @@ async fn check_for_updates(app: tauri::AppHandle) {
 fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&data_dir)?;
+    restrict_to_owner(&data_dir)?;
 
     let db_path = data_dir.join("krint.db");
     let vault_key = load_or_create_vault_key(&data_dir)?;
@@ -355,8 +356,39 @@ fn load_or_create_vault_key(data_dir: &PathBuf) -> Result<String, Box<dyn std::e
     let mut bytes = [0u8; 32];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut bytes);
     let key = base64::engine::general_purpose::STANDARD.encode(bytes);
-    std::fs::write(&key_file, &key)?;
+    write_private(&key_file, &key)?;
     Ok(key)
+}
+
+/// Write a secret so that only the owning account can read it. On Unix that is mode 0600 on
+/// the file; `std::fs::write` would leave the default 0644 and hand the vault key to every
+/// other login on the machine. On Windows the app-data dir sits under the user's profile,
+/// whose ACL already restricts it to that user.
+fn write_private(path: &std::path::Path, contents: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(contents.as_bytes())
+}
+
+/// The app-data dir holds both key files; keep the directory itself owner-only on Unix too.
+fn restrict_to_owner(dir: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = dir;
+    }
+    Ok(())
 }
 
 /// The password of the desktop account. Like the vault key it is generated once and kept in
@@ -373,6 +405,6 @@ fn load_or_create_local_password(data_dir: &PathBuf) -> Result<String, Box<dyn s
     let mut bytes = [0u8; 24];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut bytes);
     let password = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
-    std::fs::write(&file, &password)?;
+    write_private(&file, &password)?;
     Ok(password)
 }
