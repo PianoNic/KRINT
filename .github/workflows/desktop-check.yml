@@ -13,14 +13,27 @@ on:
 
 jobs:
   check:
-    name: cargo check (Windows)
-    runs-on: windows-latest
+    name: cargo check (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
     env:
       CARGO_NET_RETRY: "10"
       CARGO_HTTP_MULTIPLEXING: "false"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, label: Windows }
+          # The Unix-only code paths (file modes) never compile on Windows, so one Linux runner.
+          - { os: ubuntu-22.04, label: Linux }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev             libayatana-appindicator3-dev patchelf
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -50,6 +63,10 @@ jobs:
 
       - name: cargo check
         working-directory: src-tauri
-        run: |
-          cargo check
-          cargo check --features portable
+        run: cargo check
+
+      # The portable feature embeds the Windows sidecar exe; the release builds it on Windows only.
+      - name: cargo check (portable)
+        if: runner.os == 'Windows'
+        working-directory: src-tauri
+        run: cargo check --features portable
