@@ -95,8 +95,23 @@ namespace KRINT.API.Hubs
             return session.Id;
         }
 
+        /// <summary>A session belongs to the connection that started it. Ids are random, but a
+        /// leaked one must not let another signed-in client type into someone else's shell.</summary>
+        private void RequireOwnSession(string sessionId)
+        {
+            if (_sessionsByConnection.TryGetValue(Context.ConnectionId, out var set))
+            {
+                lock (set)
+                {
+                    if (set.Contains(sessionId)) return;
+                }
+            }
+            throw new HubException("Unknown console session.");
+        }
+
         public async Task WriteExec(string sessionId, string base64Data)
         {
+            RequireOwnSession(sessionId);
             if (streamRelay.TryGetExec(sessionId, out var nodeId, out _))
             {
                 await nodeRpc.InvokeAsync<bool>(nodeId, "WriteExec", [sessionId, base64Data], Context.ConnectionAborted);
@@ -108,6 +123,7 @@ namespace KRINT.API.Hubs
 
         public async Task ResizeExec(string sessionId, uint cols, uint rows)
         {
+            RequireOwnSession(sessionId);
             if (streamRelay.TryGetExec(sessionId, out var nodeId, out _))
             {
                 await nodeRpc.InvokeAsync<bool>(nodeId, "ResizeExec", [sessionId, cols, rows], Context.ConnectionAborted);
@@ -118,6 +134,7 @@ namespace KRINT.API.Hubs
 
         public async Task EndExec(string sessionId)
         {
+            RequireOwnSession(sessionId);
             if (_sessionsByConnection.TryGetValue(Context.ConnectionId, out var set))
             {
                 lock (set) set.Remove(sessionId);
