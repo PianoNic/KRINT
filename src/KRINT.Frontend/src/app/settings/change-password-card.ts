@@ -6,6 +6,7 @@ import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmLabelImports } from '@spartan-ng/helm/label';
 import { AUTH_FACADE } from '../shared/auth/auth-facade';
 import { environment } from '../shared/environments/environment';
+import { AppInfoService } from '../shared/services/app-info.service';
 
 /**
  * Change the signed-in account's password. Local login only: with an identity provider the
@@ -17,7 +18,8 @@ import { environment } from '../shared/environments/environment';
   imports: [HlmButtonImports, HlmCardImports, HlmInputImports, HlmLabelImports],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (auth.mode === 'local') {
+    <!-- Hidden in the desktop shell: it signs in with a password it keeps itself, so a change here locks the user out. -->
+    @if (auth.mode === 'local' && !appInfo.desktop()) {
       <section hlmCard>
         <div hlmCardHeader>
           <h2 hlmCardTitle>Password</h2>
@@ -51,6 +53,7 @@ import { environment } from '../shared/environments/environment';
 })
 export class ChangePasswordCard {
   protected readonly auth = inject(AUTH_FACADE);
+  protected readonly appInfo = inject(AppInfoService);
   private readonly http = inject(HttpClient);
 
   protected readonly current = signal('');
