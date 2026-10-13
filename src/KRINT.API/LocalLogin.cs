@@ -48,8 +48,8 @@ namespace KRINT.API
             services.AddToamaisutaaEntityFrameworkStores<KrintDbContext>();
             services.AddToamaisutaaPasswordLogin(configuration);
             services.AddToamaisutaaTokenCleanup();
-            // Required by the library, and there is no mail server to hand a reset token to: it
-            // goes to the log, where the operator who runs the box can read it.
+            // Required by the library, and there is no mail server to hand a reset token to. The
+            // log only records that one was issued unless the operator opts in (see LogNotifier).
             services.AddSingleton<IPasswordResetNotifier, LogNotifier>();
             services.AddSingleton<IAdminPasswordIssuedNotifier, LogNotifier>();
             services.AddHostedService<LocalAdminSeeder>();
@@ -61,8 +61,8 @@ namespace KRINT.API
         internal static string GeneratePassword()
         {
             const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-            var bytes = RandomNumberGenerator.GetBytes(20);
-            return new string(bytes.Select(b => alphabet[b % alphabet.Length]).ToArray());
+            // Uniform over the alphabet; a plain byte modulo would favour its first characters.
+            return RandomNumberGenerator.GetString(alphabet, 20);
         }
 
         public static void MapKrintLocalLogin(this WebApplication app)
@@ -120,17 +120,31 @@ namespace KRINT.API
 
         }
 
-        private sealed class LogNotifier(ILogger<LogNotifier> logger) : IPasswordResetNotifier, IAdminPasswordIssuedNotifier
+        /// <summary>
+        /// Records that a reset or an issued password happened, never the credential itself: logs
+        /// get shipped, retained and read by people who should not be able to sign in as anyone.
+        /// <c>LocalLogin:LogIssuedCredentials=true</c> opts back in for a box where the log is the
+        /// only channel to the operator and nobody else reads it.
+        /// </summary>
+        private sealed class LogNotifier(IConfiguration configuration, ILogger<LogNotifier> logger) : IPasswordResetNotifier, IAdminPasswordIssuedNotifier
         {
+            private bool LogCredentials => configuration.GetValue("LocalLogin:LogIssuedCredentials", false);
+
             public Task SendAsync(ToamaisutaaUser user, string resetToken, CancellationToken cancellationToken = default)
             {
-                logger.LogWarning("Password reset requested for '{User}'. Token (valid once, one hour): {Token}", user.UserName ?? user.Email, resetToken);
+                if (LogCredentials)
+                    logger.LogWarning("Password reset requested for '{User}'. Token (valid once, one hour): {Token}", user.UserName ?? user.Email, resetToken);
+                else
+                    logger.LogInformation("Password reset requested for '{User}'. The token is not logged (set LocalLogin__LogIssuedCredentials=true to log it).", user.UserName ?? user.Email);
                 return Task.CompletedTask;
             }
 
             public Task PasswordIssuedAsync(ToamaisutaaUser user, string rawPassword, CancellationToken cancellationToken = default)
             {
-                logger.LogWarning("A password was issued for '{User}': {Password}", user.UserName ?? user.Email, rawPassword);
+                if (LogCredentials)
+                    logger.LogWarning("A password was issued for '{User}': {Password}", user.UserName ?? user.Email, rawPassword);
+                else
+                    logger.LogInformation("A password was issued for '{User}'. It is not logged (set LocalLogin__LogIssuedCredentials=true to log it).", user.UserName ?? user.Email);
                 return Task.CompletedTask;
             }
         }
