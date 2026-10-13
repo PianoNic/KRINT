@@ -26,6 +26,7 @@ dotnet user-secrets --project src/KRINT.API set "Cors:AllowedOrigins:0" "http://
 
 # Vault master key, used by SecretsVaultService to AES-GCM encrypt stored secrets at rest.
 # 32 raw bytes, base64-encoded. Generate fresh on bash via `openssl rand -base64 32`.
+# Optional: without it the API generates one into src/KRINT.API/data/vault.key (git-ignored).
 dotnet user-secrets --project src/KRINT.API set "Vault:MasterKey" "$(openssl rand -base64 32)"
 
 # Optional: a known password for the first local account (otherwise it is printed once in the API log).
