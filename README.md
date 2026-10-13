@@ -93,7 +93,7 @@ Full documentation: **[docs.krint.pianonic.ch](https://docs.krint.pianonic.ch)**
 - **SignalR** for the live dashboard, log tailing, and interactive shell; **xterm.js** for the console.
 - **Docker.DotNet** for container lifecycle.
 - **Toamaisutaa** for OIDC bearer validation against any provider.
-- **TUnit** + **Microsoft.Playwright** for tests; **OpenAPI** client via `bun run apigen`.
+- **TUnit** for unit and API integration tests; **OpenAPI** client via `bun run apigen`.
 
 </details>
 

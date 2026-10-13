@@ -25,7 +25,7 @@ Use them whenever one exists — `gh issue create`, `gh pr create`, `npx create-
 
 ## Local dev setup
 
-- `compose.yml` runs KRINT with local password login (no identity provider); `e2e/compose.e2e.yml` uses `mock-oauth2-server`.
+- `compose.yml` runs KRINT with local password login (no identity provider); `integration/compose.yml` (the API integration test stack) uses local login too.
 - Ports are fixed in `compose.yml` — edit them if they conflict.
 - `Vault__MasterKey` is optional: without it KRINT generates `data/vault.key` on first boot (mounted via `./data` in compose.yml) and prints the admin password to the log.
 - The runtime image is `mcr.microsoft.com/dotnet/aspnet:10.0.x-azurelinux3.0` (non-distroless) — required for ICU/globalization support (MSSQL client).

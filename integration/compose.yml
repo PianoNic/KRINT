@@ -1,0 +1,42 @@
+# Throwaway KRINT stack for the API integration tests (src/KRINT.Tests/Integration).
+# KrintStack drives this file; to debug by hand: docker compose -f integration/compose.yml up -d --build
+name: krint-integration
+
+services:
+  postgres:
+    image: postgres:18.3
+    environment:
+      POSTGRES_DB: krint-test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d krint-test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  krint:
+    build:
+      context: ..
+      dockerfile: src/KRINT.API/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "18081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__Provider: Postgres
+      ConnectionStrings__KrintDatabase: Host=postgres;Port=5432;Database=krint-test;Username=postgres;Password=postgres-test
+      # No Oidc__Authority: local password login. The tests sign in through /auth/session/login
+      # with this seeded admin and send the access token as a Bearer header.
+      LocalLogin__AdminUserName: admin
+      LocalLogin__AdminPassword: Integration-Admin-Pass-2026
+      Cors__AllowedOrigins__0: http://localhost:18081
+      # Test-only AES-256 key (32 raw bytes, base64-encoded), never reused outside this file.
+      Vault__MasterKey: 2mQDW+EHU9DMVgjqdYlrmLIgNk4LlU06n8FgM7Vtsd4=
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../krint.yaml:/app/krint.yaml:ro
