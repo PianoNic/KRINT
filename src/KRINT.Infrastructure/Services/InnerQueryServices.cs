@@ -137,14 +137,25 @@ namespace KRINT.Infrastructure.Services
         public async Task<QueryResult> RunAsync(InnerDatabaseTarget target, string database, string sql, int rowLimit, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            // ClickHouse.Client takes a Postgres-style connection string; HTTP under the hood.
-            var connStr = $"Host={target.Host};Port={target.Port};Username={target.Username};Password={target.Password};Database={database};Compress=false;";
-            await using var conn = new ClickHouseConnection(connStr);
+            await using var conn = new ClickHouseConnection(BuildConnectionString(target, database));
             await conn.OpenAsync(cancellationToken);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = sql;
             cmd.CommandTimeout = 30;
             return await QueryMaterialiser.ExecuteAsync(cmd, rowLimit, cancellationToken);
         }
+
+        /// <summary>Built with the driver's builder rather than concatenated, so a password
+        /// containing ';' or '=' cannot break the string or inject another setting.</summary>
+        internal static string BuildConnectionString(InnerDatabaseTarget target, string database) =>
+            new ClickHouseConnectionStringBuilder
+            {
+                Host = target.Host,
+                Port = (ushort)target.Port,
+                Username = target.Username,
+                Password = target.Password,
+                Database = database,
+                Compression = false,
+            }.ConnectionString;
     }
 }

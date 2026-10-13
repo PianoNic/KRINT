@@ -6,27 +6,31 @@ namespace KRINT.Application
     {
         public static string Build(string engine, string host, int port, string username, string password, string database)
         {
+            // URL forms: a password holding @ : / ? # or % would otherwise end the userinfo early
+            // and point the URL at the wrong host or database, so user and password are escaped.
+            var u = Uri.EscapeDataString(username);
+            var p = Uri.EscapeDataString(password);
             return engine switch
             {
-                "postgres" => $"postgres://{username}:{password}@{host}:{port}/{database}",
-                "timescaledb" => $"postgres://{username}:{password}@{host}:{port}/{database}",
-                "mysql" => $"mysql://{username}:{password}@{host}:{port}/{database}",
-                "mariadb" => $"mariadb://{username}:{password}@{host}:{port}/{database}",
-                "mongo" => $"mongodb://{username}:{password}@{host}:{port}/{database}?authSource=admin",
+                "postgres" => $"postgres://{u}:{p}@{host}:{port}/{database}",
+                "timescaledb" => $"postgres://{u}:{p}@{host}:{port}/{database}",
+                "mysql" => $"mysql://{u}:{p}@{host}:{port}/{database}",
+                "mariadb" => $"mariadb://{u}:{p}@{host}:{port}/{database}",
+                "mongo" => $"mongodb://{u}:{p}@{host}:{port}/{database}?authSource=admin",
                 // For Redis we surface the connection as a redis:// URL with an empty user (Redis pre-ACL clients ignore it).
-                "redis" => $"redis://default:{password}@{host}:{port}/{database}",
+                "redis" => $"redis://default:{p}@{host}:{port}/{database}",
                 // CockroachDB uses the Postgres wire protocol - same URL shape.
-                "cockroachdb" => $"postgres://{username}@{host}:{port}/{database}?sslmode=disable",
+                "cockroachdb" => $"postgres://{u}@{host}:{port}/{database}?sslmode=disable",
                 // ClickHouse exposes HTTP at this port; the URL works in clickhouse-client too.
-                "clickhouse" => $"http://{username}:{password}@{host}:{port}/?database={database}",
+                "clickhouse" => $"http://{u}:{p}@{host}:{port}/?database={Uri.EscapeDataString(database)}",
                 "cassandra" => $"cassandra://{host}:{port}/{database}",
-                "couchdb" => $"http://{username}:{password}@{host}:{port}/",
-                "pgvector" => $"postgres://{username}:{password}@{host}:{port}/{database}",
-                "neo4j" => $"bolt://{username}:{password}@{host}:{port}",
+                "couchdb" => $"http://{u}:{p}@{host}:{port}/",
+                "pgvector" => $"postgres://{u}:{p}@{host}:{port}/{database}",
+                "neo4j" => $"bolt://{u}:{p}@{host}:{port}",
                 // Qdrant authenticates with an api-key header, not a URL credential; the key is the
                 // instance password shown beside this string.
                 "qdrant" => $"http://{host}:{port}",
-                "valkey" => $"redis://default:{password}@{host}:{port}/{database}",
+                "valkey" => $"redis://default:{p}@{host}:{port}/{database}",
                 "mssql" => $"Server={host},{port};User Id={username};Password={password};Database={database};TrustServerCertificate=true",
                 // S3 endpoint; access key and secret are the instance username and password.
                 "seaweedfs" => $"http://{host}:{port}",
