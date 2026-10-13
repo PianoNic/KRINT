@@ -203,6 +203,8 @@ namespace KRINT.API.Nodes
                     if (_connection is null) return;
                     try { await _connection.SendAsync("ExecExited", sessionId, code); } catch { }
                 };
+                // Handlers are attached; only now start reading so the first prompt isn't lost.
+                session.Start();
                 return true;
             });
             c.On<string, string, bool>("WriteExec", async (sessionId, base64) =>
