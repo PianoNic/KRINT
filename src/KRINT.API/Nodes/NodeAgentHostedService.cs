@@ -24,6 +24,8 @@ namespace KRINT.API.Nodes
         private static readonly TimeSpan TransferExecTimeout = TimeSpan.FromMinutes(60);
         private readonly CancellationTokenSource _shutdown = new();
         private string _nodeId = "";
+        // Connections closed since the last successful Register; drives the reconnect backoff.
+        private int _closesSinceRegister;
         // Active log follows started by the control plane, so StopLogStream can cancel them.
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource> _logStreams = new();
         // Active interactive exec sessions keyed by the control-plane session id.
@@ -58,7 +60,7 @@ namespace KRINT.API.Nodes
 
             _connection = new HubConnectionBuilder()
                 .WithUrl(hubUrl, options => options.Headers.Add(Infrastructure.Services.NodeTokenHasher.HeaderName, token))
-                .WithAutomaticReconnect()
+                .WithAutomaticReconnect(new NodeReconnectPolicy())
                 .Build();
 
             _transferClient = new HttpClient
@@ -78,6 +80,19 @@ namespace KRINT.API.Nodes
             // Re-register after every (re)connect, since the registry is keyed by connection id and a
             // reconnect yields a fresh one.
             _connection.Reconnected += async _ => await RegisterAsync(name, CancellationToken.None);
+
+            // Automatic reconnect only covers a dropped connection. When the control plane closes it
+            // (a graceful restart, or a rejected token after this node was deleted) the connection
+            // just ends, so dial again until the agent shuts down. Back off on every close that came
+            // before a successful registration, so a rejected token can't spin in a tight loop.
+            _connection.Closed += ex =>
+            {
+                if (_shutdown.IsCancellationRequested) return Task.CompletedTask;
+                var delay = NodeReconnectPolicy.DelayFor(Interlocked.Increment(ref _closesSinceRegister));
+                logger.LogWarning("Node agent lost the control plane connection ({Message}); reconnecting in {Delay}s.", ex?.Message ?? "closed by the control plane", delay.TotalSeconds);
+                _ = ConnectLoopAsync(name, hubUrl, delay);
+                return Task.CompletedTask;
+            };
 
             // Kick off the connect loop in the background so app startup isn't blocked on the control plane.
             _ = ConnectLoopAsync(name, hubUrl);
@@ -105,22 +120,33 @@ namespace KRINT.API.Nodes
             catch (OperationCanceledException) { /* shutting down */ }
         }
 
-        private async Task ConnectLoopAsync(string name, string hubUrl)
+        private async Task ConnectLoopAsync(string name, string hubUrl, TimeSpan initialDelay = default)
         {
+            if (initialDelay > TimeSpan.Zero)
+            {
+                try { await Task.Delay(initialDelay, _shutdown.Token); }
+                catch (OperationCanceledException) { return; }
+            }
+
             var delay = TimeSpan.FromSeconds(2);
-            while (_connection is not null)
+            while (_connection is not null && !_shutdown.IsCancellationRequested)
             {
                 try
                 {
-                    await _connection.StartAsync();
+                    await _connection.StartAsync(_shutdown.Token);
                     logger.LogInformation("Node agent connected to control plane at {Url}.", hubUrl);
                     await RegisterAsync(name, CancellationToken.None);
+                    return;
+                }
+                catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+                {
                     return;
                 }
                 catch (Exception ex)
                 {
                     logger.LogWarning("Node agent could not reach the control plane ({Message}); retrying in {Delay}s.", ex.Message, delay.TotalSeconds);
-                    await Task.Delay(delay);
+                    try { await Task.Delay(delay, _shutdown.Token); }
+                    catch (OperationCanceledException) { return; }
                     delay = TimeSpan.FromSeconds(Math.Min(30, delay.TotalSeconds * 2));
                 }
             }
@@ -153,6 +179,7 @@ namespace KRINT.API.Nodes
             try
             {
                 await _connection.InvokeAsync("Register", registration, cancellationToken);
+                Interlocked.Exchange(ref _closesSinceRegister, 0);
                 logger.LogInformation("Node agent registered as {Name}.", name);
             }
             catch (Exception ex)
