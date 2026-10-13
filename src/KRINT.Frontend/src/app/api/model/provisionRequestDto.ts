@@ -21,5 +21,6 @@ export interface ProvisionRequestDto {
     isPublic?: boolean;
     password?: string | null;
     nodeId?: string | null;
+    port?: number | null;
 }
 

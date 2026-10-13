@@ -24,5 +24,7 @@ namespace KRINT.Application.Dtos.Provision
         /// <summary>Target node to provision on. Null (default) provisions on the control plane's
         /// local Docker daemon; otherwise the container runs on the chosen node.</summary>
         public Guid? NodeId { get; init; }
+        /// <summary>A fixed host port so connection strings never change. Null picks a free one from the engine's range.</summary>
+        public int? Port { get; init; }
     }
 }

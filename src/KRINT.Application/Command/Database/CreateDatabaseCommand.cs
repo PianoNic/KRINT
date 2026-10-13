@@ -16,7 +16,7 @@ namespace KRINT.Application.Command.Database
 {
     /// <param name="Progress">Optional step reporter, for a caller streaming the provision to a
     /// client. Null costs nothing; the plain POST and the reconciler pass nothing.</param>
-    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false, string? Password = null, Guid? NodeId = null, IProgress<string>? Progress = null) : ICommand<ProvisionedDatabaseDto>;
+    public record CreateDatabaseCommand(string Engine, string Version, string DisplayName, string? DatabaseName = null, IReadOnlyList<string>? Plugins = null, bool IsPublic = false, string? Password = null, Guid? NodeId = null, IProgress<string>? Progress = null, int? HostPort = null) : ICommand<ProvisionedDatabaseDto>;
 
     public class CreateDatabaseCommandHandler(IDockerServiceResolver dockerResolver, ISecretGeneratorService secretGenerator, ISecretsVaultService vault, KrintDbContext db, IOptions<KrintOptions> options, IActivityLogger activity, IInnerDatabaseServiceResolver innerDbs) : ICommandHandler<CreateDatabaseCommand, ProvisionedDatabaseDto>
     {
@@ -105,7 +105,9 @@ namespace KRINT.Application.Command.Database
             // finishes; by then the instance row (or nothing) records the port.
             var portKey = PortKey(command.NodeId, command.Engine);
             var triedPorts = new HashSet<int>();
-            var hostPort = await ReserveHostPortAsync(command.Engine, command.NodeId, docker, triedPorts, cancellationToken);
+            var hostPort = command.HostPort is { } fixedPort
+                ? await ReserveFixedHostPortAsync(fixedPort, command.Engine, command.NodeId, docker, cancellationToken)
+                : await ReserveHostPortAsync(command.Engine, command.NodeId, docker, triedPorts, cancellationToken);
 
             // From here on, any exception means we may own a half-provisioned container that the
             // caller never sees. Track success and clean up in a finally, otherwise stale
@@ -138,12 +140,17 @@ namespace KRINT.Application.Command.Database
                         await docker.StartContainerAsync(createResult.ID, cancellationToken);
                         break;
                     }
-                    catch (Exception ex) when (attempt < MaxPortAttempts && IsPortInUse(ex) && !cancellationToken.IsCancellationRequested)
+                    catch (Exception ex) when (command.HostPort is null && attempt < MaxPortAttempts && IsPortInUse(ex) && !cancellationToken.IsCancellationRequested)
                     {
                         try { await docker.RemoveContainerAsync(createResult.ID, force: true, CancellationToken.None); } catch { }
                         createResult = null;
                         ReleasePort(portKey, hostPort);
                         hostPort = await ReserveHostPortAsync(command.Engine, command.NodeId, docker, triedPorts, cancellationToken);
+                    }
+                    catch (Exception ex) when (command.HostPort is not null && IsPortInUse(ex))
+                    {
+                        // A chosen port is never swapped for another; something outside Docker holds it.
+                        throw new InvalidOperationException($"Port {hostPort} is already in use on this host. Pick another one or leave it empty.", ex);
                     }
                 }
 
@@ -633,6 +640,37 @@ namespace KRINT.Application.Command.Database
         /// <summary>Picks the first free port of the engine's range on the target host and reserves
         /// it. Serialized per (node, engine); <paramref name="tried"/> collects ports that already
         /// failed to bind so a retry moves on.</summary>
+        /// <summary>Reserves a port the caller chose, so the instance's connection strings never
+        /// change. Any range is allowed; the port only has to be free on the target host, in
+        /// KRINT's records and among published Docker ports.</summary>
+        private async Task<int> ReserveFixedHostPortAsync(int port, string engine, Guid? nodeId, IDockerService docker, CancellationToken cancellationToken)
+        {
+            if (port is < 1024 or > 65535)
+                throw new ArgumentException($"Port {port} is outside 1024-65535.");
+
+            var key = PortKey(nodeId, engine);
+            var gate = PortLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var takenInDb = await db.DatabaseInstances.AnyAsync(d => d.NodeId == nodeId && d.Port == port, cancellationToken);
+                var takenInDocker = (await GetPublishedHostPortsAsync(docker, cancellationToken)).Contains(port);
+                var hostPrefix = PortKey(nodeId, "");
+                var takenByReservation = ReservedPorts
+                    .Where(kv => kv.Key.StartsWith(hostPrefix, StringComparison.Ordinal))
+                    .Any(kv => { lock (kv.Value) return kv.Value.Contains(port); });
+                if (takenInDb || takenInDocker || takenByReservation)
+                    throw new InvalidOperationException($"Port {port} is already in use on this host. Pick another one or leave it empty.");
+
+                var reserved = ReservedPorts.GetOrAdd(key, _ => new HashSet<int>());
+                lock (reserved) reserved.Add(port);
+                return port;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
         private async Task<int> ReserveHostPortAsync(string engine, Guid? nodeId, IDockerService docker, HashSet<int> tried, CancellationToken cancellationToken)
         {
             var range = _options.GetPortRange(engine);

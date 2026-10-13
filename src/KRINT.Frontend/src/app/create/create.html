@@ -362,9 +362,31 @@
 
             <!-- Network exposure. Default off: the instance is only reachable on this machine,
                  which is all apps on the same host need. Opt in publishes on 0.0.0.0. -->
-            <details class="rounded-md border p-3" [open]="isPublic()">
+            <details class="rounded-md border p-3" [open]="isPublic() || !!fixedPort()">
               <summary class="text-muted-foreground cursor-pointer text-sm">Advanced</summary>
               <div class="mt-3 flex flex-col gap-2">
+            <div class="flex flex-col gap-1">
+              <label class="text-sm font-medium" for="create-fixed-port">Fixed port</label>
+              <input
+                hlmInput
+                id="create-fixed-port"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="Pick one for me"
+                [value]="fixedPort()"
+                (input)="fixedPort.set($any($event.target).value)"
+                [attr.aria-invalid]="!!portError() || null"
+                aria-describedby="create-fixed-port-hint"
+              />
+              @if (portError(); as err) {
+                <span id="create-fixed-port-hint" class="text-destructive text-sm">{{ err }}</span>
+              } @else {
+                <span id="create-fixed-port-hint" class="text-muted-foreground text-xs">
+                  Optional. Keeps the connection string the same for good, for example 5432.
+                  Leave empty and KRINT picks a free port.
+                </span>
+              }
+            </div>
             <button
               type="button"
               class="hover:bg-muted/40 flex items-start gap-3 rounded-md border p-3 text-left transition-colors"

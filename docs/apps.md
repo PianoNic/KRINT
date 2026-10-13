@@ -32,6 +32,10 @@ One instance can host many apps this way. Each gets its own database and credent
 | Cassandra, CouchDB, SeaweedFS, Azurite | A keyspace / database / bucket / container, using the instance credentials |
 | Redis, Valkey, Qdrant, Neo4j | Not offered: use the instance's own connection string from **View** |
 
+## Keep the connection string stable
+
+Each instance gets a host port from its engine's range. To pin it, open **Advanced** in the create wizard and set **Fixed port** (or set `port:` in [instances.yaml](/declarative-instances)). The connection string then stays the same for good, even if you recreate the instance from YAML.
+
 ## Where the connection string points
 
 | Docker host | Host in the connection string |

@@ -148,6 +148,8 @@ export class Create {
   protected readonly users = signal<WizardUser[]>([]);
   protected readonly selectedPlugins = signal<ReadonlySet<string>>(new Set());
   protected readonly isPublic = signal(false);
+  /** Optional fixed host port; empty lets KRINT pick a free one from the engine's range. */
+  protected readonly fixedPort = signal('');
   protected readonly lanWarning = computed(() => lanExposureWarning(this.engine()));
   // Target node for provisioning: null = the control plane's local Docker. Only online nodes are offered.
   protected readonly onlineNodes = signal<ReadonlyArray<NodeDto>>([]);
@@ -319,6 +321,14 @@ export class Create {
   protected readonly rootPasswordError = computed(() =>
     this.passwordError(this.customRootPassword()),
   );
+  protected readonly portError = computed(() => {
+    const raw = this.fixedPort().trim();
+    if (!raw) return null;
+    const port = Number(raw);
+    return Number.isInteger(port) && port >= 1024 && port <= 65535
+      ? null
+      : 'Use a whole number between 1024 and 65535.';
+  });
   protected readonly userPasswordErrors = computed(() =>
     this.userPasswords().map((p) => this.passwordError(p)),
   );
@@ -332,7 +342,8 @@ export class Create {
           !!this.version() &&
           !this.displayNameError() &&
           (!this.supportsDatabaseNaming() || !this.defaultDbError()) &&
-          !this.rootPasswordError()
+          !this.rootPasswordError() &&
+          !this.portError()
         );
       case 3:
         return true; // Plugins are always optional
@@ -541,6 +552,7 @@ export class Create {
       isPublic: this.isPublic(),
       password: this.customRootPassword().trim() || null,
       nodeId: this.selectedNodeId(),
+      port: this.fixedPort().trim() ? Number(this.fixedPort().trim()) : null,
     };
 
     const startedAt = Date.now();
@@ -617,6 +629,7 @@ export class Create {
     this.customRootPassword.set('');
     this.selectedPlugins.set(new Set());
     this.isPublic.set(false);
+    this.fixedPort.set('');
     this.engine.set(null);
     this.step.set(1);
   }

@@ -29,6 +29,7 @@ instances:
     default_database_name: app
     password: "Sup3r-Secret-Root.~"   # optional; auto-generated if omitted
     is_public: false                  # bind 127.0.0.1 (default) vs 0.0.0.0
+    port: 5432                        # optional fixed host port; omitted picks one from the range
     node: node-eu-1                   # optional; a registered node's name, else the control plane's Docker
     plugins:                          # engine-specific add-ons; see /supported endpoint
       - pg_trgm
@@ -51,6 +52,7 @@ Field rules:
 - **`password`** uses the SafePasswordGuard alphabet: `A-Z a-z 0-9 - _ . ~`. Other characters reject the whole entry.
 - **`is_public: false`** binds the host port to `127.0.0.1` (only reachable from this host). `is_public: true` publishes on `0.0.0.0` so other machines on the LAN can reach it.
 - **`plugins`** values are the engine plugin keys returned by `GET /api/Database/supported`: `vector`, `postgis`, `pg_trgm`, `uuid-ossp`, `hstore` (Postgres; TimescaleDB takes all but `vector`), `redis-stack` (Redis), `apoc`, `graph-data-science` (Neo4j). A key the engine does not offer fails the file, like an unknown key.
+- **`port`** pins the host port so connection strings never change. It must be free on that host (1024-65535); a taken port fails that entry. Ignored for instances that already exist.
 - **`node`** places a new instance on a registered node (by the name shown on the Nodes page). Unknown names fail that entry. Ignored for instances that already exist.
 - **Unknown keys fail the file.** A misspelt key used to be dropped silently; now the parse error names it and nothing is reconciled until it is fixed.
 

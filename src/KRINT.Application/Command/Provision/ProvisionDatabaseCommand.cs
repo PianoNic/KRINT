@@ -51,7 +51,8 @@ namespace KRINT.Application.Command.Provision
                 IsPublic: req.IsPublic,
                 Password: req.Password,
                 NodeId: req.NodeId,
-                Progress: command.Progress), cancellationToken);
+                Progress: command.Progress,
+                HostPort: req.Port), cancellationToken);
 
             // From here on the instance exists and is usable. A failing extra step is reported as
             // a warning on an otherwise successful result instead of failing the whole provision:
