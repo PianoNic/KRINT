@@ -32,5 +32,8 @@ export interface ProvisionedDatabaseDto {
     containerConnectionString?: string | null;
     dockerNetwork?: string | null;
     loopbackOnly: boolean;
+    appHost?: string | null;
+    appConnectionString?: string | null;
+    appAccessNeedsRecreate?: boolean;
 }
 

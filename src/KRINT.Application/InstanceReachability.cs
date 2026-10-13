@@ -1,5 +1,7 @@
+using Docker.DotNet.Models;
 using KRINT.Application.Command.Database;
 using KRINT.Domain;
+using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application
 {
@@ -47,5 +49,24 @@ namespace KRINT.Application
         /// instance this is the node's compose network.</summary>
         public static string? PickSharedNetwork(IEnumerable<string>? networks) =>
             networks?.FirstOrDefault(n => !ImplicitNetworks.Contains(n, StringComparer.OrdinalIgnoreCase));
+
+        /// <summary>The host an app container on the same machine dials, given how the container's
+        /// port is actually bound. On Linux that needs the bridge-gateway binding (or a public one);
+        /// a container created before KRINT added it reports <c>NeedsRecreate</c> instead of a host
+        /// that would not answer. External instances have no KRINT-published port, so no app host.</summary>
+        public static (string? AppHost, bool NeedsRecreate) AppAccess(
+            DatabaseInstance instance,
+            HostAccess? access,
+            IDictionary<string, IList<PortBinding>>? bindings)
+        {
+            if (!instance.IsManaged || instance.ContainerName is null || access is null) return (null, false);
+            if (access.ExtraBindIp is null || bindings is null) return (access.AppHost, false);
+
+            var reachable = bindings.Values
+                .SelectMany(list => list ?? [])
+                .Select(b => b.HostIP ?? "")
+                .Any(ip => ip is "" or "0.0.0.0" || ip == access.ExtraBindIp);
+            return reachable ? (access.AppHost, false) : (null, true);
+        }
     }
 }

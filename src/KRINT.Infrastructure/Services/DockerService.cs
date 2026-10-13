@@ -26,6 +26,32 @@ namespace KRINT.Infrastructure.Services
             return version.Version;
         }
 
+        // The daemon's kind and bridge gateway don't change while it runs; DockerService is scoped,
+        // so the answer is cached for the process.
+        private static HostAccess? _hostAccess;
+
+        public async Task<HostAccess?> GetHostAccessAsync(CancellationToken cancellationToken = default)
+        {
+            if (_hostAccess is not null) return _hostAccess;
+            try
+            {
+                var info = await client.System.GetSystemInfoAsync(cancellationToken);
+                if (IsDockerDesktop(info.OperatingSystem))
+                    return _hostAccess = new HostAccess(true, "host.docker.internal", null);
+
+                var bridge = await client.Networks.InspectNetworkAsync("bridge", cancellationToken);
+                var gateway = bridge.IPAM?.Config?.Select(c => c.Gateway).FirstOrDefault(g => !string.IsNullOrEmpty(g) && !g.Contains(':'));
+                return _hostAccess = gateway is null ? null : new HostAccess(false, gateway, gateway);
+            }
+            catch
+            {
+                return null;   // daemon unreachable or no default bridge - callers fall back to loopback only
+            }
+        }
+
+        public static bool IsDockerDesktop(string? operatingSystem) =>
+            operatingSystem?.Contains("Docker Desktop", StringComparison.OrdinalIgnoreCase) == true;
+
         public Task<IList<ContainerListResponse>> ListContainersAsync(bool all = true, CancellationToken cancellationToken = default)
         {
             return client.Containers.ListContainersAsync(new ContainersListParameters { All = all }, cancellationToken);

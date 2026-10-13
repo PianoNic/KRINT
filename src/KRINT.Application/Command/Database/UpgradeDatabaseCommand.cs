@@ -109,7 +109,8 @@ namespace KRINT.Application.Command.Database
                 plugins, instance.Port,
                 // Preserve the old container's visibility setting across the swap.
                 LoopbackOnly: instance.NodeId is not null || !instance.IsPublic,
-                newBindSpec));
+                newBindSpec,
+                ExtraBindIp: (await docker.GetHostAccessAsync(cancellationToken))?.ExtraBindIp));
 
             // From here on OLD stays in place (stopped) until NEW is committed to the row, and any
             // failure removes NEW and restarts OLD - the row always points at a container that exists.

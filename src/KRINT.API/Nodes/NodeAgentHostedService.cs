@@ -167,6 +167,7 @@ namespace KRINT.API.Nodes
         private void RegisterDockerHandlers(HubConnection c)
         {
             c.On("GetVersion", () => WithDocker(d => d.GetVersionAsync()));
+            c.On("GetHostAccess", () => WithDocker(d => d.GetHostAccessAsync()));
             c.On<bool, IList<ContainerListResponse>>("ListContainers", all => WithDocker(d => d.ListContainersAsync(all)));
             c.On<string, ContainerInspectResponse>("InspectContainer", id => WithDocker(d => d.InspectContainerAsync(id)));
             c.On<string, ContainerResourceSample?>("GetContainerResourceUsage", id => WithDocker(d => d.GetContainerResourceUsageAsync(id)));

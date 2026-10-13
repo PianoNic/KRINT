@@ -135,6 +135,17 @@ namespace KRINT.API.Controllers
             return NoContent();
         }
 
+        /// <summary>Creates a database for one app (plus a user scoped to it where the engine has
+        /// users) and returns the connection string to paste into the app's compose file.</summary>
+        [HttpPost("{id:guid}/apps")]
+        [ProducesResponseType(typeof(AppDatabaseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> CreateApp(Guid id, [FromBody] CreateAppDatabaseDto body, CancellationToken cancellationToken)
+        {
+            return Ok(await mediator.Send(new CreateAppDatabaseCommand(id, body.Name), cancellationToken));
+        }
         [HttpDelete("{id:guid}/databases/{name}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

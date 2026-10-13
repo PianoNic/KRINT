@@ -83,9 +83,19 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(user);
             InnerDatabaseNameValidator.Require(database);
-            await using var conn = await OpenAsync(target, cancellationToken);
-            await using var cmd = new NpgsqlCommand($"GRANT ALL PRIVILEGES ON DATABASE \"{database}\" TO \"{user}\"", conn);
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await using (var conn = await OpenAsync(target, cancellationToken))
+            await using (var cmd = new NpgsqlCommand($"GRANT ALL PRIVILEGES ON DATABASE \"{database}\" TO \"{user}\"", conn))
+            {
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            // Since Postgres 15 the public schema no longer lets every role create objects, so a
+            // database grant alone leaves the user unable to create a single table. The schema
+            // grant has to run on a connection to that database.
+            await using var dbConn = await OpenAsync(target with { DefaultDatabase = database }, cancellationToken);
+            await using var schemaCmd = new NpgsqlCommand($"GRANT ALL ON SCHEMA public TO \"{user}\"", dbConn);
+            try { await schemaCmd.ExecuteNonQueryAsync(cancellationToken); }
+            catch (PostgresException ex) when (ex.SqlState == "3F000") { /* no public schema in this database */ }
         }
 
         protected static async Task<NpgsqlConnection> OpenAsync(InnerDatabaseTarget target, CancellationToken cancellationToken)
