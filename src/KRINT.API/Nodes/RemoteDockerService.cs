@@ -27,6 +27,22 @@ namespace KRINT.API.Nodes
         public Task<string> GetVersionAsync(CancellationToken cancellationToken = default)
             => Node().InvokeAsync<string>("GetVersion", cancellationToken);
 
+        // An agent from before GetHostAccess existed has no handler; treat it as unknown so the
+        // instance stays loopback-only instead of failing the call.
+        public async Task<HostAccess?> GetHostAccessAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                return await Node().InvokeAsync<HostAccess?>("GetHostAccess", timeout.Token);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
+        }
+
         public Task<IList<ContainerListResponse>> ListContainersAsync(bool all = true, CancellationToken cancellationToken = default)
             => Node().InvokeAsync<IList<ContainerListResponse>>("ListContainers", all, cancellationToken);
 

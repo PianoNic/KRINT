@@ -221,6 +221,9 @@ export class Databases {
         ? `Expose ${db.displayName} on the LAN?`
         : `Restrict ${db.displayName} to localhost?`,
       message:
+        (next
+          ? 'Apps on this machine do not need this: they use the app connection string. Everyone on your network will be able to reach the port. '
+          : '') +
         'The container will be stopped and recreated in place. The data volume is preserved, but active connections will drop for a few seconds.' +
         (next && warning ? ' ' + warning : ''),
       confirmLabel: next ? 'Expose publicly' : 'Lock to localhost',

@@ -1,3 +1,4 @@
+using Docker.DotNet.Models;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using KRINT.Application.Dtos.Database;
@@ -26,6 +27,7 @@ namespace KRINT.Application.Queries.Database
 
             string? state = null;
             IEnumerable<string>? networks = null;
+            IDictionary<string, IList<PortBinding>>? bindings = null;
             if (instance.ContainerId is not null)
             {
                 try
@@ -37,6 +39,7 @@ namespace KRINT.Application.Queries.Database
                     // The same inspect tells us which networks the container joined, which is what a
                     // user's own compose service has to declare to reach it by container name.
                     networks = inspect.NetworkSettings?.Networks?.Keys.ToList();
+                    bindings = inspect.HostConfig?.PortBindings;
                 }
                 catch
                 {
@@ -49,7 +52,10 @@ namespace KRINT.Application.Queries.Database
                 ? await db.Nodes.Where(n => n.Id == nodeId).Select(n => n.Name).FirstOrDefaultAsync(cancellationToken)
                 : null;
 
-            return instance.ToProvisionedDto(password, connectionString, nodeName, networks) with { State = state };
+            var access = instance.IsManaged ? await dockerResolver.Resolve(instance.NodeId).GetHostAccessAsync(cancellationToken) : null;
+            var (appHost, needsRecreate) = InstanceReachability.AppAccess(instance, access, bindings);
+
+            return instance.ToProvisionedDto(password, connectionString, nodeName, networks, appHost, needsRecreate) with { State = state };
         }
     }
 }

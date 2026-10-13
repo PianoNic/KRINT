@@ -40,43 +40,21 @@
             </ul>
           </div>
         }
-        @if (res.instance.nodeId && res.instance.containerConnectionString) {
-          <div class="border-primary/30 bg-primary/5 flex flex-col gap-3 rounded-md border p-3">
-            <p class="text-sm">
-              This instance runs on a node, so its port is bound to that node's loopback. Apps
-              connect to it by container name over the node's Docker network. Use the string below,
-              not the one from a shell on the node.
+        @if (res.instance.appConnectionString) {
+          <div class="border-primary/30 bg-primary/5 flex flex-col gap-2 rounded-md border p-3">
+            <span class="text-sm font-medium">
+              Connection string for your apps on {{ res.instance.nodeName ?? 'this machine' }}
+            </span>
+            <div class="flex items-start gap-2">
+              <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+                res.instance.appConnectionString
+              }}</code>
+              <app-copy-button [value]="res.instance.appConnectionString" />
+            </div>
+            <p class="text-muted-foreground text-xs">
+              Paste it into your app's compose file. It works from any container on the same host,
+              with no network config, and nothing is reachable from outside the machine.
             </p>
-
-            <div class="flex flex-col gap-2">
-              <span class="text-muted-foreground text-sm">Connection string for your app</span>
-              <div class="flex items-start gap-2">
-                <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
-                  res.instance.containerConnectionString
-                }}</code>
-                <app-copy-button [value]="res.instance.containerConnectionString" />
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <span class="text-muted-foreground text-sm"
-                >Add this to your app's compose file on that node</span
-              >
-              <div class="flex items-start gap-2">
-                <code
-                  class="bg-muted flex-1 overflow-x-auto rounded-md p-3 font-mono text-xs whitespace-pre"
-                  >{{ composeSnippet() }}</code
-                >
-                <app-copy-button [value]="composeSnippet()" />
-              </div>
-              @if (!res.instance.dockerNetwork) {
-                <p class="text-muted-foreground text-xs">
-                  KRINT could not read the container's networks. Run
-                  <code class="font-mono">docker network ls</code> on the node and use the network
-                  its KRINT compose project created.
-                </p>
-              }
-            </div>
           </div>
         }
 
@@ -316,8 +294,11 @@
               }
             </div>
 
-            <!-- Network exposure. Default off so the instance binds to 127.0.0.1; opt in
-                 publishes on 0.0.0.0 so other machines on the LAN can reach it. -->
+            <!-- Network exposure. Default off: the instance is only reachable on this machine,
+                 which is all apps on the same host need. Opt in publishes on 0.0.0.0. -->
+            <details class="rounded-md border p-3" [open]="isPublic()">
+              <summary class="text-muted-foreground cursor-pointer text-sm">Advanced</summary>
+              <div class="mt-3 flex flex-col gap-2">
             <button
               type="button"
               class="hover:bg-muted/40 flex items-start gap-3 rounded-md border p-3 text-left transition-colors"
@@ -329,9 +310,9 @@
               <span class="flex flex-1 flex-col gap-1">
                 <span class="text-sm font-medium">Expose on the LAN</span>
                 <span class="text-muted-foreground text-xs">
-                  Publishes the host port on 0.0.0.0 so other machines on this network can reach the
-                  database. Off by default - port is bound to 127.0.0.1 (this host only). You can
-                  flip this later from the instance menu.
+                  Not needed for apps on this machine - they use the app connection string. Only
+                  turn this on if other machines must reach the database directly: it publishes the
+                  port on 0.0.0.0, visible to everyone on your network.
                 </span>
               </span>
             </button>
@@ -343,6 +324,8 @@
                 <span class="font-medium">No authentication.</span> {{ warning }}
               </p>
             }
+              </div>
+            </details>
           </div>
         }
 

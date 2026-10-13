@@ -38,5 +38,15 @@ namespace KRINT.Application.Dtos.Database
         /// <summary>True when the published port is bound to 127.0.0.1 only, so nothing outside
         /// the container's own host can dial it.</summary>
         public bool LoopbackOnly { get; init; }
+        /// <summary>The host an app's container on the same machine uses to reach this instance
+        /// without joining any network: host.docker.internal on Docker Desktop, the default bridge
+        /// gateway on Linux. Null when unknown or not applicable (external instances).</summary>
+        public string? AppHost { get; init; }
+        /// <summary>Connection string for apps running in containers on the same host, built from
+        /// <see cref="AppHost"/> and the published port. The one to paste into a compose file.</summary>
+        public string? AppConnectionString { get; init; }
+        /// <summary>True when this host needs the bridge binding but the container predates it, so
+        /// <see cref="AppConnectionString"/> only works after the container is recreated.</summary>
+        public bool AppAccessNeedsRecreate { get; init; }
     }
 }

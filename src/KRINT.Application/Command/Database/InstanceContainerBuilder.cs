@@ -20,7 +20,8 @@ namespace KRINT.Application.Command.Database
         IReadOnlyList<EnginePluginDto> Plugins,
         int HostPort,
         bool LoopbackOnly,
-        string StorageBind);
+        string StorageBind,
+        string? ExtraBindIp = null);
 
     public static class InstanceContainerBuilder
     {
@@ -46,15 +47,27 @@ namespace KRINT.Application.Command.Database
                 {
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
-                        // Leaving HostIP unset is Docker's default and binds to 0.0.0.0 (visible on
-                        // the LAN). "127.0.0.1" restricts to loopback.
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = s.HostPort.ToString(), HostIP = s.LoopbackOnly ? "127.0.0.1" : "" } },
+                        [$"{spec.InternalPort}/tcp"] = HostBindings(s),
                     },
                     Binds = new List<string> { s.StorageBind },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
                 },
                 Labels = Containers.KrintContainerLabels.For(s.Engine, s.InstanceId, s.DisplayName),
             };
+        }
+
+        /// <summary>Leaving HostIP unset is Docker's default and binds to 0.0.0.0 (visible on the
+        /// LAN). A private instance binds 127.0.0.1, plus the host-internal bridge gateway when
+        /// <see cref="InstanceContainerSpec.ExtraBindIp"/> is set, so other containers on the same
+        /// host reach it while nothing outside the host can.</summary>
+        public static IList<PortBinding> HostBindings(InstanceContainerSpec s)
+        {
+            var port = s.HostPort.ToString();
+            if (!s.LoopbackOnly) return new List<PortBinding> { new() { HostPort = port, HostIP = "" } };
+            var bindings = new List<PortBinding> { new() { HostPort = port, HostIP = "127.0.0.1" } };
+            if (!string.IsNullOrEmpty(s.ExtraBindIp))
+                bindings.Add(new PortBinding { HostPort = port, HostIP = s.ExtraBindIp });
+            return bindings;
         }
 
         /// <summary>The image (name, tag) an instance runs. Image-swap plugins publish their own tag
