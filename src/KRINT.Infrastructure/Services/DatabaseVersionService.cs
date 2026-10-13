@@ -58,6 +58,20 @@ namespace KRINT.Infrastructure.Services
         // cold start where the very first lookup fails before we've ever cached a live result.
         private static readonly IReadOnlyList<string> LastResort = new[] { "latest" };
 
+        // A failed lookup serves the last good list for this long before the registry is tried
+        // again, so an offline host doesn't re-pay the HTTP timeout on every catalog request.
+        private static readonly TimeSpan FailureCacheDuration = TimeSpan.FromMinutes(5);
+
+        // Registry lookups running at once across all engines; Docker Hub rate-limits bursts.
+        private static readonly SemaphoreSlim FetchGate = new(4);
+
+        // One in-flight fetch per engine, shared by every concurrent caller (catalog requests and
+        // the startup warm-up), so a burst of requests on a cold cache hits the registry once.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<Task<IReadOnlyList<string>>>> InFlight = new();
+
+        /// <summary>Every engine key this service resolves versions for.</summary>
+        public static IEnumerable<string> EngineKeys => Sources.Keys;
+
         public async Task<IReadOnlyList<string>> GetSupportedVersionsAsync(string engineKey, CancellationToken cancellationToken = default)
         {
             if (!Sources.TryGetValue(engineKey, out var source))
@@ -71,37 +85,59 @@ namespace KRINT.Infrastructure.Services
                 return cached;
             }
 
+            // The shared fetch runs on its own (bounded by the HttpClient timeout); a caller that
+            // gives up only stops waiting for it.
+            var lazy = InFlight.GetOrAdd(engineKey, key => new Lazy<Task<IReadOnlyList<string>>>(() => FetchAndCacheAsync(key, source)));
+            return await lazy.Value.WaitAsync(cancellationToken);
+        }
+
+        private async Task<IReadOnlyList<string>> FetchAndCacheAsync(string engineKey, VersionSource source)
+        {
+            var cacheKey = $"versions:{engineKey}";
             // Fallback is the last successful live result, kept under a separate long-lived key, so
             // there are no hand-maintained version lists to drift. Only used when a fetch fails.
             var lastGoodKey = $"versions:lastgood:{engineKey}";
 
-            IReadOnlyList<string> versions;
+            await FetchGate.WaitAsync();
             try
             {
                 var tags = source.Registry == Registry.DockerHub
-                    ? await FetchDockerHubTagsAsync(source.Repository, cancellationToken)
-                    : await FetchMcrTagsAsync(source.Repository, cancellationToken);
+                    ? await FetchDockerHubTagsAsync(source.Repository, CancellationToken.None)
+                    : await FetchMcrTagsAsync(source.Repository, CancellationToken.None);
 
-                versions = SelectVersions(tags, source);
+                var versions = SelectVersions(tags, source);
 
                 if (versions.Count == 0)
                 {
                     logger.LogWarning("No matching version tags for '{Engine}' ({Repo}); using last good.", engineKey, source.Repository);
-                    return LastGood(lastGoodKey);
+                    return CacheFailure(cacheKey, lastGoodKey);
                 }
+
+                cache.Set(cacheKey, versions, CacheDuration);
+                // Mirror into the long-lived fallback slot (effectively permanent) for the next outage.
+                cache.Set(lastGoodKey, versions, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
+                return versions;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
                 // The registry is an optional convenience lookup, not a hard dependency. On failure
-                // return the last live result we saw (not cached fresh, so it retries next time).
+                // return the last live result we saw, cached briefly so it is retried after a while.
                 logger.LogWarning(ex, "Version lookup for '{Engine}' failed; using last good.", engineKey);
-                return LastGood(lastGoodKey);
+                return CacheFailure(cacheKey, lastGoodKey);
             }
+            finally
+            {
+                FetchGate.Release();
+                // The result (or the fallback) is cached by now, so later callers hit the cache.
+                InFlight.TryRemove(engineKey, out _);
+            }
+        }
 
-            cache.Set(cacheKey, versions, CacheDuration);
-            // Mirror into the long-lived fallback slot (effectively permanent) for the next outage.
-            cache.Set(lastGoodKey, versions, new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
-            return versions;
+        private IReadOnlyList<string> CacheFailure(string cacheKey, string lastGoodKey)
+        {
+            var fallback = LastGood(lastGoodKey);
+            cache.Set(cacheKey, fallback, FailureCacheDuration);
+            return fallback;
         }
 
         private IReadOnlyList<string> LastGood(string lastGoodKey) =>
