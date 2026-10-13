@@ -50,7 +50,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
+            InnerDatabaseNameValidator.RequireDatabaseForEngine(Engine, name);
             using var cluster = CassandraConnect.Build(target);
             using var session = await cluster.ConnectAsync();
             await session.ExecuteAsync(new SimpleStatement( $"CREATE KEYSPACE IF NOT EXISTS \"{name}\" WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': 1}}"));
