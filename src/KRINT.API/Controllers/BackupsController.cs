@@ -36,7 +36,10 @@ namespace KRINT.API.Controllers
         }
 
         [HttpPost("instance/{instanceId:guid}/import")]
-        [RequestSizeLimit(512L * 1024 * 1024)]  // 512 MB cap, raise later if we see real demand.
+        // 512 MB cap, raise later if we see real demand. The multipart limit has to match:
+        // its 128 MB default would otherwise reject the upload first.
+        [RequestSizeLimit(512L * 1024 * 1024)]
+        [RequestFormLimits(MultipartBodyLengthLimit = 512L * 1024 * 1024)]
         [ProducesResponseType(typeof(BackupEntryDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -44,10 +47,9 @@ namespace KRINT.API.Controllers
         {
             if (file is null || file.Length == 0)
                 return BadRequest(new { error = "No file uploaded." });
+            // Streamed into the backup file; large uploads are spooled to disk by the form reader.
             await using var stream = file.OpenReadStream();
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms, cancellationToken);
-            var result = await mediator.Send(new ImportBackupCommand(instanceId, file.FileName, ms.ToArray()), cancellationToken);
+            var result = await mediator.Send(new ImportBackupCommand(instanceId, file.FileName, stream), cancellationToken);
             return CreatedAtAction(nameof(Download), new { id = result.Id }, result);
         }
 

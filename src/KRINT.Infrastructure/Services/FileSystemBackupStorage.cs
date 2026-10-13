@@ -11,10 +11,35 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<string> SaveAsync(string containerName, string fileName, byte[] content, CancellationToken cancellationToken = default)
         {
+            var saved = await SaveAsync(containerName, fileName, (s, ct) => s.WriteAsync(content, ct).AsTask(), cancellationToken);
+            return saved.FullPath;
+        }
+
+        public async Task<StoredBackup> SaveAsync(string containerName, string fileName, Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken = default)
+        {
             var full = ResolveInsideRoot(containerName, fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-            await File.WriteAllBytesAsync(full, content, cancellationToken);
-            return full;
+
+            // Same folder as the target so the final rename is atomic and a crash mid-dump never
+            // leaves a truncated file under a real backup name.
+            var temp = $"{full}.{Guid.NewGuid():N}.tmp";
+            try
+            {
+                long size;
+                await using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
+                {
+                    await write(file, cancellationToken);
+                    await file.FlushAsync(cancellationToken);
+                    size = file.Length;
+                }
+                File.Move(temp, full, overwrite: false);
+                return new StoredBackup(full, size);
+            }
+            catch
+            {
+                try { File.Delete(temp); } catch { /* best effort */ }
+                throw;
+            }
         }
 
         /// <summary>

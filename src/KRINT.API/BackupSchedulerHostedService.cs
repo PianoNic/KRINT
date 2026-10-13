@@ -65,6 +65,16 @@ namespace KRINT.API
                     continue;
                 }
 
+                // The instance is gone (deleted before schedules were cleaned up with it): the
+                // schedule can never succeed again, so drop it instead of erroring every tick.
+                if (!await db.DatabaseInstances.AnyAsync(d => d.Id == schedule.InstanceId, cancellationToken))
+                {
+                    log.LogWarning("Schedule {Id} points at missing instance {InstanceId} - removing it.", schedule.Id, schedule.InstanceId);
+                    db.BackupSchedules.Remove(schedule);
+                    await db.SaveChangesAsync(cancellationToken);
+                    continue;
+                }
+
                 try
                 {
                     await mediator.Send(new CreateBackupCommand(schedule.InstanceId), cancellationToken);
@@ -81,6 +91,32 @@ namespace KRINT.API
                 schedule.LastRunAt = DateTime.UtcNow;
                 schedule.NextRunAt = cron.GetNextOccurrence(DateTime.UtcNow);
                 await db.SaveChangesAsync(cancellationToken);
+
+                if (schedule.KeepLast is { } keepLast && schedule.LastStatus == "ok")
+                    await PruneAsync(db, mediator, schedule, keepLast, cancellationToken);
+            }
+        }
+
+        /// <summary>Retention: keeps the newest <paramref name="keepLast"/> backups of the schedule's
+        /// instance and deletes the rest. Pre-upgrade snapshots are never pruned - they back the
+        /// Rollback button. Runs only after a successful backup so a failing schedule never eats
+        /// into the backups that still exist.</summary>
+        private async Task PruneAsync(KrintDbContext db, IMediator mediator, BackupSchedule schedule, int keepLast, CancellationToken cancellationToken)
+        {
+            var stale = await db.BackupEntries
+                .Where(b => b.InstanceId == schedule.InstanceId && !b.FileName.StartsWith("pre-upgrade-"))
+                .OrderByDescending(b => b.CreatedAt)
+                .Skip(keepLast)
+                .Select(b => b.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var backupId in stale)
+            {
+                try { await mediator.Send(new DeleteBackupCommand(backupId), cancellationToken); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log.LogWarning(ex, "Pruning backup {BackupId} for schedule {Id} failed.", backupId, schedule.Id);
+                }
             }
         }
     }

@@ -1,5 +1,6 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
 using KRINT.Infrastructure.Interfaces;
@@ -8,7 +9,7 @@ namespace KRINT.Application.Command.Backup
 {
     public record RestoreBackupCommand(Guid BackupId) : ICommand;
 
-    public class RestoreBackupCommandHandler(KrintDbContext db, ISecretsVaultService vault, IBackupServiceResolver resolver, IBackupStorage storage, IActivityLogger activity) : ICommandHandler<RestoreBackupCommand>
+    public class RestoreBackupCommandHandler(KrintDbContext db, ISecretsVaultService vault, IBackupServiceResolver resolver, IBackupStorage storage, IActivityLogger activity, IConfiguration configuration) : ICommandHandler<RestoreBackupCommand>
     {
         public async ValueTask<Unit> Handle(RestoreBackupCommand command, CancellationToken cancellationToken)
         {
@@ -21,10 +22,10 @@ namespace KRINT.Application.Command.Backup
             if (instance.ContainerName is null || instance.ContainerId is null)
                 throw new InvalidOperationException("Restore requires a Docker container - this database isn't reachable that way.");
 
-            var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
+            var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
-            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId);
+            var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId, BackupTarget.ConfiguredTimeout(configuration));
 
             await using var stream = storage.OpenRead(entry.FilePath)
                 ?? throw new InvalidOperationException($"Backup file is missing on disk: {entry.FilePath}");

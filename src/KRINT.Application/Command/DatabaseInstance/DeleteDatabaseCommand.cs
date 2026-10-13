@@ -56,6 +56,11 @@ namespace KRINT.Application.Command.DatabaseInstance
 
             await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken);
 
+            // Schedules have no FK to the instance, so drop them with it or the scheduler keeps
+            // firing backups for an instance that no longer exists.
+            var schedules = await db.BackupSchedules.Where(s => s.InstanceId == instance.Id).ToListAsync(cancellationToken);
+            db.BackupSchedules.RemoveRange(schedules);
+
             db.DatabaseInstances.Remove(instance);
             await db.SaveChangesAsync(cancellationToken);
 
