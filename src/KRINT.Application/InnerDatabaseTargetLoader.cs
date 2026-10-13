@@ -151,9 +151,13 @@ namespace KRINT.Application
         //     the host-gateway alias - the same rewrite RegisterExternalDatabaseCommand uses for
         //     its probe, so post-registration operations reach the same address that was probed.
         // Any other host the user typed is used verbatim.
-        public static string ResolveTargetHost(string host, bool isManaged, bool isPublic) =>
-            host is not ("localhost" or "127.0.0.1") ? host
-            : isManaged && !isPublic ? "127.0.0.1"
-            : "host.docker.internal";
+        public static string ResolveTargetHost(string host, bool isManaged, bool isPublic)
+        {
+            var trimmed = host?.Trim() ?? "";
+            var isLoopback = trimmed.ToLowerInvariant() is "localhost" or "127.0.0.1" or "::1" or "[::1]";
+            return !isLoopback ? trimmed
+                : isManaged && !isPublic ? "127.0.0.1"
+                : "host.docker.internal";
+        }
     }
 }
