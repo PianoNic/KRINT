@@ -6,8 +6,10 @@ namespace KRINT.API.Nodes
     /// plane can route an RPC to the right open socket and tell online from offline.</summary>
     public interface INodeRegistry
     {
-        /// <summary>Record (or refresh) a node that just registered on the given connection.</summary>
-        void Register(Guid nodeId, string connectionId);
+        /// <summary>Record (or refresh) a node that just registered on the given connection.
+        /// <paramref name="protocolVersion"/> is what the agent reported (0 for agents that predate
+        /// the field); <paramref name="abort"/> closes that connection when the node is deleted.</summary>
+        void Register(Guid nodeId, string connectionId, int protocolVersion = 0, Action? abort = null);
 
         /// <summary>Bump a node's last-seen timestamp (heartbeat), found by connection id.</summary>
         void Touch(string connectionId);
@@ -15,8 +17,15 @@ namespace KRINT.API.Nodes
         /// <summary>Drop a node whose connection closed, found by connection id.</summary>
         void Remove(string connectionId);
 
+        /// <summary>Forget a node right away and abort its live connection (the node was deleted, so
+        /// its token is revoked and it must stop executing RPCs immediately).</summary>
+        void Disconnect(Guid nodeId);
+
         /// <summary>Resolve a node's current live connection id, or false if it is offline.</summary>
         bool TryGetConnectionId(Guid nodeId, out string connectionId);
+
+        /// <summary>The node protocol version the online node's agent reported, or 0 if unknown.</summary>
+        int GetProtocolVersion(Guid nodeId);
 
         /// <summary>Map of currently-online node id -> last-seen timestamp.</summary>
         IReadOnlyDictionary<Guid, DateTimeOffset> OnlineLastSeen();
