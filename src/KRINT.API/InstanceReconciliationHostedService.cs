@@ -218,6 +218,7 @@ namespace KRINT.API
                 Version = spec.Version,
                 DisplayName = spec.DisplayName,
                 NodeId = nodeId,
+                Port = spec.Port,
                 DefaultDatabaseName = spec.DefaultDatabaseName,
                 Databases = spec.Databases,
                 Users = spec.Users.Select(u => new ProvisionUserSpec

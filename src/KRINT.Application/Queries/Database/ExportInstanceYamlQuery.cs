@@ -60,6 +60,8 @@ namespace KRINT.Application.Queries.Database
                 sb.Append("  password: ").Append(QuoteIfNeeded(password)).Append('\n');
             }
             sb.Append("  is_public: ").Append(instance.IsPublic ? "true" : "false").Append('\n');
+            // Pinning the port keeps the connection strings apps already use valid on re-provision.
+            sb.Append("  port: ").Append(instance.Port).Append('\n');
 
             // Filter out the default DB so it's not also listed under databases (it's already
             // covered by default_database_name).
