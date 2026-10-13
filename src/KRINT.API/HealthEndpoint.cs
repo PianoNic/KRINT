@@ -37,12 +37,18 @@ namespace KRINT.API
                 role = "control",
                 checks = report.Entries.ToDictionary(
                     e => e.Key,
-                    e => new { status = e.Value.Status.ToString().ToLowerInvariant(), description = e.Value.Description }),
+                    // A check that threw carries the exception message as its description; the
+                    // health check service already logs the exception, so never echo it here.
+                    e => new
+                    {
+                        status = e.Value.Status.ToString().ToLowerInvariant(),
+                        description = e.Value.Exception is null ? e.Value.Description : "check failed, see the server log",
+                    }),
             };
             return context.Response.WriteAsync(JsonSerializer.Serialize(body));
         }
 
-        private sealed class DatabaseHealthCheck(KrintDbContext db) : IHealthCheck
+        private sealed class DatabaseHealthCheck(KrintDbContext db, ILogger<DatabaseHealthCheck> logger) : IHealthCheck
         {
             public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
             {
@@ -54,7 +60,10 @@ namespace KRINT.API
                 }
                 catch (Exception ex)
                 {
-                    return HealthCheckResult.Unhealthy(ex.Message);
+                    // /health is anonymous: the exception text can carry host names, user names
+                    // and driver details, so it goes to the log and the caller gets a fixed line.
+                    logger.LogWarning(ex, "Health check: the metadata database could not be reached.");
+                    return HealthCheckResult.Unhealthy("metadata database not reachable");
                 }
             }
         }
