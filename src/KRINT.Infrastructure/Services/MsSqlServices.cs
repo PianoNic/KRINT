@@ -20,6 +20,10 @@ namespace KRINT.Infrastructure.Services
                 InitialCatalog = overrideDatabase ?? target.DefaultDatabase,
                 TrustServerCertificate = true,
                 ConnectTimeout = 5,
+                // Pooling stays off: RESTORE DATABASE ... WITH REPLACE (MsSqlBackupService) needs
+                // exclusive access, and an idle pooled session left on the database by the browser
+                // or query console would make the restore fail. Restores can run in a node process
+                // too, so clearing this process's pools first wouldn't cover it.
                 Pooling = false,
             };
             var conn = new SqlConnection(csb.ConnectionString);
