@@ -170,6 +170,7 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Krint__TrustForwardedHeaders` | `true` only behind a reverse proxy: honour `X-Forwarded-For/Proto/Host` from it. |
 | `Krint__PublicUrl` | Public URL this control plane is served on (e.g. `https://krint.example.com`). Drives the [Add-node](./nodes#add-a-node) compose, and backs the OIDC redirect + CORS when those aren't set explicitly. **Required to add nodes** - it must be reachable from each node's host (not `localhost`); the Add-node dialog refuses to generate a compose until it's set. |
 | `Backup__Directory` | Where dumps are written. Optional - defaults to `/app/backups` (the path the compose bind-mounts). |
+| `Backup__ExecTimeoutMinutes` | Cap for a single backup or restore run inside the database container. Optional - defaults to `120`. |
 | `Docker__Endpoint` | Docker daemon URI, e.g. `unix:///var/run/docker.sock`. Optional - auto-detected (Unix socket / Windows named pipe) when unset. |
 
 ::: danger
