@@ -28,8 +28,8 @@ namespace KRINT.API
                 {
                     Status = status.Value,
                     Title = TitleFor(status.Value),
-                    Detail = exception.Message,
-                    Extensions = { ["error"] = exception.Message },
+                    Detail = DetailFor(exception),
+                    Extensions = { ["error"] = DetailFor(exception) },
                 },
             });
         }
@@ -38,6 +38,7 @@ namespace KRINT.API
         /// ObjectDisposedException is one too but signals a bug, not a conflict.</summary>
         public static int? StatusFor(Exception exception) => exception switch
         {
+            _ when IsDockerUnreachable(exception) => StatusCodes.Status503ServiceUnavailable,
             // A secret that does not decrypt is an operator problem (wrong Vault__MasterKey), not a bug.
             KRINT.Infrastructure.Services.VaultKeyMismatchException => StatusCodes.Status500InternalServerError,
             InstanceNotFoundException => StatusCodes.Status404NotFound,
@@ -49,8 +50,26 @@ namespace KRINT.API
             _ => null,
         };
 
+        public const string DockerUnreachableMessage =
+            "Docker is not reachable. Check that the Docker daemon is running and that /var/run/docker.sock is mounted into KRINT (or Docker__Endpoint is set).";
+
+        private static string DetailFor(Exception exception) =>
+            IsDockerUnreachable(exception) ? DockerUnreachableMessage : exception.Message;
+
+        /// <summary>A connection failure raised inside the Docker client: the daemon is down or the
+        /// socket isn't mounted. Matched on where it was thrown so HTTP failures from engines that
+        /// speak HTTP (CouchDB, Qdrant, ClickHouse) keep their own handling.</summary>
+        public static bool IsDockerUnreachable(Exception exception) =>
+            exception is HttpRequestException or System.Net.Sockets.SocketException or TimeoutException or IOException
+            && ThrownByDockerClient(exception);
+
+        private static bool ThrownByDockerClient(Exception exception) =>
+            new System.Diagnostics.StackTrace(exception).GetFrames()
+                .Any(f => f.GetMethod()?.DeclaringType?.Namespace?.StartsWith("Docker.DotNet", StringComparison.Ordinal) == true);
+
         private static string TitleFor(int status) => status switch
         {
+            StatusCodes.Status503ServiceUnavailable => "Docker unreachable",
             StatusCodes.Status404NotFound => "Not found",
             StatusCodes.Status409Conflict => "Conflict",
             StatusCodes.Status500InternalServerError => "Vault key mismatch",
