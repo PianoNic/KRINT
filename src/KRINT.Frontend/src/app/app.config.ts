@@ -36,6 +36,3 @@ export function buildAppConfig(mode: AuthMode): ApplicationConfig {
     ],
   };
 }
-
-/** Kept for anything that still imports the old constant; OIDC is the historical default. */
-export const appConfig: ApplicationConfig = buildAppConfig('oidc');
