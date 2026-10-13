@@ -121,6 +121,7 @@ export class Databases {
   private readonly nodeNames = signal<Record<string, string>>({});
 
   constructor() {
+    this.store.load();
     this.nodesApi.apiNodesGet().subscribe({
       next: (nodes) => this.nodeNames.set(Object.fromEntries(nodes.map((n) => [n.id, n.name]))),
       error: () => this.nodeNames.set({}),

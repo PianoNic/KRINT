@@ -1,5 +1,5 @@
 import { computed, inject } from '@angular/core';
-import { signalStore, withComputed, withHooks, withMethods, withState, patchState } from '@ngrx/signals';
+import { signalStore, withComputed, withMethods, withState, patchState } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { EMPTY, catchError, merge, pipe, switchMap, tap } from 'rxjs';
 import { DatabaseService } from '../../api/api/database.service';
@@ -378,9 +378,8 @@ export const DatabasesStore = signalStore(
       ),
     ),
   })),
-  withHooks({
-    onInit: (store) => store.load(),
-  }),
+  // No load on init: the store outlives the Instances page, so it reloads on every visit
+  // instead (see Databases) and picks up instances created elsewhere, e.g. by the wizard.
 );
 
 function messageOf(err: unknown): string {
