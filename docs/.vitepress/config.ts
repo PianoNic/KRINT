@@ -37,6 +37,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Supported engines', link: '/engines' },
+          { text: 'Use from your app', link: '/apps' },
           { text: 'Declarative instances', link: '/declarative-instances' },
         ],
       },

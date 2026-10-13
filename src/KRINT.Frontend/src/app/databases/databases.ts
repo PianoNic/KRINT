@@ -52,6 +52,7 @@ import { DatabasesStore } from '../shared/stores/databases.store';
 import { lanExposureWarning } from '../shared/engine-auth';
 import { DatabaseService } from '../api/api/database.service';
 import { NodesService } from '../api/api/nodes.service';
+import { DatabaseAppDialog } from './database-app-dialog';
 import { DatabaseDetailsDialog } from './database-details-dialog';
 import { DatabaseEditDialog } from './database-edit-dialog';
 import { DatabaseExportYamlDialog } from './database-export-yaml-dialog';
@@ -169,11 +170,36 @@ export class Databases {
   // Engines whose catalog entry can dump and restore. Upgrade is dump-restore-swap, so
   // offering it for the others ends in a failed step rather than a new version.
   protected readonly backupCapable = signal<ReadonlySet<string>>(new Set());
+  /** Engines that can hold a separate database per app, with the word they use for it. */
+  protected readonly appCapable = signal<ReadonlyMap<string, { term: string; hasUsers: boolean }>>(new Map());
   private readonly loadCatalog = this.api.apiDatabaseSupportedGet().subscribe({
-    next: (engines) =>
-      this.backupCapable.set(new Set(engines.filter((e) => e.capabilities?.supportsBackup).map((e) => e.key))),
+    next: (engines) => {
+      this.backupCapable.set(new Set(engines.filter((e) => e.capabilities?.supportsBackup).map((e) => e.key)));
+      const apps = new Map<string, { term: string; hasUsers: boolean }>();
+      for (const e of engines) {
+        if (!e.capabilities?.supportsCreateDatabase) continue;
+        apps.set(e.key, { term: e.capabilities.databaseTerm, hasUsers: e.capabilities.supportsUsers });
+      }
+      // The hidden pgvector engine is a Postgres image.
+      const pg = apps.get('postgres');
+      if (pg) apps.set('pgvector', pg);
+      this.appCapable.set(apps);
+    },
     error: () => this.backupCapable.set(new Set()),
   });
+
+  protected canCreateApp(db: DatabaseInstanceDto): boolean {
+    return db.isManaged && !db.isConfigManaged && this.appCapable().has(db.engine);
+  }
+
+  protected newAppDatabase(db: DatabaseInstanceDto): void {
+    const caps = this.appCapable().get(db.engine);
+    if (!caps) return;
+    this.dialog.open(DatabaseAppDialog, {
+      context: { id: db.id, displayName: db.displayName, databaseTerm: caps.term, hasUsers: caps.hasUsers },
+      contentClass: 'sm:max-w-[560px]',
+    });
+  }
 
   protected canUpgrade(db: DatabaseInstanceDto): boolean {
     return db.isManaged && !db.isConfigManaged && this.backupCapable().has(db.engine);

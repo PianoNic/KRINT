@@ -236,6 +236,14 @@ namespace KRINT.Application.Queries.SupportedDatabase
         public static IReadOnlyList<EnginePluginDto> PluginsFor(string engine) =>
             PluginsByEngine.TryGetValue(engine, out var plugins) ? plugins : Array.Empty<EnginePluginDto>();
 
+        /// <summary>What KRINT can do with an engine, or null for one it doesn't provision. The
+        /// hidden pgvector engine is a Postgres image and behaves like one.</summary>
+        public static EngineCapabilitiesDto? CapabilitiesFor(string engine)
+        {
+            var key = engine.ToLowerInvariant() == "pgvector" ? "postgres" : engine.ToLowerInvariant();
+            return Engines.Where(e => e.Key == key).Select(e => e.Caps).FirstOrDefault();
+        }
+
         /// <summary>Plugin keys the given engine accepts (empty for engines without plugins).</summary>
         public static IReadOnlyList<string> PluginKeysFor(string engine) =>
             PluginsByEngine.TryGetValue(engine.ToLowerInvariant(), out var plugins)
