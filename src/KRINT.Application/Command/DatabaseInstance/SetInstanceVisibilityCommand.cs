@@ -1,11 +1,8 @@
-using Docker.DotNet.Models;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using KRINT.Application.Command.Database;
 using KRINT.Application.Dtos.DatabaseInstance;
 using KRINT.Application.Mappings.DatabaseInstance;
-using KRINT.Application.Options;
 using KRINT.Infrastructure;
 using KRINT.Infrastructure.Extensions;
 using KRINT.Infrastructure.Interfaces;
@@ -17,8 +14,9 @@ namespace KRINT.Application.Command.DatabaseInstance
     /// <summary>
     /// Flip an instance between "localhost only" (HostIP=127.0.0.1) and "public" (HostIP=0.0.0.0)
     /// port binding. Docker doesn't allow editing port bindings on a live container, so the swap
-    /// is: stop -> remove (keep volume) -> recreate same name+image+env+volume -> start. The
-    /// data volume survives because RemoveContainerAsync defaults to not deleting volumes.
+    /// is: stop -> park the old container under a temporary name -> recreate with the same name,
+    /// image, plugins, networks and data mount -> start -> probe, and only then remove the old one.
+    /// The data volume survives because RemoveContainerAsync defaults to not deleting volumes.
     /// <para>External instances are rejected - their port binding is owned by the user's
     /// orchestrator (docker compose etc.), not by KRINT.</para>
     /// </summary>
@@ -28,7 +26,6 @@ namespace KRINT.Application.Command.DatabaseInstance
         ISecretsVaultService vault,
         IInnerDatabaseServiceResolver innerDbs,
         IActivityLogger activity,
-        IOptions<KrintOptions> options,
         ConfigManagedGuard guard)
         : ICommandHandler<SetInstanceVisibilityCommand, DatabaseInstanceDto>
     {
@@ -53,65 +50,83 @@ namespace KRINT.Application.Command.DatabaseInstance
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
             var spec = CreateDatabaseCommandHandler.ResolveEngineSpec(instance.Engine, instance.Version);
-            var bindSpec = options.Value.Storage.ResolveBindForContainer(instance.ContainerName, spec.DataPath);
-            var env = CreateDatabaseCommandHandler.BuildEnv(instance.Engine, password, instance.DatabaseName, spec.DefaultDatabase);
+            var oldContainerId = instance.ContainerId;
+            var containerName = instance.ContainerName;
 
-            // Stop + remove the old container. Default Docker behavior preserves named volumes
-            // and the host bind mount, so the data the user cares about stays put.
-            await docker.StopContainerAsync(instance.ContainerId, cancellationToken);
-            await docker.RemoveContainerAsync(instance.ContainerId, force: true, cancellationToken);
+            // Everything the new container must carry over comes from the instance row, or, for rows
+            // that predate those columns, from the container being replaced: the data mount (never
+            // the current krint.yaml storage mode, which may point somewhere empty), the plugins
+            // (image swap + env flags) and any networks the user attached it to.
+            var oldInspect = await docker.InspectContainerAsync(oldContainerId, cancellationToken);
+            var wasRunning = oldInspect.State?.Running ?? true;
+            var plugins = InstanceContainerBuilder.PluginsForInstance(instance, oldInspect);
+            var bindSpec = instance.StorageBind
+                ?? InstanceContainerBuilder.ReadStorageBind(oldInspect, spec.DataPath)
+                ?? throw new InvalidOperationException($"Can't find the data mount of container {containerName} at {spec.DataPath}; refusing to recreate it without its data.");
+            var networks = InstanceContainerBuilder.UserNetworks(oldInspect);
 
-            var imageTag = string.Equals(instance.Engine, "pgvector", StringComparison.OrdinalIgnoreCase)
-                ? CreateDatabaseCommandHandler.PgVectorTagFor(instance.Version)
-                : instance.Version;
-            var imageName = string.Equals(instance.Engine, "pgvector", StringComparison.OrdinalIgnoreCase)
-                ? "pgvector/pgvector"
-                : spec.Image;
+            var createParams = InstanceContainerBuilder.Build(new InstanceContainerSpec(
+                instance.Engine, instance.Version, instance.Id, instance.DisplayName, containerName, password, instance.DatabaseName,
+                plugins, instance.Port, LoopbackOnly: !command.IsPublic, bindSpec));
 
-            var createParams = new CreateContainerParameters
+            // Pull before touching the old container, so a registry hiccup changes nothing.
+            var (imageName, imageTag) = InstanceContainerBuilder.ResolveImage(instance.Engine, instance.Version, plugins);
+            await InstanceContainerBuilder.EnsureImageAsync(docker, imageName, imageTag, null, cancellationToken);
+
+            // Docker can't edit port bindings in place and both containers want the same host port
+            // and name, so the old one is stopped and parked under a temporary name - not removed -
+            // until the new one has proven it serves the data. Any failure puts the old one back.
+            // The row keeps pointing at the old container until the new one is committed.
+            var parkedName = $"{containerName}-prev-{Guid.NewGuid().ToString("N")[..6]}";
+            string? newContainerId = null;
+            var committed = false;
+            try
             {
-                Image = $"{imageName}:{imageTag}",
-                Name = instance.ContainerName,
-                Env = env,
-                Cmd = spec.CmdFactory?.Invoke(password),
-                ExposedPorts = new Dictionary<string, EmptyStruct>
+                await docker.StopContainerAsync(oldContainerId, cancellationToken);
+                await docker.RenameContainerAsync(oldContainerId, parkedName, cancellationToken);
+
+                var createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
+                newContainerId = createResult.ID;
+                await InstanceContainerBuilder.ReattachNetworksAsync(docker, newContainerId, networks, cancellationToken);
+                await docker.StartContainerAsync(newContainerId, cancellationToken);
+
+                // Block until the engine accepts a query - same pattern as provision/upgrade.
+                // After the swap the binding is whatever the caller asked for; probe via the right host.
+                var probeTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ResolveProbeHost(command.IsPublic), instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
+                await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(instance.Engine), probeTarget, command.IsPublic, cancellationToken,
+                    containerName, InnerDatabaseTargetLoader.EngineInternalPort(instance.Engine));
+
+                instance.ContainerId = newContainerId;
+                instance.IsPublic = command.IsPublic;
+                instance.Plugins = InstanceContainerBuilder.SerializePluginKeys(plugins);
+                instance.StorageBind = bindSpec;
+                await db.SaveChangesAsync(cancellationToken);
+                committed = true;
+            }
+            finally
+            {
+                if (!committed)
                 {
-                    [$"{spec.InternalPort}/tcp"] = default,
-                },
-                HostConfig = new HostConfig
-                {
-                    PortBindings = new Dictionary<string, IList<PortBinding>>
-                    {
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = instance.Port.ToString(), HostIP = command.IsPublic ? "" : "127.0.0.1" } },
-                    },
-                    Binds = new List<string> { bindSpec },
-                    RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
-                },
-                Labels = Containers.KrintContainerLabels.For(instance.Engine, instance.Id, instance.DisplayName),
-            };
+                    if (newContainerId is not null)
+                        try { await docker.RemoveContainerAsync(newContainerId, force: true, CancellationToken.None); } catch { }
+                    try { await docker.RenameContainerAsync(oldContainerId, containerName, CancellationToken.None); } catch { }
+                    if (wasRunning)
+                        try { await docker.StartContainerAsync(oldContainerId, CancellationToken.None); } catch { }
+                }
+                InnerDatabaseTargetLoader.ForgetInstance(containerName, instance.Port);
+            }
 
-            var createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
-            await docker.StartContainerAsync(createResult.ID, cancellationToken);
-
-            // Block until the engine accepts a query - same pattern as provision/upgrade. If
-            // the engine never comes up, the row stays on the old IsPublic and the user will
-            // see the failure surfaced from this command.
-            // After the swap the binding is whatever the caller asked for; probe via the right host.
-            var probeTarget = new InnerDatabaseTarget(instance.Engine, CreateDatabaseCommandHandler.ResolveProbeHost(command.IsPublic), instance.Port, spec.DefaultUsername, password, spec.DefaultDatabase);
-            await ReadinessProbe.WaitForReadyAsync(innerDbs.Resolve(instance.Engine), probeTarget, command.IsPublic, cancellationToken,
-                instance.ContainerName, InnerDatabaseTargetLoader.EngineInternalPort(instance.Engine));
-
-            instance.ContainerId = createResult.ID;
-            instance.IsPublic = command.IsPublic;
-            await db.SaveChangesAsync(cancellationToken);
+            // Committed: the old container is no longer referenced. Removing it keeps the volume /
+            // host folder, which the new container now mounts. Nothing below may cancel.
+            try { await docker.RemoveContainerAsync(oldContainerId, force: true, CancellationToken.None); } catch { }
 
             await activity.LogAsync(
                 "instance.visibility",
-                instance.ContainerName,
+                containerName,
                 instance.Id,
                 instance.Engine,
                 command.IsPublic ? "public" : "localhost",
-                cancellationToken);
+                CancellationToken.None);
 
             return instance.ToDto();
         }

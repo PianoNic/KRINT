@@ -26,6 +26,19 @@ namespace KRINT.Infrastructure.Interfaces
 
         Task PullImageAsync(string image, string tag = "latest", CancellationToken cancellationToken = default);
 
+        /// <summary>True when image:tag is already present on the daemon. Implementations that
+        /// can't tell answer false, which makes callers pull as before.</summary>
+        Task<bool> ImageExistsAsync(string image, string tag, CancellationToken cancellationToken = default) => Task.FromResult(false);
+
+        /// <summary>Renames a container. Used to park an old container under a temporary name
+        /// while its replacement takes over the original name.</summary>
+        Task RenameContainerAsync(string id, string newName, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Renaming containers is not supported by this Docker target.");
+
+        /// <summary>Joins a container to a network. Implementations that can't do it skip silently -
+        /// the container stays reachable through its published port.</summary>
+        Task ConnectNetworkAsync(string network, string containerId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
         Task<CreateContainerResponse> CreateContainerAsync(CreateContainerParameters parameters, CancellationToken cancellationToken = default);
 
         Task<bool> StartContainerAsync(string id, CancellationToken cancellationToken = default);

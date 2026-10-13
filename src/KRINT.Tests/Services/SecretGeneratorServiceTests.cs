@@ -25,6 +25,18 @@ namespace KRINT.Tests.Services
         }
 
         [Test]
+        public async Task Generate_Always_ContainsUpperLowerAndDigit()
+        {
+            var generator = new SecretGeneratorService();
+
+            for (var i = 0; i < 500; i++)
+            {
+                var secret = generator.Generate();
+                await Assert.That(secret.Any(char.IsAsciiLetterUpper) && secret.Any(char.IsAsciiLetterLower) && secret.Any(char.IsAsciiDigit)).IsTrue();
+            }
+        }
+
+        [Test]
         public async Task Generate_ConsecutiveCalls_ProducesDifferentSecrets()
         {
             var generator = new SecretGeneratorService();

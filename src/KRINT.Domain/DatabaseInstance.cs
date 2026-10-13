@@ -37,5 +37,15 @@ namespace KRINT.Domain
         /// plane's local Docker daemon. When set, all container and DB operations are dispatched to
         /// that node over SignalR (the node executes them locally and returns the result).</summary>
         public Guid? NodeId { get; set; }
+        /// <summary>Comma-separated plugin keys the instance was provisioned with (e.g. "vector" or
+        /// "apoc,graph-data-science"). Recreating the container (visibility change, upgrade) reapplies
+        /// them so the image swap and env flags survive. Null for rows created before this column
+        /// existed - those infer their plugins from the running container.</summary>
+        public string? Plugins { get; set; }
+        /// <summary>The Docker bind spec ("volume-or-host-path:data-path") of the instance's data,
+        /// recorded at provision time. Recreating the container reuses it instead of resolving the
+        /// current krint.yaml storage mode, which may have changed since. Null for older rows - those
+        /// read it back from the existing container.</summary>
+        public string? StorageBind { get; set; }
     }
 }

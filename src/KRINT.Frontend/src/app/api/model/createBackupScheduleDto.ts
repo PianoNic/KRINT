@@ -13,5 +13,6 @@ export interface CreateBackupScheduleDto {
     instanceId: string;
     cronExpression: string;
     description: string;
+    keepLast?: number | null;
 }
 

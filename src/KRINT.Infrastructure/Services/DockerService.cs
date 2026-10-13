@@ -91,6 +91,29 @@ namespace KRINT.Infrastructure.Services
                 cancellationToken: cancellationToken);
         }
 
+        public async Task<bool> ImageExistsAsync(string image, string tag, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await client.Images.InspectImageAsync($"{image}:{tag}", cancellationToken);
+                return true;
+            }
+            catch (DockerApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return false;
+            }
+        }
+
+        public Task RenameContainerAsync(string id, string newName, CancellationToken cancellationToken = default)
+        {
+            return client.Containers.RenameContainerAsync(id, new ContainerRenameParameters { NewName = newName }, cancellationToken);
+        }
+
+        public Task ConnectNetworkAsync(string network, string containerId, CancellationToken cancellationToken = default)
+        {
+            return client.Networks.ConnectNetworkAsync(network, new NetworkConnectParameters { Container = containerId }, cancellationToken);
+        }
+
         public async Task<CreateContainerResponse> CreateContainerAsync(CreateContainerParameters parameters, CancellationToken cancellationToken = default)
         {
             var result = await client.Containers.CreateContainerAsync(parameters, cancellationToken);

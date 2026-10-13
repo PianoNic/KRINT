@@ -56,18 +56,20 @@ namespace KRINT.Application
             if (!string.IsNullOrEmpty(containerName) && internalPort > 0)
             {
                 var key = $"net:{containerName}:{internalPort}";
-                if (ReachableHostCache.TryGetValue(key, out var cached))
+                if (TryGetCached(key, out var cached))
                 {
                     if (cached == "1") return (containerName, internalPort);
                 }
                 else if (await CanConnectAsync(containerName, internalPort, cancellationToken))
                 {
-                    ReachableHostCache[key] = "1";
+                    Cache(key, "1", PositiveTtl);
                     return (containerName, internalPort);
                 }
                 else
                 {
-                    ReachableHostCache[key] = "0";
+                    // A miss is often transient (container still starting, just recreated), so it
+                    // is only remembered briefly instead of pinning the slower route forever.
+                    Cache(key, "0", NegativeTtl);
                 }
             }
 
@@ -98,7 +100,42 @@ namespace KRINT.Application
         // probe cost; on a host-run KRINT (e.g. the desktop app) the first-choice host can be
         // unreachable, so each request burned the full connect timeout before falling back -
         // which made the desktop app feel sluggish versus the in-container deployment.
-        private static readonly ConcurrentDictionary<string, string> ReachableHostCache = new();
+        private static readonly ConcurrentDictionary<string, (string Value, DateTime ExpiresAt)> ReachableHostCache = new();
+        private static readonly TimeSpan PositiveTtl = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan NegativeTtl = TimeSpan.FromSeconds(15);
+
+        private static bool TryGetCached(string key, out string value)
+        {
+            if (ReachableHostCache.TryGetValue(key, out var entry) && entry.ExpiresAt > DateTime.UtcNow)
+            {
+                value = entry.Value;
+                return true;
+            }
+            value = "";
+            return false;
+        }
+
+        private static string Cache(string key, string value, TimeSpan ttl)
+        {
+            ReachableHostCache[key] = (value, DateTime.UtcNow + ttl);
+            return value;
+        }
+
+        /// <summary>Drops every cached route to an instance - its container name on the shared
+        /// network and its published host port. Called when the container is started, recreated
+        /// (visibility change) or replaced (upgrade), since the old answers no longer hold.</summary>
+        public static void ForgetInstance(string? containerName, int hostPort)
+        {
+            var portSuffix = $":{hostPort}";
+            foreach (var key in ReachableHostCache.Keys)
+            {
+                if ((containerName is not null && key.StartsWith($"net:{containerName}:", StringComparison.Ordinal))
+                    || key.EndsWith(portSuffix, StringComparison.Ordinal))
+                {
+                    ReachableHostCache.TryRemove(key, out _);
+                }
+            }
+        }
 
         // Which local probe host can reach a published port depends on where KRINT runs: a
         // containerized KRINT can't reach 127.0.0.1-bound ports via its own loopback but can
@@ -116,12 +153,12 @@ namespace KRINT.Application
             if (alternate is null) return preferred;
 
             var cacheKey = $"{preferred}:{port}";
-            if (ReachableHostCache.TryGetValue(cacheKey, out var cached)) return cached;
+            if (TryGetCached(cacheKey, out var cached)) return cached;
 
             if (await CanConnectAsync(preferred, port, cancellationToken))
-                return ReachableHostCache[cacheKey] = preferred;
+                return Cache(cacheKey, preferred, PositiveTtl);
             if (await CanConnectAsync(alternate, port, cancellationToken))
-                return ReachableHostCache[cacheKey] = alternate;
+                return Cache(cacheKey, alternate, PositiveTtl);
             return preferred;   // neither answered - let the engine call surface the real error (don't cache a guess)
         }
 
