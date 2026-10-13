@@ -74,9 +74,11 @@ namespace KRINT.Application.Command.Migration
             // else is an authenticated user asking for a shell in an unrelated container.
             string? sourceError = null;
             var sourcePassword = req.SourcePassword;
+            string? sourceContainerName = null;
             try
             {
                 var inspect = await dockerResolver.Resolve(null).InspectContainerAsync(req.SourceContainerId, cancellationToken);
+                sourceContainerName = inspect.Name?.TrimStart('/');
                 var (image, _) = Queries.Database.DiscoverContainersQueryHandler.SplitImage(inspect.Config?.Image ?? string.Empty);
                 var imageEngine = Queries.Database.DiscoverContainersQueryHandler.ImageToEngine(image);
                 if (!string.Equals(imageEngine, req.SourceEngine, StringComparison.OrdinalIgnoreCase))
@@ -99,8 +101,14 @@ namespace KRINT.Application.Command.Migration
                 yield break;
             }
 
+            // Same resolution register uses: "localhost" is KRINT's own loopback when it runs in
+            // Docker, so try the source container by name on the shared network first, then the
+            // published port via whichever of 127.0.0.1 / host.docker.internal answers.
             var inner = innerDbs.Resolve(req.SourceEngine);
-            var sourceTarget = new InnerDatabaseTarget(req.SourceEngine, req.SourceHost, req.SourcePort, req.SourceUsername, sourcePassword!, req.SourceDatabaseName);
+            var preferredHost = InnerDatabaseTargetLoader.ResolveTargetHost(req.SourceHost, isManaged: false, isPublic: false);
+            var (sourceHost, sourcePort) = await InnerDatabaseTargetLoader.PickReachableEndpointAsync(
+                sourceContainerName, InnerDatabaseTargetLoader.EngineInternalPort(req.SourceEngine), preferredHost, req.SourcePort, cancellationToken);
+            var sourceTarget = new InnerDatabaseTarget(req.SourceEngine, sourceHost, sourcePort, req.SourceUsername, sourcePassword!, req.SourceDatabaseName);
             string? probeError = null;
             try
             {

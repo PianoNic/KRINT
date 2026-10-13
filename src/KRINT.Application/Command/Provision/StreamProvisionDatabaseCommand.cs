@@ -30,7 +30,12 @@ namespace KRINT.Application.Command.Provision
                 try
                 {
                     var result = await mediator.Send(new ProvisionDatabaseCommand(command.Request, progress), cancellationToken);
-                    channel.Writer.TryWrite(new ProvisionProgressDto { Status = "done", Message = "Instance ready", Result = result });
+                    // Partial success stays "done": the instance exists and works. The message and
+                    // the result's Warnings say which extra steps need redoing.
+                    var message = result.Warnings.Count == 0
+                        ? "Instance ready"
+                        : $"Instance ready, but {result.Warnings.Count} step(s) failed: {string.Join(" ", result.Warnings)}";
+                    channel.Writer.TryWrite(new ProvisionProgressDto { Status = "done", Message = message, Result = result });
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {

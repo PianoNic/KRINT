@@ -12,13 +12,15 @@ namespace KRINT.Infrastructure.Services
 
     internal static class QdrantHttp
     {
-        public static HttpClient Build(InnerDatabaseTarget target)
+        public const string ClientName = "krint-qdrant";
+
+        // Clients come from IHttpClientFactory so the underlying handlers (and their sockets) are
+        // pooled and recycled instead of a fresh connection pool per call.
+        public static HttpClient Build(IHttpClientFactory factory, InnerDatabaseTarget target)
         {
-            var client = new HttpClient
-            {
-                BaseAddress = new Uri($"http://{target.Host}:{target.Port}"),
-                Timeout = TimeSpan.FromSeconds(10),
-            };
+            var client = factory.CreateClient(ClientName);
+            client.BaseAddress = new Uri($"http://{target.Host}:{target.Port}");
+            client.Timeout = TimeSpan.FromSeconds(10);
             if (!string.IsNullOrEmpty(target.Password))
                 client.DefaultRequestHeaders.Add("api-key", target.Password);
             return client;
@@ -51,13 +53,13 @@ namespace KRINT.Infrastructure.Services
             => throw new NotSupportedException("Qdrant user mgmt is not exposed in this version.");
     }
 
-    public class QdrantInnerSchemaService : IInnerSchemaService
+    public class QdrantInnerSchemaService(IHttpClientFactory httpFactory) : IInnerSchemaService
     {
         public string Engine => "qdrant";
 
         public async Task<IReadOnlyList<TableSummary>> ListTablesAsync(InnerDatabaseTarget target, string database, CancellationToken cancellationToken = default)
         {
-            using var http = QdrantHttp.Build(target);
+            using var http = QdrantHttp.Build(httpFactory, target);
             using var resp = await http.GetAsync("/collections", cancellationToken);
             resp.EnsureSuccessStatusCode();
             await using var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
@@ -77,7 +79,7 @@ namespace KRINT.Infrastructure.Services
         public async Task<TableRows> FetchRowsAsync(InnerDatabaseTarget target, string database, string table, int limit, int offset, CancellationToken cancellationToken = default)
         {
             limit = Math.Clamp(limit, 1, 500);
-            using var http = QdrantHttp.Build(target);
+            using var http = QdrantHttp.Build(httpFactory, target);
 
             // /collections/{name}/points/scroll - pull the vector too so the grid can show and edit it
             // (a point's identity-free data is vector + payload; both are needed to insert/upsert).
@@ -132,7 +134,7 @@ namespace KRINT.Infrastructure.Services
             var payloadIdx = Idx(request.Columns, "payload");
             var payload = payloadIdx >= 0 ? request.Values[payloadIdx] ?? "{}" : "{}";
 
-            using var http = QdrantHttp.Build(target);
+            using var http = QdrantHttp.Build(httpFactory, target);
             var body = $"{{\"points\":[{{\"id\":{IdToken(id)},\"vector\":{vector},\"payload\":{payload}}}]}}";
             using var resp = await http.PutAsync($"/collections/{Uri.EscapeDataString(table)}/points?wait=true", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
             resp.EnsureSuccessStatusCode();
@@ -155,7 +157,7 @@ namespace KRINT.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Point id is required to update.");
             var payload = request.NewValues[Idx(request.Columns, "payload")] ?? "{}";
             var vectorIdx = Idx(request.Columns, "vector");
-            using var http = QdrantHttp.Build(target);
+            using var http = QdrantHttp.Build(httpFactory, target);
 
             if (vectorIdx >= 0 && !string.IsNullOrWhiteSpace(request.NewValues[vectorIdx]) && request.NewValues[vectorIdx]!.Trim() is not ("[]" or "{}"))
             {
@@ -176,7 +178,7 @@ namespace KRINT.Infrastructure.Services
         {
             var id = request.OriginalValues[Idx(request.Columns, "id")];
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Point id is required to delete.");
-            using var http = QdrantHttp.Build(target);
+            using var http = QdrantHttp.Build(httpFactory, target);
             var body = $"{{\"points\":[{IdToken(id)}]}}";
             using var resp = await http.PostAsync($"/collections/{Uri.EscapeDataString(table)}/points/delete?wait=true", new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
             resp.EnsureSuccessStatusCode();
@@ -184,7 +186,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {
-            using var http = QdrantHttp.Build(target);
+            using var http = QdrantHttp.Build(httpFactory, target);
             using var resp = await http.DeleteAsync($"/collections/{Uri.EscapeDataString(table)}", cancellationToken);
             resp.EnsureSuccessStatusCode();
         }

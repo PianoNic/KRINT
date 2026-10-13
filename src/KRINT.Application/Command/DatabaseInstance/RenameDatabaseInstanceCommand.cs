@@ -17,11 +17,7 @@ namespace KRINT.Application.Command.DatabaseInstance
                 ?? throw new InstanceNotFoundException(command.InstanceId);
             guard.EnsureMutable(instance);
 
-            var name = command.DisplayName?.Trim();
-            if (string.IsNullOrEmpty(name))
-                throw new ArgumentException("Display name must not be empty.", nameof(command));
-            if (name.Length > 64)
-                throw new ArgumentException("Display name must be 64 characters or fewer.", nameof(command));
+            var name = DisplayNameValidator.Normalize(command.DisplayName);
 
             if (instance.DisplayName == name) return Unit.Value;
             var previous = instance.DisplayName;

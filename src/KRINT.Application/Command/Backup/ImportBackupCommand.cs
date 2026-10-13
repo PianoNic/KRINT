@@ -8,7 +8,8 @@ using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Command.Backup
 {
-    public record ImportBackupCommand(Guid InstanceId, string FileName, byte[] Content) : ICommand<BackupEntryDto>;
+    /// <param name="Content">Read once, straight into the backup file. The caller owns it.</param>
+    public record ImportBackupCommand(Guid InstanceId, string FileName, Stream Content) : ICommand<BackupEntryDto>;
 
     public class ImportBackupCommandHandler(KrintDbContext db, IBackupStorage storage, IActivityLogger activity)
         : ICommandHandler<ImportBackupCommand, BackupEntryDto>
@@ -27,10 +28,10 @@ namespace KRINT.Application.Command.Backup
             var rawName = Path.GetFileName(command.FileName);
             if (string.IsNullOrWhiteSpace(rawName))
                 throw new ArgumentException("File name is required.", nameof(command));
-            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff");
             var fileName = $"imported-{stamp}-{rawName}";
 
-            var fullPath = await storage.SaveAsync(instance.ContainerName, fileName, command.Content, cancellationToken);
+            var saved = await storage.SaveAsync(instance.ContainerName, fileName, (file, ct) => command.Content.CopyToAsync(file, 81920, ct), cancellationToken);
 
             var entry = new BackupEntry
             {
@@ -38,13 +39,13 @@ namespace KRINT.Application.Command.Backup
                 Engine = instance.Engine,
                 EngineVersion = instance.Version,
                 FileName = fileName,
-                FilePath = fullPath,
-                SizeBytes = command.Content.LongLength,
+                FilePath = saved.FullPath,
+                SizeBytes = saved.SizeBytes,
             };
             db.BackupEntries.Add(entry);
             await db.SaveChangesAsync(cancellationToken);
 
-            await activity.LogAsync("backup.import", fileName, instance.Id, instance.Engine, $"size={command.Content.LongLength}", cancellationToken);
+            await activity.LogAsync("backup.import", fileName, instance.Id, instance.Engine, $"size={saved.SizeBytes}", cancellationToken);
 
             return entry.ToDto();
         }

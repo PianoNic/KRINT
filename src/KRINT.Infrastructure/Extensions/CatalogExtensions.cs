@@ -15,6 +15,7 @@ namespace KRINT.Infrastructure.Extensions
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("krint-version-check");
                 http.Timeout = TimeSpan.FromSeconds(15);
             });
+            services.AddHostedService<DatabaseVersionWarmup>();
             return services;
         }
     }

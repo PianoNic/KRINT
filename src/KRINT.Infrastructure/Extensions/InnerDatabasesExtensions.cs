@@ -8,6 +8,10 @@ namespace KRINT.Infrastructure.Extensions
     {
         public static IServiceCollection AddInnerDatabases(this IServiceCollection services)
         {
+            // HTTP-speaking engines get their clients from the factory (pooled, recycled handlers).
+            services.AddHttpClient(CouchDbHttp.ClientName);
+            services.AddHttpClient(QdrantHttp.ClientName);
+
             services.AddSingleton<IInnerDatabaseService, PostgresInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, TimescaleDbInnerDatabaseService>();
             services.AddSingleton<IInnerDatabaseService, MySqlInnerDatabaseService>();

@@ -24,6 +24,22 @@
       </div>
 
       <div hlmCardContent class="flex flex-col gap-4">
+        @if (res.warnings?.length) {
+          <div
+            role="alert"
+            class="border-destructive/40 bg-destructive/5 flex flex-col gap-2 rounded-md border p-3"
+          >
+            <p class="text-sm font-medium">
+              The instance is up, but some steps failed. Add what is missing from the instance
+              page.
+            </p>
+            <ul class="list-disc pl-5 text-sm">
+              @for (warning of res.warnings; track $index) {
+                <li>{{ warning }}</li>
+              }
+            </ul>
+          </div>
+        }
         @if (res.instance.nodeId && res.instance.containerConnectionString) {
           <div class="border-primary/30 bg-primary/5 flex flex-col gap-3 rounded-md border p-3">
             <p class="text-sm">

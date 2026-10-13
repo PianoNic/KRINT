@@ -24,6 +24,8 @@ namespace KRINT.API.Hubs
         // Key under which a token-resolved node Id is stashed on the connection, so Register can use
         // it instead of trusting whatever Id the node self-reports.
         private const string ResolvedNodeIdKey = "ResolvedNodeId";
+        // The node id this connection registered as, so a disconnect can fail that node's streams.
+        private const string RegisteredNodeIdKey = "RegisteredNodeId";
 
         public override async Task OnConnectedAsync()
         {
@@ -103,7 +105,12 @@ namespace KRINT.API.Hubs
                 return;
             }
 
-            registry.Register(nodeId, Context.ConnectionId);
+            // Context.Abort lets a node delete cut this connection immediately (token revoked).
+            registry.Register(nodeId, Context.ConnectionId, registration.ProtocolVersion, Context.Abort);
+            Context.Items[RegisteredNodeIdKey] = nodeId;
+            if (registration.ProtocolVersion < NodeProtocol.Current)
+                logger.LogWarning("Node {NodeId} runs agent protocol {Version}, the control plane expects {Expected}. Backups and restores on it will fail until the node image is upgraded.",
+                    nodeId, registration.ProtocolVersion, NodeProtocol.Current);
             if (node is null)
             {
                 db.Nodes.Add(new Node
@@ -169,10 +176,23 @@ namespace KRINT.API.Hubs
             return Task.CompletedTask;
         }
 
-        public override Task OnDisconnectedAsync(Exception? exception)
+        public override async Task OnDisconnectedAsync(Exception? exception)
         {
             registry.Remove(Context.ConnectionId);
-            return base.OnDisconnectedAsync(exception);
+
+            // If the node is now offline (not already back on a fresh connection), nothing will ever
+            // complete its log streams or exec sessions: fail them so browser views don't hang.
+            if (Context.Items.TryGetValue(RegisteredNodeIdKey, out var registered) && registered is Guid nodeId
+                && !registry.TryGetConnectionId(nodeId, out _))
+            {
+                foreach (var (sessionId, browserConnectionId) in streamRelay.DropNode(nodeId))
+                {
+                    try { await containerHub.Clients.Client(browserConnectionId).SendAsync("ExecExited", sessionId, (long?)null); }
+                    catch { /* browser gone too */ }
+                }
+            }
+
+            await base.OnDisconnectedAsync(exception);
         }
     }
 }

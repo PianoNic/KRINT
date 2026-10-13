@@ -62,7 +62,23 @@ namespace KRINT.Application.Command.Database
 
             var spec = CreateDatabaseCommandHandler.ResolveEngineSpec(instance.Engine, command.TargetVersion);
 
-            // 1. Auto-backup OLD so a future Rollback can restore from it.
+            // The new container must carry the old one's plugins (image swap + env flags) and user
+            // networks. Rows that predate the Plugins / StorageBind columns read them off the old
+            // container. Inspect is best-effort: a missing container just means stock settings.
+            ContainerInspectResponse? oldInspect = null;
+            try { oldInspect = await docker.InspectContainerAsync(oldContainerId, cancellationToken); }
+            catch when (!cancellationToken.IsCancellationRequested) { }
+            var plugins = InstanceContainerBuilder.PluginsForInstance(instance, oldInspect);
+            var networks = InstanceContainerBuilder.UserNetworks(oldInspect);
+            var oldDataPath = CreateDatabaseCommandHandler.ResolveEngineSpec(instance.Engine, oldVersion).DataPath;
+            var oldBind = instance.StorageBind
+                ?? (oldInspect is null ? null : InstanceContainerBuilder.ReadStorageBind(oldInspect, oldDataPath));
+
+            // 1. Pull the new image first: a bad tag or registry outage fails before anything changes.
+            var (imageName, imageTag) = InstanceContainerBuilder.ResolveImage(instance.Engine, command.TargetVersion, plugins);
+            await InstanceContainerBuilder.EnsureImageAsync(docker, imageName, imageTag, null, cancellationToken);
+
+            // 2. Auto-backup OLD so a future Rollback can restore from it.
             var dump = await backupResolver.Resolve(instance.Engine).DumpAsync(
                 new BackupTarget(oldContainerId, oldContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId),
                 cancellationToken);
@@ -81,49 +97,32 @@ namespace KRINT.Application.Command.Database
             db.BackupEntries.Add(backupEntry);
             await db.SaveChangesAsync(cancellationToken);
 
-            // 2. Pull the new image.
-            var imageTag = command.TargetVersion;
-            await docker.PullImageAsync(spec.Image, imageTag, cancellationToken);
-
-            // 3. Free the host port by stopping OLD.
-            await docker.StopContainerAsync(oldContainerId, cancellationToken);
-
-            // 4. Create + start NEW on OLD's port with a fresh container name + fresh volume,
-            //    reusing OLD's password so the user's connection string keeps working.
+            // 3. NEW gets a fresh container name + fresh storage on OLD's port, reusing OLD's
+            //    password so the user's connection string keeps working.
             var newInstanceShort = Guid.NewGuid().ToString("N")[..8];
             var newContainerName = $"krint-{spec.ShortName}-{newInstanceShort}";
             var newVolumeName = $"{newContainerName}-data";
             var newBindSpec = options.Value.Storage.ResolveBindForContainer(newContainerName, spec.DataPath);
 
-            var env = CreateDatabaseCommandHandler.BuildEnv(instance.Engine, password, instance.DatabaseName, spec.DefaultDatabase);
-            var createParams = new CreateContainerParameters
-            {
-                Image = $"{spec.Image}:{imageTag}",
-                Name = newContainerName,
-                Env = env,
-                Cmd = spec.CmdFactory?.Invoke(password),
-                ExposedPorts = new Dictionary<string, EmptyStruct>
-                {
-                    [$"{spec.InternalPort}/tcp"] = default,
-                },
-                HostConfig = new HostConfig
-                {
-                    PortBindings = new Dictionary<string, IList<PortBinding>>
-                    {
-                        // Preserve the old container's visibility setting across the swap.
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = instance.Port.ToString(), HostIP = instance.NodeId is not null || !instance.IsPublic ? "127.0.0.1" : "" } },
-                    },
-                    Binds = new List<string> { newBindSpec },
-                    RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
-                },
-                Labels = Containers.KrintContainerLabels.For(instance.Engine, instance.Id, instance.DisplayName),
-            };
+            var createParams = InstanceContainerBuilder.Build(new InstanceContainerSpec(
+                instance.Engine, command.TargetVersion, instance.Id, instance.DisplayName, newContainerName, password, instance.DatabaseName,
+                plugins, instance.Port,
+                // Preserve the old container's visibility setting across the swap.
+                LoopbackOnly: instance.NodeId is not null || !instance.IsPublic,
+                newBindSpec));
 
-            var newCreateResult = await docker.CreateContainerAsync(createParams, cancellationToken);
-            var newOk = false;
+            // From here on OLD stays in place (stopped) until NEW is committed to the row, and any
+            // failure removes NEW and restarts OLD - the row always points at a container that exists.
+            string? newContainerId = null;
+            var committed = false;
             try
             {
-                await docker.StartContainerAsync(newCreateResult.ID, cancellationToken);
+                // 4. Free the host port by stopping OLD, then create + start NEW.
+                await docker.StopContainerAsync(oldContainerId, cancellationToken);
+                var newCreateResult = await docker.CreateContainerAsync(createParams, cancellationToken);
+                newContainerId = newCreateResult.ID;
+                await InstanceContainerBuilder.ReattachNetworksAsync(docker, newContainerId, networks, cancellationToken);
+                await docker.StartContainerAsync(newContainerId, cancellationToken);
 
                 // Wait for the engine inside the new container to accept connections.
                 // ReadinessProbe tries both probe hosts - see its doc comment.
@@ -135,7 +134,7 @@ namespace KRINT.Application.Command.Database
                 await using (var stream = backupStorage.OpenRead(backupPath)
                     ?? throw new InvalidOperationException($"Pre-upgrade backup vanished: {backupPath}"))
                 {
-                    var restoreTarget = new BackupTarget(newCreateResult.ID, newContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId);
+                    var restoreTarget = new BackupTarget(newContainerId, newContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId);
                     await backupResolver.Resolve(instance.Engine).RestoreAsync(restoreTarget, stream, cancellationToken);
                 }
 
@@ -143,34 +142,49 @@ namespace KRINT.Application.Command.Database
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(newContainerName), password, cancellationToken);
                 instance.PreviousVersion = oldVersion;
                 instance.Version = command.TargetVersion;
-                instance.ContainerId = newCreateResult.ID;
+                instance.ContainerId = newContainerId;
                 instance.ContainerName = newContainerName;
+                instance.Plugins = InstanceContainerBuilder.SerializePluginKeys(plugins);
+                instance.StorageBind = newBindSpec;
                 await db.SaveChangesAsync(cancellationToken);
-
-                await activity.LogAsync("instance.upgrade", oldContainerName, instance.Id, instance.Engine, $"{oldVersion}->{command.TargetVersion}", cancellationToken);
-
-                // 7. Tear down OLD (container + storage + vault entry). Best-effort.
-                try { await docker.RemoveContainerAsync(oldContainerId, force: true, CancellationToken.None); } catch { }
-                try { await docker.RemoveVolumeAsync(oldVolumeName, force: false, CancellationToken.None); } catch { }
-                TryDeleteHostFolder(options.Value.Storage.TryResolveHostFolderForContainer(oldContainerName));
-                try { await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(oldContainerName), CancellationToken.None); } catch { }
-
-                newOk = true;
-                return instance.ToDto();
+                committed = true;
             }
             finally
             {
-                if (!newOk)
+                if (!committed)
                 {
                     // Roll the world back to OLD: nuke NEW container + its fresh volume, drop the
                     // NEW vault entry if we already wrote it, and restart OLD on its port.
-                    try { await docker.RemoveContainerAsync(newCreateResult.ID, force: true, CancellationToken.None); } catch { }
+                    if (newContainerId is not null)
+                        try { await docker.RemoveContainerAsync(newContainerId, force: true, CancellationToken.None); } catch { }
                     try { await docker.RemoveVolumeAsync(newVolumeName, force: false, CancellationToken.None); } catch { }
                     TryDeleteHostFolder(options.Value.Storage.TryResolveHostFolderForContainer(newContainerName));
                     try { await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(newContainerName), CancellationToken.None); } catch { }
                     try { await docker.StartContainerAsync(oldContainerId, CancellationToken.None); } catch { }
                 }
+                InnerDatabaseTargetLoader.ForgetInstance(oldContainerName, instance.Port);
             }
+
+            // Committed: everything below is cleanup of OLD and must not be cancelled by the caller.
+            await activity.LogAsync("instance.upgrade", oldContainerName, instance.Id, instance.Engine, $"{oldVersion}->{command.TargetVersion}", CancellationToken.None);
+
+            // 7. Tear down OLD (container + storage + vault entry). Best-effort.
+            try { await docker.RemoveContainerAsync(oldContainerId, force: true, CancellationToken.None); } catch { }
+            if (oldBind is not null && InstanceContainerBuilder.TrySplitBind(oldBind, out var oldSource, out _))
+            {
+                if (InstanceContainerBuilder.IsVolumeSource(oldSource))
+                    try { await docker.RemoveVolumeAsync(oldSource, force: false, CancellationToken.None); } catch { }
+                else
+                    TryDeleteHostFolder(oldSource);
+            }
+            else
+            {
+                try { await docker.RemoveVolumeAsync(oldVolumeName, force: false, CancellationToken.None); } catch { }
+                TryDeleteHostFolder(options.Value.Storage.TryResolveHostFolderForContainer(oldContainerName));
+            }
+            try { await vault.DeleteAsync(ConnectionStringBuilder.VaultKeyFor(oldContainerName), CancellationToken.None); } catch { }
+
+            return instance.ToDto();
         }
 
         private static void TryDeleteHostFolder(string? path)

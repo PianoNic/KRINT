@@ -4,19 +4,19 @@ namespace KRINT.API.Nodes
 {
     public class NodeRegistry : INodeRegistry
     {
-        private sealed record Entry(Guid NodeId, string ConnectionId, DateTimeOffset LastSeenAt);
+        private sealed record Entry(Guid NodeId, string ConnectionId, DateTimeOffset LastSeenAt, int ProtocolVersion, Action? Abort);
 
         // Keyed both ways: by node id (to route an RPC) and by connection id (to clean up on disconnect).
         private readonly ConcurrentDictionary<Guid, Entry> _byNode = new();
         private readonly ConcurrentDictionary<string, Guid> _byConnection = new();
 
-        public void Register(Guid nodeId, string connectionId)
+        public void Register(Guid nodeId, string connectionId, int protocolVersion = 0, Action? abort = null)
         {
             // A node id can only have one live connection; if it reconnected, drop the stale mapping.
             if (_byNode.TryGetValue(nodeId, out var existing) && existing.ConnectionId != connectionId)
                 _byConnection.TryRemove(existing.ConnectionId, out _);
 
-            var entry = new Entry(nodeId, connectionId, DateTimeOffset.UtcNow);
+            var entry = new Entry(nodeId, connectionId, DateTimeOffset.UtcNow, protocolVersion, abort);
             _byNode[nodeId] = entry;
             _byConnection[connectionId] = nodeId;
         }
@@ -36,6 +36,13 @@ namespace KRINT.API.Nodes
                 _byNode.TryRemove(nodeId, out _);
         }
 
+        public void Disconnect(Guid nodeId)
+        {
+            if (!_byNode.TryRemove(nodeId, out var entry)) return;
+            _byConnection.TryRemove(entry.ConnectionId, out _);
+            try { entry.Abort?.Invoke(); } catch { /* connection already gone */ }
+        }
+
         public bool TryGetConnectionId(Guid nodeId, out string connectionId)
         {
             if (_byNode.TryGetValue(nodeId, out var entry))
@@ -46,6 +53,9 @@ namespace KRINT.API.Nodes
             connectionId = string.Empty;
             return false;
         }
+
+        public int GetProtocolVersion(Guid nodeId)
+            => _byNode.TryGetValue(nodeId, out var entry) ? entry.ProtocolVersion : 0;
 
         public IReadOnlyDictionary<Guid, DateTimeOffset> OnlineLastSeen() =>
             _byNode.ToDictionary(kv => kv.Key, kv => kv.Value.LastSeenAt);

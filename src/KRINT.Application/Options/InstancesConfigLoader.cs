@@ -33,8 +33,31 @@ namespace KRINT.Application.Options
                 .WithNamingConvention(UnderscoredNamingConvention.Instance)
                 .Build();
             using var reader = File.OpenText(ResolvedPath);
-            var config = deserializer.Deserialize<InstancesConfig>(reader) ?? new InstancesConfig();
+            var config = Normalize(deserializer.Deserialize<InstancesConfig>(reader) ?? new InstancesConfig());
             ValidatePlugins(config);
+            return config;
+        }
+
+        /// <summary>A key with no value (e.g. <c>instances:</c> with every entry commented out)
+        /// deserializes to null and overrides the property initializer. Replace those with empty
+        /// lists so callers never see null.</summary>
+        internal static InstancesConfig Normalize(InstancesConfig config)
+        {
+            config.Instances = (config.Instances ?? []).Where(i => i is not null).ToList();
+            foreach (var spec in config.Instances)
+            {
+                spec.Engine ??= "";
+                spec.Version ??= "";
+                spec.DisplayName ??= "";
+                spec.Databases = (spec.Databases ?? []).Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
+                spec.Plugins = (spec.Plugins ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+                spec.Users = (spec.Users ?? []).Where(u => u is not null).ToList();
+                foreach (var user in spec.Users)
+                {
+                    user.Name ??= "";
+                    user.GrantDatabases = (user.GrantDatabases ?? []).Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
+                }
+            }
             return config;
         }
 

@@ -20,6 +20,10 @@ namespace KRINT.Infrastructure.Services
                 InitialCatalog = overrideDatabase ?? target.DefaultDatabase,
                 TrustServerCertificate = true,
                 ConnectTimeout = 5,
+                // Pooling stays off: RESTORE DATABASE ... WITH REPLACE (MsSqlBackupService) needs
+                // exclusive access, and an idle pooled session left on the database by the browser
+                // or query console would make the restore fail. Restores can run in a node process
+                // too, so clearing this process's pools first wouldn't cover it.
                 Pooling = false,
             };
             var conn = new SqlConnection(csb.ConnectionString);
@@ -164,13 +168,21 @@ namespace KRINT.Infrastructure.Services
 
             await using var conn = await MsSqlConnect.OpenAsync(target, database, cancellationToken);
 
-            long? total = null;
-            await using (var countCmd = new SqlCommand($"SELECT COUNT(*) FROM {qualified}", conn))
-            {
-                var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
-                if (raw is int i) total = i;
-                else if (raw is long l) total = l;
-            }
+            var (total, totalIsEstimate) = await RowCountEstimate.ResolveAsync(
+                async () =>
+                {
+                    // Heap / clustered-index partition row counts (NULL for views).
+                    await using var estCmd = new SqlCommand("SELECT SUM(p.rows) FROM sys.partitions p WHERE p.object_id = OBJECT_ID(@q) AND p.index_id IN (0, 1)", conn);
+                    estCmd.Parameters.AddWithValue("@q", qualified);
+                    var raw = await estCmd.ExecuteScalarAsync(cancellationToken);
+                    return raw is null or DBNull ? null : Convert.ToInt64(raw, CultureInfo.InvariantCulture);
+                },
+                async () =>
+                {
+                    await using var countCmd = new SqlCommand($"SELECT COUNT_BIG(*) FROM {qualified}", conn);
+                    var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
+                    return raw is null or DBNull ? null : Convert.ToInt64(raw, CultureInfo.InvariantCulture);
+                });
 
             // Render every column to text server-side with the same CAST(... AS NVARCHAR(MAX)) the
             // row-identity WHERE clause uses, so the strings the grid loads round-trip exactly. Reading
@@ -199,7 +211,7 @@ namespace KRINT.Infrastructure.Services
                 }
                 rows.Add(row);
             }
-            return new TableRows(columns, rows, total);
+            return new TableRows(columns, rows, total, TotalIsEstimate: totalIsEstimate);
         }
 
         public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)

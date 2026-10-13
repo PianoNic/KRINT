@@ -16,6 +16,7 @@ namespace KRINT.Application.Mappings.BackupSchedule
             LastStatus = s.LastStatus,
             LastError = s.LastError,
             NextRunAt = s.NextRunAt,
+            KeepLast = s.KeepLast,
             CreatedAt = s.CreatedAt,
         };
     }

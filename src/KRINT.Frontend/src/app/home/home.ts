@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DOCUMENT, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { DashboardHubService } from './dashboard-hub.service';
@@ -188,17 +188,33 @@ export class Home implements OnDestroy {
     return `${pct.toFixed(1)}%`;
   });
 
+  private readonly document = inject(DOCUMENT);
+  private destroyed = false;
+  private readonly onVisibilityChange = (): void => {
+    // A hidden tab has nobody looking at the numbers: drop the stream so the server-side
+    // sampler can idle, and pick it back up (with an immediate snapshot) when visible again.
+    if (this.document.visibilityState === 'hidden') this.stopStream();
+    else void this.startStream();
+  };
+
   constructor() {
-    // Show something immediately via the one-shot REST call so the page doesn't sit blank
-    // while the hub negotiates. The stream then takes over and overwrites with fresh data.
-    this.reload();
-    void this.startStream();
+    // The stream emits a snapshot as soon as it is subscribed, so no separate REST call is
+    // needed up front; REST is only the fallback when the hub can't be reached.
+    this.loading.set(true);
+    this.document.addEventListener('visibilitychange', this.onVisibilityChange);
+    if (this.document.visibilityState !== 'hidden') void this.startStream();
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
+    this.document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    this.stopStream();
+    void this.hub.stop();
+  }
+
+  private stopStream(): void {
     try { this.streamSub?.dispose(); } catch { /* already gone */ }
     this.streamSub = null;
-    void this.hub.stop();
   }
 
   protected reload(): void {
@@ -214,16 +230,28 @@ export class Home implements OnDestroy {
   }
 
   private async startStream(): Promise<void> {
+    if (this.streamSub) return;
     try {
       const conn = await this.hub.getConnection();
+      // The tab may have been hidden or the page left while the hub was connecting.
+      if (this.destroyed || this.streamSub || this.document.visibilityState === 'hidden') {
+        this.loading.set(false);
+        return;
+      }
       const stream = conn.stream<DashboardStatsDto>('StreamStats', 2500);
       this.streamSub = stream.subscribe({
-        next: (snapshot) => { this.stats.set(snapshot); this.error.set(null); },
-        error: () => { /* fall back to REST snapshot; manual Refresh still works */ },
-        complete: () => { /* nothing to do */ },
+        next: (snapshot) => { this.stats.set(snapshot); this.error.set(null); this.loading.set(false); },
+        error: () => {
+          // Stream broke: fall back to a REST snapshot; manual Refresh still works.
+          this.streamSub = null;
+          if (!this.stats()) this.reload();
+        },
+        complete: () => { this.streamSub = null; },
       });
     } catch {
-      // Hub unreachable — leave the REST snapshot in place. The manual Refresh button still works.
+      // Hub unreachable - fall back to a one-shot REST snapshot. The manual Refresh button still works.
+      if (!this.destroyed && !this.stats()) this.reload();
+      else this.loading.set(false);
     }
   }
 

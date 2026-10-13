@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Docker.DotNet.Models;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using KRINT.Application.Dtos.DatabaseInstance;
@@ -32,7 +34,10 @@ namespace KRINT.Application.Queries.Database
                 .Select(d => d.ContainerId!)
                 .ToHashSetAsync(cancellationToken);
 
-            var results = new List<DiscoveredContainerDto>();
+            // Cheap filtering first (labels, tracked ids, image -> engine), then inspect the remaining
+            // candidates in parallel with a small cap: one inspect per candidate is a node round-trip
+            // for remote hosts, so doing them one by one made discovery crawl on busy hosts.
+            var candidates = new List<(ContainerListResponse Container, string Tag, string Engine)>();
             foreach (var c in containers)
             {
                 // KRINT-managed containers are already in the instances list - don't re-offer.
@@ -43,10 +48,18 @@ namespace KRINT.Application.Queries.Database
                 var (image, tag) = SplitImage(c.Image);
                 var engine = ImageToEngine(image);
                 if (engine is null) continue;
+                candidates.Add((c, tag, engine));
+            }
+
+            var results = new ConcurrentBag<DiscoveredContainerDto>();
+            var parallel = new ParallelOptions { MaxDegreeOfParallelism = InspectConcurrency, CancellationToken = cancellationToken };
+            await Parallel.ForEachAsync(candidates, parallel, async (candidate, ct) =>
+            {
+                var (c, tag, engine) = candidate;
 
                 // Need the inspect to pull env vars (creds + db name). ListContainers doesn't
-                // include env. One inspect per candidate; volumes are typically small.
-                var inspect = await docker.InspectContainerAsync(c.ID, cancellationToken);
+                // include env.
+                var inspect = await docker.InspectContainerAsync(c.ID, ct);
                 var env = ParseEnv(inspect.Config?.Env);
                 var spec = EngineDefaults(engine);
 
@@ -90,13 +103,16 @@ namespace KRINT.Application.Queries.Database
                     ComposeService = string.IsNullOrEmpty(composeService) ? null : composeService,
                     ComposeFilePath = composeFilePath,
                 });
-            }
+            });
 
             return results
                 .OrderByDescending(r => string.Equals(r.State, "running", StringComparison.OrdinalIgnoreCase))
                 .ThenBy(r => r.ContainerName)
                 .ToList();
         }
+
+        /// <summary>How many containers are inspected at once during discovery.</summary>
+        internal const int InspectConcurrency = 4;
 
         internal static (string Image, string Tag) SplitImage(string image)
         {

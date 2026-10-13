@@ -129,12 +129,14 @@ UI, rotating refresh tokens, lockout after repeated failures. On first boot it c
 | `LocalLogin__AdminUserName` | Name of the first account. Default `admin`. |
 | `LocalLogin__AdminPassword` | Its password. Leave unset and a random one is printed once in the container log (`docker logs krint`). |
 | `LocalLogin__SigningKey` | Optional. Base64 key (32+ bytes) that signs the session tokens; derived from `Vault__MasterKey` when unset, so nothing extra to configure. |
+| `LocalLogin__LogIssuedCredentials` | `true` writes password reset tokens and admin-issued passwords to the log. Off by default: the log only says that one was issued. |
 
 The quickest way to see it is the repo's own stack, which uses exactly this:
 
 ```bash
 git clone https://github.com/PianoNic/KRINT.git && cd KRINT
-docker compose up -d     # postgres + krint on http://localhost:56722, sign in as admin / krint-admin
+docker compose up -d     # postgres + krint on http://localhost:56722
+docker logs krint        # the generated password for 'admin' is printed once on first boot
 ```
 
 Change the password after signing in (Settings). Local login has no roles: every local account is an
@@ -154,7 +156,8 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 
 | Variable | What it does |
 | --- | --- |
-| `Vault__MasterKey` | AES-256 key for the secrets vault. **32 random bytes, base64** (`openssl rand -base64 32`). Encrypts every instance password. |
+| `Vault__MasterKey` | AES-256 key for the secrets vault. **32 random bytes, base64** (`openssl rand -base64 32`). Encrypts every instance password. When unset, KRINT reads it from `Vault__KeyFile` and generates it there on first boot. |
+| `Vault__KeyFile` | Where the key lives when `Vault__MasterKey` is unset. Default `/app/data/vault.key` (the repo's compose mounts `./data` there). Back this file up with your data. |
 | `ConnectionStrings__KrintDatabase` | KRINT's own metadata DB. Postgres: `Host=db;Port=5432;Database=krint;Username=postgres;Password=…`. SQLite: `Data Source=/data/krint.db`. |
 | `Database__Provider` | `Postgres` or `Sqlite` (default). Picks the metadata store. |
 | `Oidc__Authority` | Public IdP discovery URL. Unset = [local login](#no-oidc-provider-local-login). Must match the `issuer` in `<authority>/.well-known/openid-configuration` **byte-for-byte** (scheme, port, trailing slash). |
@@ -170,6 +173,7 @@ Set these on the `krint` service (the Quickstart pulls them from `.env`).
 | `Krint__TrustForwardedHeaders` | `true` only behind a reverse proxy: honour `X-Forwarded-For/Proto/Host` from it. |
 | `Krint__PublicUrl` | Public URL this control plane is served on (e.g. `https://krint.example.com`). Drives the [Add-node](./nodes#add-a-node) compose, and backs the OIDC redirect + CORS when those aren't set explicitly. **Required to add nodes** - it must be reachable from each node's host (not `localhost`); the Add-node dialog refuses to generate a compose until it's set. |
 | `Backup__Directory` | Where dumps are written. Optional - defaults to `/app/backups` (the path the compose bind-mounts). |
+| `Backup__ExecTimeoutMinutes` | Cap for a single backup or restore run inside the database container. Optional - defaults to `120`. |
 | `Docker__Endpoint` | Docker daemon URI, e.g. `unix:///var/run/docker.sock`. Optional - auto-detected (Unix socket / Windows named pipe) when unset. |
 
 ::: danger
@@ -254,7 +258,7 @@ Prefer configuration over scripts? Declare instances in `instances.yaml` and let
 
 `GET /health` needs no token and answers `{"status":"healthy","checks":{"database":…,"docker":…}}`, or `503` when the metadata database or the Docker daemon is unreachable. Point your orchestrator's probe at it.
 
-At boot KRINT logs the effective configuration (database provider, config file, storage mode, authority, public URL) and refuses to start when `Vault__MasterKey` is missing or not a 32-byte base64 key. A missing Docker socket or `Oidc__Authority` is logged as an error so `docker logs krint` names the problem.
+At boot KRINT logs the effective configuration (database provider, config file, storage mode, authority, public URL) and refuses to start when `Vault__MasterKey` is not a 32-byte base64 key, or when it cannot decrypt the secrets already stored (`master key does not match stored secrets`). A missing Docker socket or `Oidc__Authority` is logged as an error so `docker logs krint` names the problem.
 
 </details>
 
@@ -306,6 +310,7 @@ Migrations run on startup; the vault, metadata, and provisioned containers are p
 | Symptom | Fix |
 | --- | --- |
 | `Vault:MasterKey must decode to 32 bytes` | Regenerate with `openssl rand -base64 32`. |
+| `Vault:MasterKey does not match stored secrets` | KRINT started with a different key than the one the secrets were written with. Restore the original `Vault__MasterKey` or `vault.key`. A stack started from the repo's compose.yml before it generated keys used the old demo key `2P+vvGUw5v3weZdFU04YOicpVNs9eIyRKo6NliiDR4c=`: set that in `.env` to read its data. |
 | `401 invalid_token: issuer is invalid` | `Oidc__Authority` must match the IdP's `issuer` byte-for-byte. |
 | `401: signature key was not found` | API can't reach JWKS - check `Oidc__InternalAuthority` / `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`. |
 | "You're not allowed to access this service" | IdP authenticated the user but the client policy denies them - allow the user/group. |

@@ -17,33 +17,51 @@ namespace KRINT.Infrastructure.Services
         public static async Task<QueryResult> ExecuteAsync(DbCommand cmd, int rowLimit, CancellationToken cancellationToken)
         {
             var sw = Stopwatch.StartNew();
-            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            // FieldCount == 0 means the statement didn't produce a result set (INSERT/UPDATE/DDL).
-            // Surface RecordsAffected so the user sees "3 rows affected" instead of an empty table.
-            if (reader.FieldCount == 0)
-            {
-                sw.Stop();
-                return new QueryResult(Array.Empty<QueryResultColumn>(), Array.Empty<IReadOnlyList<string?>>(), reader.RecordsAffected < 0 ? 0 : reader.RecordsAffected, sw.ElapsedMilliseconds, false);
-            }
-
-            var columns = new QueryResultColumn[reader.FieldCount];
-            for (var i = 0; i < reader.FieldCount; i++)
-                columns[i] = new QueryResultColumn(reader.GetName(i), reader.GetFieldType(i)?.Name ?? "unknown");
-
-            var rows = new List<IReadOnlyList<string?>>();
+            var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             var truncated = false;
-            while (await reader.ReadAsync(cancellationToken))
+            try
             {
-                if (rows.Count >= rowLimit) { truncated = true; break; }
-                var row = new string?[reader.FieldCount];
-                for (var i = 0; i < reader.FieldCount; i++)
-                    row[i] = reader.IsDBNull(i) ? null : Convert.ToString(reader.GetValue(i));
-                rows.Add(row);
-            }
+                // FieldCount == 0 means the statement didn't produce a result set (INSERT/UPDATE/DDL).
+                // Surface RecordsAffected so the user sees "3 rows affected" instead of an empty table.
+                if (reader.FieldCount == 0)
+                {
+                    sw.Stop();
+                    return new QueryResult(Array.Empty<QueryResultColumn>(), Array.Empty<IReadOnlyList<string?>>(), reader.RecordsAffected < 0 ? 0 : reader.RecordsAffected, sw.ElapsedMilliseconds, false);
+                }
 
-            sw.Stop();
-            return new QueryResult(columns, rows, reader.RecordsAffected < 0 ? rows.Count : reader.RecordsAffected, sw.ElapsedMilliseconds, truncated);
+                var columns = new QueryResultColumn[reader.FieldCount];
+                for (var i = 0; i < reader.FieldCount; i++)
+                    columns[i] = new QueryResultColumn(reader.GetName(i), reader.GetFieldType(i)?.Name ?? "unknown");
+
+                var rows = new List<IReadOnlyList<string?>>();
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    if (rows.Count >= rowLimit) { truncated = true; break; }
+                    var row = new string?[reader.FieldCount];
+                    for (var i = 0; i < reader.FieldCount; i++)
+                        row[i] = reader.IsDBNull(i) ? null : Convert.ToString(reader.GetValue(i));
+                    rows.Add(row);
+                }
+
+                var recordsAffected = reader.RecordsAffected < 0 ? rows.Count : reader.RecordsAffected;
+                sw.Stop();
+                return new QueryResult(columns, rows, recordsAffected, sw.ElapsedMilliseconds, truncated);
+            }
+            finally
+            {
+                if (truncated)
+                {
+                    // Disposing a reader drains whatever the server still sends, so a SELECT over a
+                    // big table would stream the rest of it just to throw it away. Cancel the
+                    // statement first; the drain then ends almost immediately.
+                    try { cmd.Cancel(); } catch { /* not every driver supports it; drain instead */ }
+                    try { await reader.DisposeAsync(); } catch { /* the cancellation error surfacing on close */ }
+                }
+                else
+                {
+                    await reader.DisposeAsync();
+                }
+            }
         }
     }
 
@@ -101,7 +119,9 @@ namespace KRINT.Infrastructure.Services
             {
                 Server = target.Host, Port = (uint)target.Port, UserID = target.Username,
                 Password = target.Password, Database = database, ConnectionTimeout = 5,
-                DefaultCommandTimeout = 30, Pooling = false,
+                // Pooled like the MySQL browse service; the connector resets session state on
+                // return, and idle connections are closed after 30s so none linger on the instance.
+                DefaultCommandTimeout = 30, Pooling = true, ConnectionIdleTimeout = 30,
             };
             await using var conn = new MySqlConnection(csb.ConnectionString);
             await conn.OpenAsync(cancellationToken);

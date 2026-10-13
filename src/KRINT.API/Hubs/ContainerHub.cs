@@ -27,10 +27,12 @@ namespace KRINT.API.Hubs
             {
                 // Node-hosted: the node follows the logs and pushes frames to us via the relay.
                 var streamId = Guid.NewGuid().ToString("N");
-                var reader = streamRelay.OpenLog(streamId);
-                await nodeRpc.InvokeAsync<bool>(nodeId, "StartLogStream", [streamId, route.ContainerId, 200], cancellationToken);
                 try
                 {
+                    // Opened inside the try so a failed StartLogStream (node offline, RPC error)
+                    // still closes the relay channel instead of leaking it.
+                    var reader = streamRelay.OpenLog(streamId, nodeId);
+                    await nodeRpc.InvokeAsync<bool>(nodeId, "StartLogStream", [streamId, route.ContainerId, 200], cancellationToken);
                     await foreach (var frame in reader.ReadAllAsync(cancellationToken))
                         yield return frame;
                 }
@@ -62,8 +64,17 @@ namespace KRINT.API.Hubs
                 streamRelay.RegisterExec(sessionId, nodeId, Context.ConnectionId);
                 var nodeSet = _sessionsByConnection.GetOrAdd(Context.ConnectionId, _ => new HashSet<string>());
                 lock (nodeSet) nodeSet.Add(sessionId);
-                await nodeRpc.InvokeAsync<bool>(nodeId, "StartExec",
-                    [sessionId, route.ContainerId, cols == 0 ? 120u : cols, rows == 0 ? 30u : rows], Context.ConnectionAborted);
+                try
+                {
+                    await nodeRpc.InvokeAsync<bool>(nodeId, "StartExec",
+                        [sessionId, route.ContainerId, cols == 0 ? 120u : cols, rows == 0 ? 30u : rows], Context.ConnectionAborted);
+                }
+                catch
+                {
+                    streamRelay.RemoveExec(sessionId);
+                    lock (nodeSet) nodeSet.Remove(sessionId);
+                    throw;
+                }
                 return sessionId;
             }
 
@@ -92,6 +103,9 @@ namespace KRINT.API.Hubs
             var set = _sessionsByConnection.GetOrAdd(connectionId, _ => new HashSet<string>());
             lock (set) set.Add(session.Id);
 
+            // Only now start reading: the handlers above are attached, so the shell's first prompt
+            // bytes (and an immediate exit) can't fire into an empty event.
+            session.Start();
             return session.Id;
         }
 

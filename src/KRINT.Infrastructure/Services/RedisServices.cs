@@ -32,6 +32,14 @@ namespace KRINT.Infrastructure.Services
             return ConnectionMultiplexer.ConnectAsync(options).ContinueWith(t => (IConnectionMultiplexer)t.Result);
         }
 
+        // A multiplexer is built to be shared and reconnects on its own; one is kept per target
+        // (callers always pass the database number explicitly) instead of a handshake per call.
+        private static readonly TargetClientCache<IConnectionMultiplexer> Multiplexers = new(
+            target => ConnectAsync(target),
+            mux => mux.DisposeAsync());
+
+        public static Task<TargetClientCache<IConnectionMultiplexer>.Lease> AcquireAsync(InnerDatabaseTarget target) => Multiplexers.AcquireAsync(target);
+
         public static int ParseDatabaseNumber(string database)
         {
             if (!int.TryParse(database, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) || n < 0 || n > 15)
@@ -60,7 +68,8 @@ namespace KRINT.Infrastructure.Services
         {
             // FLUSHDB on the given DB number - wipes keys but the DB number itself remains.
             var n = RedisConnection.ParseDatabaseNumber(name);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var server = conn.GetServers().First();
             await server.FlushDatabaseAsync(n);
         }
@@ -108,7 +117,8 @@ namespace KRINT.Infrastructure.Services
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var server = conn.GetServers().First();
             var db = conn.GetDatabase(dbNum);
 
@@ -160,7 +170,8 @@ namespace KRINT.Infrastructure.Services
             if (!string.Equals(key, origKey, StringComparison.Ordinal))
                 throw new ArgumentException("Renaming a Redis key is not supported via row edit. Delete and re-insert instead.");
             var dbNum = RedisConnection.ParseDatabaseNumber(database);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             await conn.GetDatabase(dbNum).StringSetAsync(key, newValue);
         }
 
@@ -168,7 +179,8 @@ namespace KRINT.Infrastructure.Services
         {
             var (key, value) = ParseKeyValue(request.Columns, request.Values);
             var dbNum = RedisConnection.ParseDatabaseNumber(database);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var db = conn.GetDatabase(dbNum);
             if (await db.KeyExistsAsync(key))
                 throw new InvalidOperationException($"Key '{key}' already exists. Edit it instead, or delete it first.");
@@ -180,7 +192,8 @@ namespace KRINT.Infrastructure.Services
             var key = ColumnValue(request.Columns, request.OriginalValues, "key")
                 ?? throw new ArgumentException("Missing 'key' column in delete request.");
             var dbNum = RedisConnection.ParseDatabaseNumber(database);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var deleted = await conn.GetDatabase(dbNum).KeyDeleteAsync(key);
             if (!deleted) throw new InvalidOperationException($"Key '{key}' not found.");
         }
@@ -203,36 +216,63 @@ namespace KRINT.Infrastructure.Services
         }
     }
 
+
     public class RedisBackupService(IDockerServiceResolver dockerResolver) : IBackupService
     {
         public virtual string Engine => "redis";
 
-        public async Task<BackupOutput> DumpAsync(BackupTarget target, CancellationToken cancellationToken = default)
+        public string FileExtension => "rdb";
+
+        // The password travels as argv ($1) into the CLI's auth env var (valkey-cli reads its own
+        // name, older builds only the redis one), so the shell never parses it.
+        private const string Prelude =
+            "[ -z \"$1\" ] || export REDISCLI_AUTH=\"$1\" VALKEYCLI_AUTH=\"$1\"\n" +
+            "cli=$(command -v valkey-cli || command -v redis-cli)\n";
+
+        // SAVE runs synchronously and only answers once the dump is on disk.
+        internal const string DumpScript = Prelude +
+            "[ \"$(\"$cli\" save)\" = \"OK\" ] || { echo 'SAVE failed' >&2; exit 1; }\n" +
+            "dir=$(\"$cli\" config get dir 2>/dev/null | sed -n 2p); f=$(\"$cli\" config get dbfilename 2>/dev/null | sed -n 2p)\n" +
+            "cat \"${dir:-/data}/${f:-dump.rdb}\"\n";
+
+        // A running server can't load an RDB on demand: DEBUG RELOAD is disabled by default since
+        // Redis 7, and swapping dump.rdb under it is pointless because the image runs with
+        // --appendonly yes, where startup loads the AOF and ignores the RDB. So the dump is served
+        // by a throwaway server on a loopback port and the real one does a full resync from it as
+        // a replica: the dataset is replaced atomically and the AOF is rewritten from it. The
+        // trap always detaches the replica and stops the throwaway server.
+        internal const string RestoreScript = Prelude +
+            "set -e\n" +
+            "srv=$(command -v valkey-server || command -v redis-server)\n" +
+            "d=$(mktemp -d /tmp/krint-restore-XXXXXX)\n" +
+            "p=$((20000 + $$ % 20000))\n" +
+            "tmpcli() { (unset REDISCLI_AUTH VALKEYCLI_AUTH; \"$cli\" -p \"$p\" \"$@\"); }\n" +
+            "cleanup() { tmpcli shutdown nosave >/dev/null 2>&1 || true; \"$cli\" replicaof no one >/dev/null 2>&1 || true; rm -rf \"$d\"; }\n" +
+            "trap cleanup EXIT\n" +
+            "cat > \"$d/dump.rdb\"\n" +
+            "\"$srv\" --port \"$p\" --bind 127.0.0.1 --protected-mode no --dir \"$d\" --dbfilename dump.rdb " +
+                "--appendonly no --save '' --daemonize yes --pidfile \"$d/tmp.pid\" --logfile \"$d/tmp.log\"\n" +
+            "i=0\n" +
+            "until [ \"$(tmpcli ping 2>/dev/null)\" = \"PONG\" ]; do\n" +
+            "  i=$((i+1)); sleep 1\n" +
+            "  if [ $i -gt 5 ] && ! kill -0 \"$(cat \"$d/tmp.pid\" 2>/dev/null)\" 2>/dev/null; then cat \"$d/tmp.log\" >&2; exit 1; fi\n" +
+            "done\n" +
+            "\"$cli\" replicaof 127.0.0.1 \"$p\" >/dev/null\n" +
+            "sleep 1\n" +
+            "until \"$cli\" info replication | grep -q 'master_link_status:up'; do sleep 1; done\n" +
+            "\"$cli\" replicaof no one >/dev/null\n" +
+            "\"$cli\" save >/dev/null\n";
+
+        public Task DumpToAsync(BackupTarget target, Stream output, CancellationToken cancellationToken = default)
         {
-            // Trigger a background save (sync if BGSAVE not allowed), wait for it, then cat the rdb.
-            // `redis-cli save` runs synchronously and only returns once the dump is on disk.
-            var cmd = new List<string>
-            {
-                "sh", "-c",
-                $"redis-cli {AuthFlag(target.Password)} save >/dev/null && cat /data/dump.rdb",
-            };
-            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
-            return new BackupOutput(bytes, "rdb");
+            var cmd = new List<string> { "sh", "-c", DumpScript, "krint", target.Password };
+            return dockerResolver.Resolve(target.NodeId).ExecToStreamAsync(target.ContainerId, cmd, output, target.Timeout, cancellationToken);
         }
 
-        public async Task RestoreAsync(BackupTarget target, Stream dump, CancellationToken cancellationToken = default)
+        public Task RestoreAsync(BackupTarget target, Stream dump, CancellationToken cancellationToken = default)
         {
-            // Replace /data/dump.rdb and force reload via DEBUG RELOAD. The image already runs with
-            // RDB persistence enabled, so on next start it would pick up dump.rdb too.
-            var cmd = new List<string>
-            {
-                "sh", "-c",
-                $"cat > /data/dump.rdb && redis-cli {AuthFlag(target.Password)} DEBUG RELOAD >/dev/null",
-            };
-            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
+            var cmd = new List<string> { "sh", "-c", RestoreScript, "krint", target.Password };
+            return dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, target.Timeout, cancellationToken);
         }
-
-        private static string AuthFlag(string password)
-            => string.IsNullOrEmpty(password) ? string.Empty : $"-a '{password.Replace("'", "'\\''")}' --no-auth-warning";
     }
 }

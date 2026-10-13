@@ -151,7 +151,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
         {
             Key = "vector",
             DisplayName = "pgvector",
-            Description = "Vector similarity search - pgvector extension. Image swaps to pgvector/pgvector.",
+            Description = "Vector similarity search - pgvector extension. Image swaps to pgvector/pgvector. Can't be combined with PostGIS.",
             InstallMode = PluginInstallMode.DockerImageSwap,
             Payload = "pgvector/pgvector",
         };
@@ -159,7 +159,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
         {
             Key = "postgis",
             DisplayName = "PostGIS",
-            Description = "Geospatial types and indexes. Image swaps to postgis/postgis.",
+            Description = "Geospatial types and indexes. Image swaps to postgis/postgis. Can't be combined with pgvector.",
             InstallMode = PluginInstallMode.DockerImageSwap,
             Payload = "postgis/postgis",
         };
@@ -226,10 +226,15 @@ namespace KRINT.Application.Queries.SupportedDatabase
         private static readonly IReadOnlyDictionary<string, EnginePluginDto[]> PluginsByEngine = new Dictionary<string, EnginePluginDto[]>
         {
             ["postgres"] = new[] { PgVector, PgPostgis, PgTrgm, PgUuid, PgHstore },
-            ["timescaledb"] = new[] { PgPostgis, PgTrgm, PgUuid, PgHstore },
+            // No PostGIS: its image swap would replace the TimescaleDB image and drop the extension.
+            ["timescaledb"] = new[] { PgTrgm, PgUuid, PgHstore },
             ["redis"] = new[] { RedisStack },
             ["neo4j"] = new[] { Neo4jApoc, Neo4jGds },
         };
+
+        /// <summary>The plugins an engine offers; empty when it has none.</summary>
+        public static IReadOnlyList<EnginePluginDto> PluginsFor(string engine) =>
+            PluginsByEngine.TryGetValue(engine, out var plugins) ? plugins : Array.Empty<EnginePluginDto>();
 
         /// <summary>Plugin keys the given engine accepts (empty for engines without plugins).</summary>
         public static IReadOnlyList<string> PluginKeysFor(string engine) =>
@@ -272,17 +277,21 @@ namespace KRINT.Application.Queries.SupportedDatabase
 
         public async ValueTask<IReadOnlyList<SupportedDatabaseDto>> Handle(GetSupportedDatabasesQuery query, CancellationToken cancellationToken)
         {
+            // All engines at once: the version service caches, shares in-flight lookups and bounds
+            // how many registry calls run concurrently, so a cold cache costs one round of fetches.
+            var allVersions = await Task.WhenAll(Engines.Select(e => versions.GetSupportedVersionsAsync(e.Key, cancellationToken)));
+
             var result = new List<SupportedDatabaseDto>(Engines.Length);
-            foreach (var (key, displayName, image, caps) in Engines)
+            for (var i = 0; i < Engines.Length; i++)
             {
-                var supportedVersions = await versions.GetSupportedVersionsAsync(key, cancellationToken);
+                var (key, displayName, image, caps) = Engines[i];
                 var plugins = PluginsByEngine.TryGetValue(key, out var p) ? p : Array.Empty<EnginePluginDto>();
                 result.Add(new SupportedDatabaseDto
                 {
                     Key = key,
                     DisplayName = displayName,
                     Image = image,
-                    Versions = supportedVersions,
+                    Versions = allVersions[i],
                     Capabilities = caps,
                     Plugins = plugins,
                 });

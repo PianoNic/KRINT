@@ -98,6 +98,24 @@ export const SCHEDULE_TEMPLATES: ReadonlyArray<Template> = [
       </div>
     }
 
+    <div class="flex flex-col gap-2">
+      <label hlmLabel for="keep-last-input">Keep last (optional)</label>
+      <input
+        hlmInput
+        id="keep-last-input"
+        type="number"
+        min="1"
+        step="1"
+        placeholder="Keep every backup"
+        [value]="keepLast()"
+        (input)="keepLast.set($any($event.target).value)"
+        aria-describedby="keep-last-help"
+      />
+      <p id="keep-last-help" class="text-muted-foreground text-xs">
+        After each run, older backups of this instance beyond this count are deleted. Pre-upgrade snapshots are always kept.
+      </p>
+    </div>
+
     @if (error(); as err) {
       <p class="text-destructive text-sm">{{ err }}</p>
     }
@@ -123,8 +141,19 @@ export class BackupScheduleDialog {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  protected readonly keepLast = signal('');
+
+  // Empty = keep everything; otherwise a positive whole number.
+  private readonly keepLastValue = computed<number | null | undefined>(() => {
+    const raw = this.keepLast().trim();
+    if (raw === '') return null;
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 1 ? n : undefined;
+  });
+
   protected readonly canSave = computed(() => {
     if (!this.instanceId() || !this.selectedTemplate()) return false;
+    if (this.keepLastValue() === undefined) return false;
     return this.cron().trim().split(/\s+/).length === 5;
   });
 
@@ -159,6 +188,7 @@ export class BackupScheduleDialog {
       instanceId: this.instanceId()!,
       cronExpression: this.cron().trim(),
       description: this.description() || this.cron().trim(),
+      keepLast: this.keepLastValue() ?? null,
     }).subscribe({
       next: (created) => this.ref.close(created),
       error: (err) => {

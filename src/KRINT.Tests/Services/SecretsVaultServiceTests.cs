@@ -192,5 +192,57 @@ namespace KRINT.Tests.Services
 
             Assert.Throws<InvalidOperationException>(() => new SecretsVaultService(db, configuration));
         }
+
+        private static SecretsVaultService VaultWithNewKey(KrintDbContext db)
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Vault:MasterKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
+                })
+                .Build();
+            return new SecretsVaultService(db, configuration);
+        }
+
+        [Test]
+        public async Task VerifyMasterKeyAsync_FreshDatabase_StoresCanaryAndPassesAgain()
+        {
+            var (vault, db, _) = CreateVault();
+
+            await vault.VerifyMasterKeyAsync();
+            await vault.VerifyMasterKeyAsync();
+
+            await Assert.That(await db.Secrets.CountAsync(s => s.Name == SecretsVaultService.CanaryName)).IsEqualTo(1);
+        }
+
+        [Test]
+        public async Task VerifyMasterKeyAsync_DifferentKeyThanCanary_ThrowsVaultKeyMismatch()
+        {
+            var (vault, db, _) = CreateVault();
+            await vault.VerifyMasterKeyAsync();
+
+            await Assert.ThrowsAsync<VaultKeyMismatchException>(async () => await VaultWithNewKey(db).VerifyMasterKeyAsync());
+        }
+
+        [Test]
+        public async Task VerifyMasterKeyAsync_NoCanaryButSecretsFromAnotherKey_ThrowsWithoutWritingCanary()
+        {
+            var (vault, db, _) = CreateVault();
+            await vault.StoreAsync("db.prod", "p4ssw0rd!!");
+
+            await Assert.ThrowsAsync<VaultKeyMismatchException>(async () => await VaultWithNewKey(db).VerifyMasterKeyAsync());
+            await Assert.That(await db.Secrets.CountAsync(s => s.Name == SecretsVaultService.CanaryName)).IsEqualTo(0);
+        }
+
+        [Test]
+        public async Task VerifyMasterKeyAsync_NoCanaryAndSecretsFromSameKey_StoresCanary()
+        {
+            var (vault, db, _) = CreateVault();
+            await vault.StoreAsync("db.prod", "p4ssw0rd!!");
+
+            await vault.VerifyMasterKeyAsync();
+
+            await Assert.That(await db.Secrets.CountAsync(s => s.Name == SecretsVaultService.CanaryName)).IsEqualTo(1);
+        }
     }
 }

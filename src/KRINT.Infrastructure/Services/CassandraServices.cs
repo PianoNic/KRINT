@@ -24,6 +24,53 @@ namespace KRINT.Infrastructure.Services
             builder = builder.WithSocketOptions(new SocketOptions().SetConnectTimeoutMillis(5000));
             return builder.Build();
         }
+
+        // A Cluster discovers topology and schema and keeps its own connection pool, so building one
+        // per call paid that bootstrap on every click. One is kept per target and shared.
+        private static readonly TargetClientCache<CassandraClient> Clients = new(
+            target => Task.FromResult(new CassandraClient(Build(target))),
+            client => { client.Cluster.Dispose(); return ValueTask.CompletedTask; });
+
+        public static Task<TargetClientCache<CassandraClient>.Lease> AcquireAsync(InnerDatabaseTarget target) => Clients.AcquireAsync(target);
+
+        /// <summary>The shared session for a keyspace (or none). A failure drops the cached cluster so
+        /// the next call starts over, e.g. while the instance is still booting.</summary>
+        public static async Task<ISession> SessionAsync(this TargetClientCache<CassandraClient>.Lease lease, string? keyspace = null)
+        {
+            try { return await lease.Client.SessionAsync(keyspace); }
+            catch
+            {
+                lease.Invalidate();
+                throw;
+            }
+        }
+    }
+
+    /// <summary>A shared cluster plus one session per keyspace (sessions are thread-safe and pooled).</summary>
+    internal sealed class CassandraClient(ICluster cluster)
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<Task<ISession>>> _sessions = new(StringComparer.Ordinal);
+
+        public ICluster Cluster => cluster;
+
+        public async Task<ISession> SessionAsync(string? keyspace)
+        {
+            var key = keyspace ?? string.Empty;
+            var lazy = _sessions.GetOrAdd(key, k => new Lazy<Task<ISession>>(() => k.Length == 0 ? cluster.ConnectAsync() : cluster.ConnectAsync(k)));
+            try { return await lazy.Value; }
+            catch
+            {
+                _sessions.TryRemove(new KeyValuePair<string, Lazy<Task<ISession>>>(key, lazy));
+                throw;
+            }
+        }
+
+        /// <summary>Closes the session bound to a keyspace that was just dropped.</summary>
+        public void ForgetKeyspace(string keyspace)
+        {
+            if (_sessions.TryRemove(keyspace, out var lazy) && lazy.IsValueCreated && lazy.Value.IsCompletedSuccessfully)
+                lazy.Value.Result.Dispose();
+        }
     }
 
     public class CassandraInnerDatabaseService : IInnerDatabaseService
@@ -39,8 +86,8 @@ namespace KRINT.Infrastructure.Services
                 "system","system_schema","system_auth","system_traces","system_distributed",
                 "system_virtual_schema","system_views","system_replicated_keyspaces",
             };
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync();
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync();
             var rs = await session.ExecuteAsync(new SimpleStatement( "SELECT keyspace_name FROM system_schema.keyspaces"));
             return rs.Select(r => (string)r["keyspace_name"])
                 .Where(n => !system.Contains(n))
@@ -50,9 +97,9 @@ namespace KRINT.Infrastructure.Services
 
         public async Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync();
+            InnerDatabaseNameValidator.RequireDatabaseForEngine(Engine, name);
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync();
             await session.ExecuteAsync(new SimpleStatement( $"CREATE KEYSPACE IF NOT EXISTS \"{name}\" WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': 1}}"));
         }
 
@@ -61,9 +108,10 @@ namespace KRINT.Infrastructure.Services
             InnerDatabaseNameValidator.Require(name);
             if (string.Equals(name, target.DefaultDatabase, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Refusing to drop the instance's default keyspace '{name}'.");
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync();
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync();
             await session.ExecuteAsync(new SimpleStatement($"DROP KEYSPACE IF EXISTS \"{name}\""));
+            lease.Client.ForgetKeyspace(name);
         }
     }
 
@@ -79,8 +127,8 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(database);
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync(database);
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync(database);
             var rs = await session.ExecuteAsync(new SimpleStatement(sql));
 
             var columns = rs.Columns.Select(c => new QueryResultColumn(c.Name, c.TypeCode.ToString().ToLowerInvariant())).ToList();
@@ -129,8 +177,8 @@ namespace KRINT.Infrastructure.Services
         public async Task<IReadOnlyList<TableSummary>> ListTablesAsync(InnerDatabaseTarget target, string database, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(database);
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync();
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync();
             var rs = await session.ExecuteAsync(new SimpleStatement( "SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?", database));
             return rs.Select(r => new TableSummary((string)r["table_name"], "table")).OrderBy(t => t.Name).ToList();
         }
@@ -142,9 +190,9 @@ namespace KRINT.Infrastructure.Services
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync(database);
-            var (pk, types) = TableSchema(cluster, database, table);
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync(database);
+            var (pk, types) = TableSchema(lease.Client.Cluster, database, table);
 
             // Cassandra has no OFFSET - emulate by fetching limit+offset and slicing.
             // Reasonable while the UI's offset is small; not a substitute for proper paging.
@@ -187,9 +235,9 @@ namespace KRINT.Infrastructure.Services
                 throw new ArgumentException("Columns and values must have the same non-zero length.", nameof(request));
             foreach (var c in request.Columns) InnerDatabaseNameValidator.Require(c);
 
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync(database);
-            var (_, types) = TableSchema(cluster, database, table);
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync(database);
+            var (_, types) = TableSchema(lease.Client.Cluster, database, table);
 
             var cols = string.Join(", ", request.Columns.Select(c => $"\"{c}\""));
             var placeholders = string.Join(", ", Enumerable.Repeat("?", request.Values.Count));
@@ -213,9 +261,9 @@ namespace KRINT.Infrastructure.Services
                 throw new ArgumentException("Columns, original and new values must have the same non-zero length.", nameof(request));
             foreach (var c in request.Columns) InnerDatabaseNameValidator.Require(c);
 
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync(database);
-            var (pk, types) = TableSchema(cluster, database, table);
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync(database);
+            var (pk, types) = TableSchema(lease.Client.Cluster, database, table);
             RequirePrimaryKey(pk, request.Columns);
 
             var setClauses = new List<string>();
@@ -249,9 +297,9 @@ namespace KRINT.Infrastructure.Services
                 throw new ArgumentException("Columns and values must have the same non-zero length.", nameof(request));
             foreach (var c in request.Columns) InnerDatabaseNameValidator.Require(c);
 
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync(database);
-            var (pk, types) = TableSchema(cluster, database, table);
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync(database);
+            var (pk, types) = TableSchema(lease.Client.Cluster, database, table);
             RequirePrimaryKey(pk, request.Columns);
 
             var (whereSql, whereArgs) = BuildKeyWhere(pk, request.Columns, request.OriginalValues, types);
@@ -336,8 +384,8 @@ namespace KRINT.Infrastructure.Services
         {
             InnerDatabaseNameValidator.Require(database);
             InnerDatabaseNameValidator.Require(table);
-            using var cluster = CassandraConnect.Build(target);
-            using var session = await cluster.ConnectAsync(database);
+            using var lease = await CassandraConnect.AcquireAsync(target);
+            var session = await lease.SessionAsync(database);
             await session.ExecuteAsync(new SimpleStatement($"DROP TABLE IF EXISTS \"{table}\""));
         }
     }

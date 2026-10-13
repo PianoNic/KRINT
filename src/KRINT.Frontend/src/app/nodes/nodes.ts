@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DatePipe } from '@angular/common';
-import { interval } from 'rxjs';
+import { DOCUMENT, DatePipe } from '@angular/common';
+import { filter, fromEvent, interval, merge } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideNetwork, lucideRefreshCw, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -155,8 +155,13 @@ export class Nodes {
   constructor() {
     this.reload();
     // Nodes connect/drop in real time, so refresh on a light cadence to keep the list current.
-    interval(5000)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    // A hidden tab skips the poll and catches up as soon as it becomes visible again.
+    const document = inject(DOCUMENT);
+    merge(interval(5000), fromEvent(document, 'visibilitychange'))
+      .pipe(
+        filter(() => document.visibilityState === 'visible'),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(() => this.reload(true));
   }
 
@@ -184,7 +189,7 @@ export class Nodes {
     const ok = await this.confirmService.open({
       title: `Remove node "${node.name}"?`,
       message:
-        'Its token stops working immediately and the agent is disconnected. Instances provisioned on this node keep running on its host, but KRINT can no longer reach them until the node is added again.',
+        'Its token stops working immediately and the agent is disconnected. A node that still hosts instances cannot be removed; delete or migrate them first.',
       confirmLabel: 'Remove node',
       destructive: true,
     });
@@ -196,7 +201,11 @@ export class Nodes {
         this.reload(true);
       },
       error: (err) => {
-        this.error.set(err instanceof Error ? err.message : 'Failed to remove the node');
+        // A 409 carries the reason (instances still on the node, or krint.yaml-managed).
+        const body = (err as { error?: unknown } | null)?.error;
+        const detail =
+          typeof body === 'string' ? body : (body as { detail?: string } | null | undefined)?.detail;
+        this.error.set(detail || (err instanceof Error ? err.message : 'Failed to remove the node'));
         this.deleting.update((d) => ({ ...d, [node.id]: false }));
       },
     });

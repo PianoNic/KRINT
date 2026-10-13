@@ -53,7 +53,16 @@ namespace KRINT.Infrastructure.Services
             }
             catch (CryptographicException)
             {
-                var plaintext = Decrypt(null, secret.Ciphertext, secret.Nonce, secret.Tag);
+                string plaintext;
+                try
+                {
+                    plaintext = Decrypt(null, secret.Ciphertext, secret.Nonce, secret.Tag);
+                }
+                catch (CryptographicException ex)
+                {
+                    throw new VaultKeyMismatchException(
+                        $"The secret '{name}' could not be decrypted: Vault:MasterKey does not match the key it was stored with, or the row was altered.", ex);
+                }
                 var (ciphertext, nonce, tag) = Encrypt(name, plaintext);
                 secret.Ciphertext = ciphertext;
                 secret.Nonce = nonce;
@@ -61,6 +70,41 @@ namespace KRINT.Infrastructure.Services
                 await db.SaveChangesAsync(cancellationToken);
                 return plaintext;
             }
+        }
+
+        /// <summary>Name of the row that proves the configured key is the one the table was written with.</summary>
+        public const string CanaryName = "krint:vault-canary";
+        private const string CanaryValue = "krint-vault-canary-v1";
+
+        public async Task VerifyMasterKeyAsync(CancellationToken cancellationToken = default)
+        {
+            const string mismatch =
+                "Vault:MasterKey does not match stored secrets. Start KRINT with the key these secrets were written with; a new key cannot read them.";
+            string? canary;
+            try
+            {
+                canary = await RetrieveAsync(CanaryName, cancellationToken);
+                if (canary is null)
+                {
+                    // No canary yet: a fresh database, or one from before the canary existed. Prove
+                    // the key against a secret that is already there before vouching for it.
+                    var existing = await db.Secrets.AsNoTracking()
+                        .Where(s => s.Name != CanaryName)
+                        .Select(s => s.Name)
+                        .FirstOrDefaultAsync(cancellationToken);
+                    if (existing is not null)
+                        await RetrieveAsync(existing, cancellationToken);
+                }
+            }
+            catch (CryptographicException ex)
+            {
+                throw new VaultKeyMismatchException(mismatch, ex);
+            }
+
+            if (canary is null)
+                await StoreAsync(CanaryName, CanaryValue, cancellationToken);
+            else if (canary != CanaryValue)
+                throw new VaultKeyMismatchException(mismatch);
         }
 
         public async Task<bool> DeleteAsync(string name, CancellationToken cancellationToken = default)
