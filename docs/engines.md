@@ -26,7 +26,8 @@ logs + an interactive shell). The table below shows the capabilities that differ
 - **Query console** - run ad-hoc SQL (or CQL on Cassandra) against a database from the browser.
 - **Multiple DBs** - create more than one database/keyspace/bucket per instance. Bucket names on
   SeaweedFS and Azurite follow the S3/Azure rule: 3-63 lowercase letters, digits or single hyphens.
-- **Users & grants** - manage logins and per-database access.
+- **Users & grants** - manage logins and per-database access. CockroachDB runs in insecure mode,
+  so its users have no passwords: they are created passwordless and a password reset is refused.
 - **Backups** - scheduled or manual dump/restore, plus in-place version upgrade.
 - **Plugins** - opt-in extensions at provision time: pgvector, PostGIS, pg_trgm and more (Postgres),
   Redis Stack (Redis), APOC and Graph Data Science (Neo4j).

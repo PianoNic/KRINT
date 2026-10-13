@@ -29,7 +29,7 @@ KRINT ships two ways from the same codebase.
 
 | Distribution | Metadata DB | Auth | Use case |
 | --- | --- | --- | --- |
-| **Docker image** | Postgres or SQLite | OIDC (bring your own provider) | Servers, multi-user, always-on |
+| **Docker image** | Postgres or SQLite | OIDC (bring your own provider) or built-in local login | Servers, multi-user, always-on |
 | **Desktop app** | SQLite | Built-in, zero-config | A single user on their own machine |
 
 ## Get started
