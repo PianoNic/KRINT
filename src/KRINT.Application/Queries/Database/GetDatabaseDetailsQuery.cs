@@ -30,7 +30,9 @@ namespace KRINT.Application.Queries.Database
             {
                 try
                 {
-                    var inspect = await dockerResolver.Resolve(instance.NodeId).InspectContainerAsync(instance.ContainerId, cancellationToken);
+                    // Also heals a stale id (compose recreated the container under the same name).
+                    var inspect = await ContainerIdResolver.RefreshAsync(db, instance, dockerResolver.Resolve(instance.NodeId), cancellationToken)
+                        ?? throw new InvalidOperationException("Container not found.");
                     state = inspect.State?.Status;
                     // The same inspect tells us which networks the container joined, which is what a
                     // user's own compose service has to declare to reach it by container name.

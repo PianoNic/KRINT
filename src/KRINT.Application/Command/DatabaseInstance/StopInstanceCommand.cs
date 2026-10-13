@@ -25,7 +25,9 @@ namespace KRINT.Application.Command.DatabaseInstance
             if (instance.ContainerId is null)
                 throw new InvalidOperationException("This instance has no Docker container - nothing to stop.");
 
-            await dockerResolver.Resolve(instance.NodeId).StopContainerAsync(instance.ContainerId, cancellationToken);
+            var docker = dockerResolver.Resolve(instance.NodeId);
+            await ContainerIdResolver.RefreshAsync(db, instance, docker, cancellationToken);
+            await docker.StopContainerAsync(instance.ContainerId, cancellationToken);
 
             await activity.LogAsync("instance.stop", instance.ContainerName ?? instance.DisplayName, instance.Id, instance.Engine, null, cancellationToken);
             return Unit.Value;

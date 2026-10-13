@@ -1,6 +1,7 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using KRINT.Infrastructure;
+using KRINT.Infrastructure.Interfaces;
 
 namespace KRINT.Application.Queries.Container
 {
@@ -10,19 +11,21 @@ namespace KRINT.Application.Queries.Container
 
     public record GetContainerRouteQuery(Guid InstanceId) : IQuery<ContainerRoute>;
 
-    public class GetContainerRouteQueryHandler(KrintDbContext db) : IQueryHandler<GetContainerRouteQuery, ContainerRoute>
+    public class GetContainerRouteQueryHandler(KrintDbContext db, IDockerServiceResolver dockerResolver) : IQueryHandler<GetContainerRouteQuery, ContainerRoute>
     {
         public async ValueTask<ContainerRoute> Handle(GetContainerRouteQuery query, CancellationToken cancellationToken)
         {
+            // Tracked: a stale id (compose recreated the container) is healed and saved below.
             var instance = await db.DatabaseInstances
-                .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == query.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(query.InstanceId);
 
-            var containerId = instance.ContainerId
-                ?? throw new InvalidOperationException("Container operations are not available for externally-registered databases.");
+            if (instance.ContainerId is null)
+                throw new InvalidOperationException("Container operations are not available for externally-registered databases.");
 
-            return new ContainerRoute(containerId, instance.NodeId);
+            await ContainerIdResolver.RefreshAsync(db, instance, dockerResolver.Resolve(instance.NodeId), cancellationToken);
+
+            return new ContainerRoute(instance.ContainerId, instance.NodeId);
         }
     }
 }
