@@ -32,6 +32,11 @@ mkdirSync(wwwroot, { recursive: true });
 cpSync(join(frontendBuild, 'browser'), wwwroot, { recursive: true });
 console.log(`[publish-sidecar] SPA -> ${wwwroot}`);
 
+// The bundled krint.yaml is the root one: copying it here keeps the desktop's port ranges from
+// drifting when an engine is added (KRINT.Tests also compares the two files).
+copyFileSync(join(repoRoot, 'krint.yaml'), join(repoRoot, 'src-tauri', 'resources', 'krint.yaml'));
+console.log('[publish-sidecar] krint.yaml -> src-tauri/resources/krint.yaml');
+
 // ---- 2. Publish KRINT.API as a self-contained single-file sidecar -----------------------
 
 // Tauri target triple (what externalBin appends). e.g. x86_64-pc-windows-msvc
