@@ -1,3 +1,4 @@
+using KRINT.Application.Queries.SupportedDatabase;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -32,7 +33,9 @@ namespace KRINT.Application.Options
                 .WithNamingConvention(UnderscoredNamingConvention.Instance)
                 .Build();
             using var reader = File.OpenText(ResolvedPath);
-            return Normalize(deserializer.Deserialize<InstancesConfig>(reader) ?? new InstancesConfig());
+            var config = Normalize(deserializer.Deserialize<InstancesConfig>(reader) ?? new InstancesConfig());
+            ValidatePlugins(config);
+            return config;
         }
 
         /// <summary>A key with no value (e.g. <c>instances:</c> with every entry commented out)
@@ -46,7 +49,7 @@ namespace KRINT.Application.Options
                 spec.Engine ??= "";
                 spec.Version ??= "";
                 spec.DisplayName ??= "";
-                spec.Databases =(spec.Databases ?? []).Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
+                spec.Databases = (spec.Databases ?? []).Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
                 spec.Plugins = (spec.Plugins ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
                 spec.Users = (spec.Users ?? []).Where(u => u is not null).ToList();
                 foreach (var user in spec.Users)
@@ -56,6 +59,29 @@ namespace KRINT.Application.Options
                 }
             }
             return config;
+        }
+
+        /// <summary>
+        /// Same reasoning as the strict parse: an unknown plugin key would otherwise be skipped at
+        /// provision time and the instance created without the extension the file asked for.
+        /// </summary>
+        private static void ValidatePlugins(InstancesConfig config)
+        {
+            foreach (var instance in config.Instances)
+            {
+                if (instance.Plugins.Count == 0) continue;
+                var allowed = GetSupportedDatabasesQueryHandler.PluginKeysFor(instance.Engine);
+                var unknown = instance.Plugins
+                    .Where(p => !allowed.Contains(p, StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+                if (unknown.Count == 0) continue;
+
+                var hint = allowed.Count == 0
+                    ? $"engine '{instance.Engine}' has no plugins"
+                    : $"valid keys for '{instance.Engine}': {string.Join(", ", allowed)}";
+                throw new InvalidDataException(
+                    $"Instance '{instance.DisplayName}' lists unknown plugin(s) {string.Join(", ", unknown.Select(u => $"'{u}'"))} ({hint}).");
+            }
         }
     }
 }

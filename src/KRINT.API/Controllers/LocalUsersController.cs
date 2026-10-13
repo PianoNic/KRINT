@@ -7,8 +7,8 @@ namespace KRINT.API.Controllers
 {
     /// <summary>
     /// Accounts for local login mode: list, create, reset a password, delete. Every local
-    /// account is an admin, so any signed-in user may manage them; the one guard is that a user
-    /// cannot delete the account they are signed in with. Answers 404 in OIDC mode, where the
+    /// account is an admin, so any signed-in user may manage them; the guards are that a user
+    /// cannot delete or reset the account they are signed in with. Answers 404 in OIDC mode, where the
     /// identity provider owns the users.
     /// </summary>
     [ApiController]
@@ -58,10 +58,20 @@ namespace KRINT.API.Controllers
 
         [HttpPost("{id:guid}/reset-password")]
         [ProducesResponseType(typeof(LocalUserCredentialDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ResetPassword(Guid id, CancellationToken cancellationToken)
         {
             if (!LocalLogin.IsEnabled(configuration)) return NotFound();
+            // A reset revokes the caller's own sessions and, in the desktop shell, replaces the
+            // password the shell signs in with on every launch, locking the user out for good.
+            if (string.Equals(id.ToString(), currentUser.Subject, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new
+                {
+                    error = DesktopShell.IsEnabled(configuration)
+                        ? "The desktop account's password is managed by the desktop app and cannot be reset."
+                        : "You cannot reset the password of the account you are signed in with. Change it on the Password card instead.",
+                });
             var user = await users.FindByIdAsync(id, cancellationToken);
             if (user is null) return NotFound();
 

@@ -5,6 +5,12 @@
        flex-col makes child layouts use min-h-0 + flex-1 to fill whatever's left after the
        per-page content-header without having to hand-compute viewport math. -->
   <main hlmSidebarInset class="h-[calc(100vh-17px)] overflow-hidden flex flex-col">
+    @if (appInfo.dockerUnreachable()) {
+      <div class="border-destructive/40 bg-destructive/10 text-destructive shrink-0 border-b px-4 py-2 text-sm" role="alert">
+        KRINT cannot reach the Docker daemon. Instances cannot be provisioned, started or stopped until Docker is running
+        and its socket is available to KRINT.
+      </div>
+    }
     <router-outlet />
   </main>
 </app-sidenav>

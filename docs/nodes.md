@@ -1,6 +1,12 @@
 # Nodes
 
-A **node** runs database containers on a remote host. Provision a database onto a node and then do everything with it through the control plane - browse, query, manage users, back up, upgrade, tail logs, and open a shell. Every operation rides a single SignalR connection, and nodes expose no ports.
+A **node** runs database containers on a remote host. Provision a database onto a node and then work with it through the control plane - browse, query, manage users, back up, upgrade, tail logs, and open a shell. Every operation rides a single SignalR connection, and nodes expose no ports.
+
+A few things do not work on node-hosted databases yet:
+
+- **Object upload** to SeaweedFS and Azurite buckets.
+- The **pgvector** engine and the **Postgres extension plugins** (`pg_trgm`, `uuid-ossp`, `hstore`): installing them needs a direct SQL connection from the control plane.
+- **Visibility**: a node-hosted database is always bound to the node's loopback and reached only through the control plane, so it cannot be made public.
 
 ::: warning
 Nodes are experimental.

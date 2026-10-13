@@ -236,6 +236,12 @@ namespace KRINT.Application.Queries.SupportedDatabase
         public static IReadOnlyList<EnginePluginDto> PluginsFor(string engine) =>
             PluginsByEngine.TryGetValue(engine, out var plugins) ? plugins : Array.Empty<EnginePluginDto>();
 
+        /// <summary>Plugin keys the given engine accepts (empty for engines without plugins).</summary>
+        public static IReadOnlyList<string> PluginKeysFor(string engine) =>
+            PluginsByEngine.TryGetValue(engine.ToLowerInvariant(), out var plugins)
+                ? plugins.Select(p => p.Key).ToList()
+                : Array.Empty<string>();
+
         // Engine order drives the Create wizard tile grid. Headlining engines (PostgreSQL,
         // MariaDB, MongoDB) come first; the rest are grouped by storage shape (relational,
         // wide-column, document, graph, key-value, search, time-series, vector) without text

@@ -335,6 +335,14 @@
                 </span>
               </span>
             </button>
+            @if (lanWarning(); as warning) {
+              <p
+                class="border-destructive/40 bg-destructive/10 text-destructive rounded-md border p-3 text-xs"
+                [attr.role]="isPublic() ? 'alert' : null"
+              >
+                <span class="font-medium">No authentication.</span> {{ warning }}
+              </p>
+            }
           </div>
         }
 

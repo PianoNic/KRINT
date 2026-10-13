@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideKeyRound, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -13,6 +13,7 @@ import { AUTH_FACADE } from '../shared/auth/auth-facade';
 import { ConfirmService } from '../shared/components/confirm-dialog/confirm-dialog';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
 import { environment } from '../shared/environments/environment';
+import { AppInfoService } from '../shared/services/app-info.service';
 
 type LocalUser = { id: string; userName: string; email: string | null; createdAt: string; isCurrent: boolean };
 type Credential = { id: string; userName: string; password: string };
@@ -61,7 +62,7 @@ type Credential = { id: string; userName: string; password: string };
                   </td>
                   <td hlmTableCell class="text-muted-foreground text-xs">{{ u.createdAt | date: 'medium' }}</td>
                   <td hlmTableCell class="text-right">
-                    <button hlmBtn variant="ghost" size="sm" type="button" (click)="reset(u)" [disabled]="busy()">
+                    <button hlmBtn variant="ghost" size="sm" type="button" (click)="reset(u)" [disabled]="busy() || u.isCurrent" [title]="u.isCurrent ? resetSelfHint() : ''">
                       <ng-icon name="lucideKeyRound" size="14" /> Reset password
                     </button>
                     <button hlmBtn variant="ghost" size="sm" type="button" (click)="remove(u)" [disabled]="busy() || u.isCurrent">
@@ -88,6 +89,7 @@ type Credential = { id: string; userName: string; password: string };
 })
 export class LocalUsersCard {
   protected readonly auth = inject(AUTH_FACADE);
+  private readonly appInfo = inject(AppInfoService);
   private readonly http = inject(HttpClient);
   private readonly confirm = inject(ConfirmService);
   private readonly base = `${environment.apiBaseUrl}/api/local-users`;
@@ -97,6 +99,11 @@ export class LocalUsersCard {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly newName = signal('');
+  protected readonly resetSelfHint = computed(() =>
+    this.appInfo.desktop()
+      ? 'The desktop app manages this password.'
+      : 'Change your own password on the Password card.',
+  );
 
   constructor() {
     if (this.auth.mode === 'local') this.load();

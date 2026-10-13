@@ -31,7 +31,7 @@ instances:
     is_public: false                  # bind 127.0.0.1 (default) vs 0.0.0.0
     node: node-eu-1                   # optional; a registered node's name, else the control plane's Docker
     plugins:                          # engine-specific add-ons; see /supported endpoint
-      - postgres-pg_stat_statements
+      - pg_trgm
     databases:
       - analytics
       - reporting
@@ -50,7 +50,7 @@ Field rules:
 - **`engine`, `version`, `display_name`** are required. `display_name` is the identity key - it's how the reconcile loop matches a config entry against an existing instance.
 - **`password`** uses the SafePasswordGuard alphabet: `A-Z a-z 0-9 - _ . ~`. Other characters reject the whole entry.
 - **`is_public: false`** binds the host port to `127.0.0.1` (only reachable from this host). `is_public: true` publishes on `0.0.0.0` so other machines on the LAN can reach it.
-- **`plugins`** values are the engine plugin keys returned by `GET /api/Database/supported`.
+- **`plugins`** values are the engine plugin keys returned by `GET /api/Database/supported`: `vector`, `postgis`, `pg_trgm`, `uuid-ossp`, `hstore` (Postgres; TimescaleDB takes all but `vector`), `redis-stack` (Redis), `apoc`, `graph-data-science` (Neo4j). A key the engine does not offer fails the file, like an unknown key.
 - **`node`** places a new instance on a registered node (by the name shown on the Nodes page). Unknown names fail that entry. Ignored for instances that already exist.
 - **Unknown keys fail the file.** A misspelt key used to be dropped silently; now the parse error names it and nothing is reconciled until it is fixed.
 
