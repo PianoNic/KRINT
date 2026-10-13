@@ -59,6 +59,11 @@ if (string.Equals(builder.Configuration["Krint:Role"], "node", StringComparison.
 
 builder.Services.AddKrintConfig(builder.Environment);
 
+// No Vault__MasterKey configured: read it from (or generate it into) the data directory, so a
+// fresh clone boots with a key of its own instead of a shared one. Must run before anything
+// reads the key, the derived local-login signing key included.
+VaultKeyFile.Apply(builder);
+
 // No identity provider configured: run with local password login instead (see LocalLogin.cs).
 var localLogin = LocalLogin.IsEnabled(builder.Configuration);
 if (localLogin)
@@ -244,6 +249,14 @@ app.Use(async (context, next) =>
     catch (NotSupportedException ex) when (!context.Response.HasStarted)
     {
         context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    // A secret that does not decrypt is an operator problem (wrong Vault__MasterKey), not a bug:
+    // say so instead of an empty 500. The boot-time canary catches the common case earlier.
+    catch (KRINT.Infrastructure.Services.VaultKeyMismatchException ex) when (!context.Response.HasStarted)
+    {
+        context.RequestServices.GetRequiredService<ILogger<Program>>().LogError(ex, "Vault decryption failed.");
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
 });

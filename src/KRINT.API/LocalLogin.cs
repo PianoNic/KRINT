@@ -34,7 +34,12 @@ namespace KRINT.API
             var masterKey = builder.Configuration["Vault:MasterKey"];
             if (string.IsNullOrWhiteSpace(masterKey)) return; // the startup check reports the missing vault key itself
 
-            var derived = HMACSHA256.HashData(Encoding.UTF8.GetBytes(masterKey), Encoding.UTF8.GetBytes("krint-local-login-signing-key"));
+            // The retired demo key is public, so a key derived from it would let anyone mint admin
+            // tokens. Sign with a per-process random key instead: access tokens stop verifying on
+            // restart, and the browser silently gets new ones from its refresh cookie.
+            var derived = VaultKeyFile.IsRetiredDemoKey(masterKey)
+                ? RandomNumberGenerator.GetBytes(32)
+                : HMACSHA256.HashData(Encoding.UTF8.GetBytes(masterKey), Encoding.UTF8.GetBytes("krint-local-login-signing-key"));
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["LocalLogin:SigningKey"] = Convert.ToBase64String(derived),
