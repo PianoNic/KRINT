@@ -33,22 +33,37 @@ public static class KrintConfigExtensions
             return services;
         }
 
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(UnderscoredNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-
-        using var reader = File.OpenText(path);
-        var root = deserializer.Deserialize<KrintConfigFile>(reader)
-            ?? throw new InvalidOperationException($"{FileName} is empty or invalid.");
-
-        var options = root.Krint ?? new KrintOptions();
+        KrintOptions options;
+        using (var reader = File.OpenText(path))
+            options = ParseOptions(reader);
         services.AddSingleton<IOptions<KrintOptions>>(Options.Create(options));
 
         // Remember where krint.yaml lives so InstancesFile (when relative) resolves against it.
         var configDir = Path.GetDirectoryName(Path.GetFullPath(path)) ?? env.ContentRootPath;
         services.AddSingleton<IInstancesConfigLoader>(_ => new InstancesConfigLoader(configDir, options.InstancesFile));
         return services;
+    }
+
+    /// <summary>Parses the krint.yaml body. A key with no value (e.g. <c>nodes:</c> with every
+    /// entry commented out) deserializes to null and overrides the property initializer, so those
+    /// are replaced with empty collections here and nothing downstream has to null-check.</summary>
+    public static KrintOptions ParseOptions(TextReader reader)
+    {
+        var deserializer = new DeserializerBuilder()
+            .WithNamingConvention(UnderscoredNamingConvention.Instance)
+            .IgnoreUnmatchedProperties()
+            .Build();
+
+        var root = deserializer.Deserialize<KrintConfigFile>(reader)
+            ?? throw new InvalidOperationException($"{FileName} is empty or invalid.");
+
+        var options = root.Krint ?? new KrintOptions();
+        options.PortRanges = (options.PortRanges ?? [])
+            .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+        options.Storage ??= new();
+        options.Nodes = (options.Nodes ?? []).Where(n => n is not null).ToList();
+        return options;
     }
 
     private static string? FindUpwards(string startDir)

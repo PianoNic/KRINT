@@ -40,6 +40,45 @@ instances:
         }
 
         [Test]
+        public async Task Load_EmptyListKeys_ReturnEmptyListsNotNull()
+        {
+            using var tempDir = new TempDir();
+            var path = Path.Combine(tempDir.Path, "instances.yaml");
+            await File.WriteAllTextAsync(path, """
+instances:
+  - engine: postgres
+    version: "18"
+    display_name: bare-db
+    databases:
+    users:
+      - name: alice
+        grant_databases:
+    plugins:
+""");
+            var config = new InstancesConfigLoader(tempDir.Path, "instances.yaml").Load();
+            var spec = config.Instances[0];
+            await Assert.That(spec.Databases).IsNotNull();
+            await Assert.That(spec.Plugins).IsNotNull();
+            await Assert.That(spec.Users[0].GrantDatabases).IsNotNull();
+        }
+
+        [Test]
+        public async Task Load_InstancesKeyWithAllEntriesCommentedOut_ReturnsEmptyList()
+        {
+            using var tempDir = new TempDir();
+            var path = Path.Combine(tempDir.Path, "instances.yaml");
+            await File.WriteAllTextAsync(path, """
+instances:
+#  - engine: postgres
+#    version: "18"
+#    display_name: prod-db
+""");
+            var config = new InstancesConfigLoader(tempDir.Path, "instances.yaml").Load();
+            await Assert.That(config.Instances).IsNotNull();
+            await Assert.That(config.Instances).IsEmpty();
+        }
+
+        [Test]
         public async Task Load_NodeName_IsParsed()
         {
             using var tempDir = new TempDir();
