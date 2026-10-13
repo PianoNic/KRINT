@@ -23,8 +23,9 @@ Installers for every release are on the [GitHub Releases page](https://github.co
 | Linux | `KRINT_<version>_amd64.AppImage`, `.deb` or `.rpm` |
 
 Docker Desktop (or a Docker daemon) must be running: the app provisions databases as containers.
-Installed builds check the release feed on start and update themselves. Everything below is for
-building the app from source.
+When it is not, the app shows a banner until Docker answers again. Updates are manual for now:
+download the new installer from the Releases page (see [Auto-updates](#auto-updates)). Everything
+below is for building the app from source.
 
 ## How it works
 
@@ -38,7 +39,13 @@ On launch the desktop shell (`src-tauri/src/lib.rs`):
 4. Picks a free loopback port at launch, polls it until the API answers, then navigates the
    window to `/login#krint_desktop=…`. The fragment carries the desktop credentials, never
    reaches the API, and the login page signs in with it and clears it.
-5. On exit, kills the API child.
+5. Points the API's backups at `<app-data>/backups` (`Backup__Directory`): the default next to the
+   binary is read-only inside the macOS bundle and the Linux packages.
+6. On exit, kills the API child.
+
+The desktop account's password belongs to the shell: it is read from `local-login.key` on every
+launch. The Settings page therefore hides the Password card and does not offer a reset for the
+signed-in account in the desktop app (`Desktop__Enabled=true`); changing it would lock you out.
 
 ### Why Docker is still required
 
@@ -111,7 +118,15 @@ Find the host triple with `rustc --print host-tuple`.
 
 ## Auto-updates
 
-The app checks for updates on launch (`tauri-plugin-updater`). If a newer signed release is
+::: warning Currently disabled
+Releases are not signed yet: `plugins.updater.pubkey` is still a placeholder and
+`bundle.createUpdaterArtifacts` is `false`, so no `latest.json` is published and a check could
+never succeed. The check is switched off with `UPDATER_ENABLED = false` in
+`src-tauri/src/lib.rs`. Once the one-time setup below is done, set `createUpdaterArtifacts` to
+`true` and flip `UPDATER_ENABLED` to turn it back on. Until then, install new releases by hand.
+:::
+
+Once enabled, the app checks for updates on launch (`tauri-plugin-updater`). If a newer signed release is
 available it downloads, installs, and restarts - replacing the whole bundle (API sidecar +
 resources included), so one update covers everything.
 

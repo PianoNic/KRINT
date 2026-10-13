@@ -24,6 +24,13 @@ use tauri_plugin_shell::ShellExt;
 // free_port) so two instances — or anything already bound to a fixed port — can't collide.
 const DESKTOP_USER: &str = "desktop";
 
+// The in-app updater stays off until releases are signed: tauri.conf.json still carries a
+// placeholder `plugins.updater.pubkey` and `bundle.createUpdaterArtifacts` is false, so no
+// `latest.json` is published and every check would fail. To turn it on, generate a key pair
+// (`npx tauri signer generate`), put the public key in tauri.conf.json, set
+// `createUpdaterArtifacts` to true, sign the release builds, and flip this to true.
+const UPDATER_ENABLED: bool = false;
+
 // Lock the webview down to a native-app feel: no right-click context menu and no devtools
 // keyboard shortcuts. Devtools are already off (no `devtools` Cargo feature); this also blocks
 // the shortcuts so there's no inspector entry point at all. Re-run on every page load so it
@@ -86,10 +93,12 @@ pub fn run() {
                 log::error!("failed to start backend: {err}");
             }
             // Check for updates in the background; install + restart if one is available.
-            let updater_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                check_for_updates(updater_handle).await;
-            });
+            if UPDATER_ENABLED {
+                let updater_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    check_for_updates(updater_handle).await;
+                });
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -157,6 +166,10 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
     restrict_to_owner(&data_dir)?;
 
     let db_path = data_dir.join("krint.db");
+    // The API's default backup dir sits next to its binary, which is read-only inside the macOS
+    // bundle and the Linux packages; keep backups in the writable app-data dir instead.
+    let backup_dir = data_dir.join("backups");
+    std::fs::create_dir_all(&backup_dir)?;
     let vault_key = load_or_create_vault_key(&data_dir)?;
     let local_password = load_or_create_local_password(&data_dir)?;
 
@@ -180,6 +193,9 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error
         .env("ConnectionStrings__KrintDatabase", &conn)
         .env("KRINT_CONFIG", krint_yaml.to_string_lossy().to_string())
         .env("Vault__MasterKey", vault_key)
+        .env("Backup__Directory", backup_dir.to_string_lossy().to_string())
+        // Tells the API (and through /api/app the SPA) that it runs inside the desktop shell.
+        .env("Desktop__Enabled", "true")
         // No Oidc__Authority: the API runs local password login and seeds this one account.
         .env("LocalLogin__AdminUserName", DESKTOP_USER)
         .env("LocalLogin__AdminPassword", &local_password)
