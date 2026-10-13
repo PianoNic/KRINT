@@ -76,10 +76,12 @@ builder.Services.AddSignalR(options =>
 })
 .AddHubOptions<NodeHub>(options =>
 {
-    // Node RPC returns whole backup dumps and container logs as single messages, and a node is
-    // authenticated by a pre-shared token rather than a browser session. The cap is lifted for
-    // this hub alone (dumps are already fully buffered in memory).
-    options.MaximumReceiveMessageSize = null;
+    // Node RPC returns backup dumps and container logs as messages, so this hub gets a far larger
+    // cap than the browser hubs. It is still finite: /hubs/node is anonymous until the node's
+    // token is checked inside the hub, and an unbounded size let any caller make the server
+    // buffer arbitrary amounts. 64 MB is generous on purpose while backup transfer moves to
+    // chunked streaming; once it has, this can come down to a few MB.
+    options.MaximumReceiveMessageSize = 64L * 1024 * 1024;
 });
 
 builder.Services.AddOpenApi(options =>
