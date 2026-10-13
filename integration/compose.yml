@@ -34,7 +34,7 @@ services:
       LocalLogin__AdminPassword: Integration-Admin-Pass-2026
       Cors__AllowedOrigins__0: http://localhost:18081
       # Test-only AES-256 key (32 raw bytes, base64-encoded), never reused outside this file.
-      Vault__MasterKey: 2P+vvGUw5v3weZdFU04YOicpVNs9eIyRKo6NliiDR4c=
+      Vault__MasterKey: 2mQDW+EHU9DMVgjqdYlrmLIgNk4LlU06n8FgM7Vtsd4=
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
