@@ -13,7 +13,7 @@ namespace KRINT.Application.Queries.Backup
     {
         public async ValueTask<IReadOnlyList<BackupEntryDto>> Handle(ListBackupsQuery query, CancellationToken cancellationToken)
         {
-            var q = db.BackupEntries.AsQueryable();
+            var q = db.BackupEntries.AsNoTracking();
             if (query.InstanceId is { } id) q = q.Where(b => b.InstanceId == id);
 
             var rows = await q
