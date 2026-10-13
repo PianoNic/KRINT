@@ -20,5 +20,13 @@ export interface AppDto {
      * \"oidc\" when an identity provider is configured, \"local\" for password login against KRINT's own user table.
      */
     authMode: string;
+    /**
+     * True when the API runs as the desktop shell\'s sidecar, which signs in with a fixed local account the shell owns.
+     */
+    desktop: boolean;
+    /**
+     * Whether the Docker daemon answered a ping, the same check /health runs.
+     */
+    dockerReachable: boolean;
 }
 

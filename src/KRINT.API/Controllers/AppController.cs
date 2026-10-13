@@ -1,6 +1,7 @@
 using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using KRINT.Application.Dtos.App;
 using KRINT.Application.Queries.App;
@@ -15,7 +16,8 @@ namespace KRINT.API.Controllers
         IMediator mediator,
         IToamaisutaaClientConfigurationProvider clientConfiguration,
         IOptions<ToamaisutaaOidcOptions> oidc,
-        IConfiguration configuration) : ControllerBase
+        IConfiguration configuration,
+        HealthCheckService healthChecks) : ControllerBase
     {
         [AllowAnonymous]
         [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(SecurityHeaders.AnonymousPolicy)]
@@ -44,7 +46,27 @@ namespace KRINT.API.Controllers
                 };
             }
 
-            return Ok(await mediator.Send(new AppQuery(client, LocalLogin.ModeOf(configuration)), cancellationToken));
+            var dockerReachable = await IsDockerReachableAsync(cancellationToken);
+            return Ok(await mediator.Send(
+                new AppQuery(client, LocalLogin.ModeOf(configuration), DesktopShell.IsEnabled(configuration), dockerReachable),
+                cancellationToken));
+        }
+
+        /// <summary>Runs the "docker" check /health registers, capped so a hung daemon cannot
+        /// stall the SPA's bootstrap request.</summary>
+        private async Task<bool> IsDockerReachableAsync(CancellationToken cancellationToken)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(3));
+            try
+            {
+                var report = await healthChecks.CheckHealthAsync(r => r.Name == "docker", timeout.Token);
+                return report.Status == HealthStatus.Healthy;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
         }
     }
 }
