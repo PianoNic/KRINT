@@ -6,7 +6,7 @@ A few things do not work on node-hosted databases yet:
 
 - **Object upload** to SeaweedFS and Azurite buckets.
 - The **pgvector** engine and the **Postgres extension plugins** (`pg_trgm`, `uuid-ossp`, `hstore`): installing them needs a direct SQL connection from the control plane.
-- **Visibility**: a node-hosted database is always bound to the node's loopback and reached only through the control plane, so it cannot be made public.
+- **Visibility**: a node-hosted database is bound to the node's loopback and Docker bridge gateway, so apps on the node can use it but it cannot be made public.
 
 ::: warning
 Nodes are experimental.
@@ -114,11 +114,11 @@ Manage it entirely through the control plane. To point one of your own apps at i
 
 ## Connect an app to a node-hosted database
 
-A node-hosted container publishes its port on the **node's loopback**, never on `0.0.0.0`. Nothing connects to a node directly, so there is deliberately no address on the node's host that another machine can dial. The **Public** visibility toggle is rejected for node-hosted instances for the same reason.
+A node-hosted container publishes its port on the **node's loopback** and, on a native Linux node, on the node's **Docker bridge gateway** (usually `172.17.0.1`), never on `0.0.0.0`. Other containers on the node reach it through the gateway, while other machines cannot dial it. The **Public** visibility toggle is rejected for node-hosted instances for that reason.
 
-That means the instances list shows `node-local` instead of a host, and the endpoint your app uses is the **container name on the node's Docker network**. KRINT attaches every container it provisions to its own network, so an app deployed on that node joins the same network and resolves the name.
+The easiest route is the instance's **app connection string**: KRINT asks the node for its bridge gateway and builds the string for you, exactly as for a [local instance](/apps). Paste it into an app running on that node, or use **New app database** to give the app its own database and user.
 
-The create-success screen and the instance details dialog both give you the connection string and the compose fragment ready to copy. The shape is:
+The other route is the **container name on a shared Docker network**, for an app that joins a network the database container is attached to. The compose looks like:
 
 ```yaml
 services:
@@ -146,7 +146,7 @@ Two mistakes account for almost every failure here.
 
 **Using the published port with the container name.** The port in the instances list (e.g. `30000`) is the *host* port on the node. Over the Docker network you use the engine's internal port, `5432` for Postgres. Pairing the container name with `30000` gives `Connection refused`.
 
-**Using `host.docker.internal` and the published port.** That resolves to the docker0 gateway, a different interface from loopback, so a loopback-bound port refuses the connection. It works for a *local* instance published on `0.0.0.0`, never for a node-hosted one.
+**Using `host.docker.internal` without `extra_hosts`.** On a Linux node that name only resolves in a container started with `extra_hosts: ["host.docker.internal:host-gateway"]`. The app connection string uses the gateway address instead, so it works without it.
 :::
 
 ::: tip
