@@ -161,6 +161,8 @@ builder.Services.AddRateLimiter(options =>
                 PermitLimit = 120,
                 Window = TimeSpan.FromMinutes(1),
             }));
+    // Local login's browser session endpoints: strict, since /login takes a password.
+    options.AddPolicy(LocalLoginSession.RateLimitPolicy, LocalLoginSession.Partition);
 });
 
 var app = builder.Build();
