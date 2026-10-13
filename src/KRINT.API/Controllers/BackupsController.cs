@@ -31,12 +31,8 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Create(Guid instanceId, CancellationToken cancellationToken)
         {
-            try
-            {
-                var result = await mediator.Send(new CreateBackupCommand(instanceId), cancellationToken);
-                return CreatedAtAction(nameof(Download), new { id = result.Id }, result);
-            }
-            catch (InstanceNotFoundException) { return NotFound(); }
+            var result = await mediator.Send(new CreateBackupCommand(instanceId), cancellationToken);
+            return CreatedAtAction(nameof(Download), new { id = result.Id }, result);
         }
 
         [HttpPost("instance/{instanceId:guid}/import")]
@@ -48,16 +44,11 @@ namespace KRINT.API.Controllers
         {
             if (file is null || file.Length == 0)
                 return BadRequest(new { error = "No file uploaded." });
-            try
-            {
-                await using var stream = file.OpenReadStream();
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms, cancellationToken);
-                var result = await mediator.Send(new ImportBackupCommand(instanceId, file.FileName, ms.ToArray()), cancellationToken);
-                return CreatedAtAction(nameof(Download), new { id = result.Id }, result);
-            }
-            catch (InstanceNotFoundException) { return NotFound(); }
-            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            await using var stream = file.OpenReadStream();
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms, cancellationToken);
+            var result = await mediator.Send(new ImportBackupCommand(instanceId, file.FileName, ms.ToArray()), cancellationToken);
+            return CreatedAtAction(nameof(Download), new { id = result.Id }, result);
         }
 
         [HttpGet("{id:guid}")]
@@ -94,13 +85,8 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CreateSchedule([FromBody] CreateBackupScheduleDto body, CancellationToken cancellationToken)
         {
-            try
-            {
-                var result = await mediator.Send(new CreateBackupScheduleCommand(body), cancellationToken);
-                return CreatedAtAction(nameof(ListSchedules), new { instanceId = result.InstanceId }, result);
-            }
-            catch (InstanceNotFoundException) { return NotFound(); }
-            catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+            var result = await mediator.Send(new CreateBackupScheduleCommand(body), cancellationToken);
+            return CreatedAtAction(nameof(ListSchedules), new { instanceId = result.InstanceId }, result);
         }
 
         [HttpPatch("schedules/{id:guid}")]
