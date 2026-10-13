@@ -11,6 +11,7 @@ namespace KRINT.Application.Dtos.BackupSchedule
         public string? LastStatus { get; init; }
         public string? LastError { get; init; }
         public DateTime? NextRunAt { get; init; }
+        public int? KeepLast { get; init; }
         public required DateTime CreatedAt { get; init; }
     }
 }
