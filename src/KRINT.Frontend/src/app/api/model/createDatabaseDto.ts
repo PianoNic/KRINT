@@ -12,6 +12,7 @@
 export interface CreateDatabaseDto { 
     engine: string;
     version: string;
+    displayName?: string | null;
     databaseName?: string | null;
 }
 

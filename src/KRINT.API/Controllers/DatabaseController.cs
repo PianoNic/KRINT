@@ -71,7 +71,15 @@ namespace KRINT.API.Controllers
         [ProducesResponseType(typeof(ProvisionedDatabaseDto), StatusCodes.Status201Created)]
         public async Task<IActionResult> Create([FromBody] CreateDatabaseDto body, CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new CreateDatabaseCommand(body.Engine, body.Version, body.DatabaseName), cancellationToken);
+            var displayName = DisplayNameValidator.Normalize(
+                string.IsNullOrWhiteSpace(body.DisplayName)
+                    ? (string.IsNullOrWhiteSpace(body.DatabaseName) ? body.Engine : body.DatabaseName)
+                    : body.DisplayName);
+            var result = await mediator.Send(new CreateDatabaseCommand(
+                Engine: body.Engine,
+                Version: body.Version,
+                DisplayName: displayName,
+                DatabaseName: body.DatabaseName), cancellationToken);
             return CreatedAtAction(nameof(Create), new { id = result.Id }, result);
         }
 
