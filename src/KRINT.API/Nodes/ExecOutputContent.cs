@@ -28,7 +28,7 @@ namespace KRINT.API.Nodes
 
             var exec = await docker.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
             {
-                Cmd = command,
+                Cmd = KRINT.Infrastructure.Services.DockerService.NormalizeLineEndings(command),
                 AttachStdout = true,
                 AttachStderr = true,
             }, ct);
