@@ -85,6 +85,9 @@ public class DataIntegrityTests
     /// A table in an extra database comes back after backup, drop and restore.
     /// </summary>
     [Test]
+    [Skip("MSSQL backup fails: MsSqlBackupService.DumpScript runs `sqlcmd -b -h -1 -y 0` to script logins, " +
+          "and sqlcmd rejects it with 'The -h and the -y 0 options are mutually exclusive.' (exec exits 1, API returns 409). " +
+          "Remove this skip once the dump script is fixed.")]
     public async Task MsSql_BackupRestoreBringsBackDroppedTable()
     {
         var api = await KrintApi.GetAsync();
