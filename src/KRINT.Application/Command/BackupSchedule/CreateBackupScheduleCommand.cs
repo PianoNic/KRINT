@@ -22,6 +22,9 @@ namespace KRINT.Application.Command.BackupSchedule
             try { parsed = CronExpression.Parse(command.Body.CronExpression); }
             catch (CronFormatException ex) { throw new ArgumentException($"Invalid cron expression: {ex.Message}", nameof(command)); }
 
+            if (command.Body.KeepLast is < 1)
+                throw new ArgumentException("Keep last must be at least 1, or empty to keep every backup.", nameof(command));
+
             var entry = new KRINT.Domain.BackupSchedule
             {
                 InstanceId = instance.Id,
@@ -29,6 +32,7 @@ namespace KRINT.Application.Command.BackupSchedule
                 Description = string.IsNullOrWhiteSpace(command.Body.Description) ? command.Body.CronExpression : command.Body.Description.Trim(),
                 Enabled = true,
                 NextRunAt = parsed.GetNextOccurrence(DateTime.UtcNow),
+                KeepLast = command.Body.KeepLast,
             };
             db.BackupSchedules.Add(entry);
             await db.SaveChangesAsync(cancellationToken);
