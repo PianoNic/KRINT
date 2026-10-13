@@ -9,7 +9,7 @@ namespace KRINT.Application.Command.Backup
 {
     public record RestoreBackupCommand(Guid BackupId) : ICommand;
 
-    public class RestoreBackupCommandHandler(KrintDbContext db, ISecretsVaultService vault, IBackupServiceResolver resolver, IBackupStorage storage, IActivityLogger activity, IConfiguration configuration) : ICommandHandler<RestoreBackupCommand>
+    public class RestoreBackupCommandHandler(KrintDbContext db, ISecretsVaultService vault, IBackupServiceResolver resolver, IBackupStorage storage, IActivityLogger activity, IConfiguration configuration, IDockerServiceResolver dockerResolver) : ICommandHandler<RestoreBackupCommand>
     {
         public async ValueTask<Unit> Handle(RestoreBackupCommand command, CancellationToken cancellationToken)
         {
@@ -24,6 +24,10 @@ namespace KRINT.Application.Command.Backup
 
             var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
+
+            // A compose-recreated adopted container has a new id; follow it by name.
+
+            await ContainerIdResolver.RefreshAsync(db, instance, dockerResolver.Resolve(instance.NodeId), cancellationToken);
 
             var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId, BackupTarget.ConfiguredTimeout(configuration));
 

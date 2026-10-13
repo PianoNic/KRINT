@@ -104,6 +104,8 @@ builder.Services.AddKrintDatabase(builder.Configuration);
 // Docker daemon at boot instead of on the first click.
 builder.Services.AddHostedService<KrintStartupCheck>();
 builder.Services.AddKrintHealthChecks();
+// One docker stats loop shared by every dashboard viewer, idle while nobody is watching.
+builder.Services.AddSingleton<KRINT.Application.Queries.Dashboard.DashboardStatsSampler>();
 // Unhandled exceptions become RFC 9457 problem details (no stack trace) instead of an empty 500.
 builder.Services.AddProblemDetails();
 // Not-found / bad-request / conflict exceptions map to 404 / 400 / 409 in one place, so
