@@ -14,13 +14,15 @@ namespace KRINT.Infrastructure.Services
 
     internal static class CouchDbHttp
     {
-        public static HttpClient Build(InnerDatabaseTarget target)
+        public const string ClientName = "krint-couchdb";
+
+        // Clients come from IHttpClientFactory so the underlying handlers (and their sockets) are
+        // pooled and recycled instead of a fresh connection pool per call.
+        public static HttpClient Build(IHttpClientFactory factory, InnerDatabaseTarget target)
         {
-            var client = new HttpClient
-            {
-                BaseAddress = new Uri($"http://{target.Host}:{target.Port}"),
-                Timeout = TimeSpan.FromSeconds(5),
-            };
+            var client = factory.CreateClient(ClientName);
+            client.BaseAddress = new Uri($"http://{target.Host}:{target.Port}");
+            client.Timeout = TimeSpan.FromSeconds(5);
             if (!string.IsNullOrEmpty(target.Username))
             {
                 var token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{target.Username}:{target.Password}"));
@@ -30,13 +32,13 @@ namespace KRINT.Infrastructure.Services
         }
     }
 
-    public class CouchDbInnerDatabaseService : IInnerDatabaseService
+    public class CouchDbInnerDatabaseService(IHttpClientFactory httpFactory) : IInnerDatabaseService
     {
         public string Engine => "couchdb";
 
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
-            using var http = CouchDbHttp.Build(target);
+            using var http = CouchDbHttp.Build(httpFactory, target);
             var names = await http.GetFromJsonAsync<string[]>("/_all_dbs", cancellationToken) ?? Array.Empty<string>();
             // Hide CouchDB's internal _users / _replicator / _global_changes etc.
             return names.Where(n => !n.StartsWith('_')).ToList();
@@ -45,7 +47,7 @@ namespace KRINT.Infrastructure.Services
         public async Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(name);
-            using var http = CouchDbHttp.Build(target);
+            using var http = CouchDbHttp.Build(httpFactory, target);
             var resp = await http.PutAsync($"/{Uri.EscapeDataString(name)}", null, cancellationToken);
             resp.EnsureSuccessStatusCode();
         }
@@ -55,7 +57,7 @@ namespace KRINT.Infrastructure.Services
             InnerDatabaseNameValidator.Require(name);
             if (string.Equals(name, target.DefaultDatabase, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"Refusing to drop the instance's default database '{name}'.");
-            using var http = CouchDbHttp.Build(target);
+            using var http = CouchDbHttp.Build(httpFactory, target);
             var resp = await http.DeleteAsync($"/{Uri.EscapeDataString(name)}", cancellationToken);
             resp.EnsureSuccessStatusCode();
         }
@@ -76,7 +78,7 @@ namespace KRINT.Infrastructure.Services
             => throw new NotSupportedException("CouchDB user mgmt is not exposed in this version.");
     }
 
-    public class CouchDbInnerSchemaService : IInnerSchemaService
+    public class CouchDbInnerSchemaService(IHttpClientFactory httpFactory) : IInnerSchemaService
     {
         public string Engine => "couchdb";
         private const string DocsCollection = "_all_docs";
@@ -95,7 +97,7 @@ namespace KRINT.Infrastructure.Services
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
-            using var http = CouchDbHttp.Build(target);
+            using var http = CouchDbHttp.Build(httpFactory, target);
             var url = $"/{Uri.EscapeDataString(database)}/_all_docs?include_docs=true&limit={limit}&skip={offset}";
             using var resp = await http.GetAsync(url, cancellationToken);
             resp.EnsureSuccessStatusCode();
@@ -130,7 +132,7 @@ namespace KRINT.Infrastructure.Services
             var docJson = request.Values[Idx(request.Columns, "document")] ?? "{}";
             var node = JsonNode.Parse(docJson)!.AsObject();
             node.Remove("_rev"); // a new doc must not carry a rev
-            using var http = CouchDbHttp.Build(target);
+            using var http = CouchDbHttp.Build(httpFactory, target);
             var content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json");
             // POST to the database: CouchDB honours an embedded _id, or assigns one when absent.
             using var resp = await http.PostAsync($"/{Uri.EscapeDataString(database)}", content, cancellationToken);
@@ -148,7 +150,7 @@ namespace KRINT.Infrastructure.Services
             var node = JsonNode.Parse(request.NewValues[docIdx] ?? "{}")!.AsObject();
             node["_id"] = id;
             if (rev is not null) node["_rev"] = rev;
-            using var http = CouchDbHttp.Build(target);
+            using var http = CouchDbHttp.Build(httpFactory, target);
             var content = new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json");
             using var resp = await http.PutAsync($"/{Uri.EscapeDataString(database)}/{Uri.EscapeDataString(id)}", content, cancellationToken);
             resp.EnsureSuccessStatusCode();
@@ -162,7 +164,7 @@ namespace KRINT.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Document _id is required to delete.");
             var rev = JsonDocument.Parse(request.OriginalValues[docIdx] ?? "{}").RootElement.TryGetProperty("_rev", out var r) ? r.GetString() : null;
             if (string.IsNullOrWhiteSpace(rev)) throw new ArgumentException("Document _rev is required to delete.");
-            using var http = CouchDbHttp.Build(target);
+            using var http = CouchDbHttp.Build(httpFactory, target);
             using var resp = await http.DeleteAsync($"/{Uri.EscapeDataString(database)}/{Uri.EscapeDataString(id)}?rev={Uri.EscapeDataString(rev)}", cancellationToken);
             resp.EnsureSuccessStatusCode();
         }
