@@ -67,7 +67,8 @@ namespace KRINT.Application.Command.DatabaseInstance
 
             var createParams = InstanceContainerBuilder.Build(new InstanceContainerSpec(
                 instance.Engine, instance.Version, instance.Id, instance.DisplayName, containerName, password, instance.DatabaseName,
-                plugins, instance.Port, LoopbackOnly: !command.IsPublic, bindSpec));
+                plugins, instance.Port, LoopbackOnly: !command.IsPublic, bindSpec,
+                ExtraBindIp: (await docker.GetHostAccessAsync(cancellationToken))?.ExtraBindIp));
 
             // Pull before touching the old container, so a registry hiccup changes nothing.
             var (imageName, imageTag) = InstanceContainerBuilder.ResolveImage(instance.Engine, instance.Version, plugins);

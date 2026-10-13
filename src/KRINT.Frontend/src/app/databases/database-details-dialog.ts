@@ -1,11 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogDescription, HlmDialogHeader, HlmDialogTitle } from '@spartan-ng/helm/dialog';
 import { DatabasesStore } from '../shared/stores/databases.store';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
-import { dockerNetworkComposeSnippet } from '../shared/docker-network-compose';
 
 type DialogContext = { id: string };
 
@@ -92,64 +91,41 @@ type DialogContext = { id: string };
         <span></span>
       </dl>
 
-      @if (d.nodeId && d.containerConnectionString) {
+      @if (d.appConnectionString) {
         <div class="flex flex-col gap-2">
-          <span class="text-muted-foreground text-sm">
-            Connection string for other containers on
-            <span class="font-mono">{{ d.nodeName ?? 'the node' }}</span>
+          <span class="text-sm font-medium">
+            Connection string for your apps on {{ d.nodeName ?? 'this machine' }}
           </span>
           <div class="flex items-start gap-2">
             <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
-              d.containerConnectionString
+              d.appConnectionString
             }}</code>
-            <app-copy-button [value]="d.containerConnectionString" />
+            <app-copy-button [value]="d.appConnectionString" />
           </div>
+          <p class="text-muted-foreground text-xs">
+            Paste it into your app's compose file. It works from any container on the same host,
+            with no network config, and nothing is reachable from outside the machine.
+          </p>
         </div>
-
-        @if (composeSnippet(); as snippet) {
-          <div class="flex flex-col gap-2">
-            <span class="text-muted-foreground text-sm">
-              Add this to your app's compose file so it can resolve that name
-            </span>
-            <div class="flex items-start gap-2">
-              <code
-                class="bg-muted flex-1 overflow-x-auto rounded-md p-3 font-mono text-xs whitespace-pre"
-                >{{ snippet }}</code
-              >
-              <app-copy-button [value]="snippet" />
-            </div>
-            @if (!d.dockerNetwork) {
-              <p class="text-muted-foreground text-xs">
-                KRINT could not read the container's networks. Find the name on the node with
-                <code class="font-mono">docker inspect {{ d.containerName }}</code> and put it in
-                <code class="font-mono">name:</code>.
-              </p>
-            }
-          </div>
-        }
-
-        <div class="flex flex-col gap-2">
-          <span class="text-muted-foreground text-sm"
-            >Connection string from a shell on the node</span
-          >
-          <div class="flex items-start gap-2">
-            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
-              d.connectionString
-            }}</code>
-            <app-copy-button [value]="d.connectionString" />
-          </div>
-        </div>
-      } @else {
-        <div class="flex flex-col gap-2">
-          <span class="text-muted-foreground text-sm">Connection string</span>
-          <div class="flex items-start gap-2">
-            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
-              d.connectionString
-            }}</code>
-            <app-copy-button [value]="d.connectionString" />
-          </div>
-        </div>
+      } @else if (d.appAccessNeedsRecreate) {
+        <p class="text-muted-foreground text-xs">
+          This container was created before app connection strings existed. Upgrade the instance
+          (or change its visibility) once to recreate it, then the connection string for your apps
+          shows up here.
+        </p>
       }
+
+      <div class="flex flex-col gap-2">
+        <span class="text-muted-foreground text-sm">
+          Connection string from a shell on {{ d.nodeName ?? 'this machine' }}
+        </span>
+        <div class="flex items-start gap-2">
+          <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+            d.connectionString
+          }}</code>
+          <app-copy-button [value]="d.connectionString" />
+        </div>
+      </div>
     } @else if (store.error(); as err) {
       <p class="text-destructive text-sm">{{ err }}</p>
     }
@@ -161,12 +137,6 @@ type DialogContext = { id: string };
 })
 export class DatabaseDetailsDialog {
   protected readonly store = inject(DatabasesStore);
-
-  protected readonly composeSnippet = computed(() => {
-    const d = this.store.details();
-    if (!d?.containerName) return null;
-    return dockerNetworkComposeSnippet(d.dockerNetwork);
-  });
 
   private readonly ref = inject<BrnDialogRef<unknown>>(BrnDialogRef);
   private readonly ctx = injectBrnDialogContext<DialogContext>();

@@ -128,7 +128,8 @@ namespace KRINT.Application.Command.Database
                         selectedPlugins, hostPort,
                         // Node-hosted containers are always loopback-only - nothing connects to a node directly.
                         LoopbackOnly: command.NodeId is not null || !command.IsPublic,
-                        bindSpec));
+                        bindSpec,
+                        ExtraBindIp: (await docker.GetHostAccessAsync(cancellationToken))?.ExtraBindIp));
 
                     command.Progress?.Report($"Starting container {containerName} on port {hostPort}");
                     createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
@@ -275,7 +276,9 @@ namespace KRINT.Application.Command.Database
                     ? await db.Nodes.Where(n => n.Id == createdOnNodeId).Select(n => n.Name).FirstOrDefaultAsync(CancellationToken.None)
                     : null;
 
-                return instance.ToProvisionedDto(password, connectionString, nodeName, networks);
+                // The container was just built with the bridge binding, so the app host works as is.
+                var appHost = (await docker.GetHostAccessAsync(CancellationToken.None))?.AppHost;
+                return instance.ToProvisionedDto(password, connectionString, nodeName, networks, appHost);
             }
             finally
             {

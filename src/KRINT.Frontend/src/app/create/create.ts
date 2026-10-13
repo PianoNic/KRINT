@@ -37,7 +37,6 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
-import { dockerNetworkComposeSnippet } from '../shared/docker-network-compose';
 import { lanExposureWarning } from '../shared/engine-auth';
 import {
   customAzurite,
@@ -172,10 +171,6 @@ export class Create {
   });
 
   // ----- computed -----
-  protected readonly composeSnippet = computed(() =>
-    dockerNetworkComposeSnippet(this.result()?.instance.dockerNetwork),
-  );
-
   protected readonly versions = computed(
     () => this.supported().find((s) => s.key === this.engine())?.versions ?? [],
   );

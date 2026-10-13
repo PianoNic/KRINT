@@ -12,7 +12,9 @@ namespace KRINT.Application.Mappings.Database
             string password,
             string connectionString,
             string? nodeName = null,
-            IEnumerable<string>? networks = null)
+            IEnumerable<string>? networks = null,
+            string? appHost = null,
+            bool appAccessNeedsRecreate = false)
         {
             var internalPort = InstanceReachability.InternalPortFor(instance.Engine);
 
@@ -44,6 +46,11 @@ namespace KRINT.Application.Mappings.Database
                 ContainerConnectionString = containerConnectionString,
                 DockerNetwork = InstanceReachability.PickSharedNetwork(networks),
                 LoopbackOnly = InstanceReachability.IsLoopbackOnly(instance),
+                AppHost = appHost,
+                AppConnectionString = appHost is not null
+                    ? ConnectionStringBuilder.Build(instance.Engine, appHost, instance.Port, instance.Username, password, instance.DatabaseName)
+                    : null,
+                AppAccessNeedsRecreate = appAccessNeedsRecreate,
             };
         }
     }

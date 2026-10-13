@@ -6,9 +6,22 @@ namespace KRINT.Infrastructure.Interfaces
     /// total host CPU (0-100).</summary>
     public record ContainerResourceSample(long MemoryBytes, double CpuPercent);
 
+    /// <summary>How a container on this Docker host reaches a port KRINT published on the host,
+    /// without joining any network. Docker Desktop forwards <c>host.docker.internal</c> to the
+    /// host's loopback, so a 127.0.0.1 binding is enough. On native Linux that name does not
+    /// resolve and loopback is unreachable from containers, so ports are additionally bound to the
+    /// default bridge gateway (<paramref name="ExtraBindIp"/>), which only exists inside the host.</summary>
+    /// <param name="AppHost">The host to put in connection strings for apps on this machine.</param>
+    /// <param name="ExtraBindIp">A second host IP to bind private ports to, or null.</param>
+    public record HostAccess(bool IsDockerDesktop, string AppHost, string? ExtraBindIp);
+
     public interface IDockerService
     {
         Task<bool> PingAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>How containers on this host reach host-published ports. Null when it can't be
+        /// determined (e.g. a node agent too old to answer).</summary>
+        Task<HostAccess?> GetHostAccessAsync(CancellationToken cancellationToken = default) => Task.FromResult<HostAccess?>(null);
 
         /// <summary>The Docker engine version string (e.g. "27.3.1") of the daemon this client talks to.</summary>
         Task<string> GetVersionAsync(CancellationToken cancellationToken = default);
