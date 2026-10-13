@@ -15,6 +15,7 @@ export interface TableRowsDto {
     columns: Array<string>;
     rows: Array<Array<string>>;
     totalCount?: TableRowsDtoTotalCount | null;
+    totalIsEstimate?: boolean;
     columnInfos?: Array<ColumnInfoDto> | null;
 }
 

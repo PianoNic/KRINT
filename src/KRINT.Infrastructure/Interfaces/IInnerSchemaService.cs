@@ -11,7 +11,9 @@ namespace KRINT.Infrastructure.Interfaces
         IReadOnlyList<string> Columns,
         IReadOnlyList<IReadOnlyList<string?>> Rows,
         long? TotalCount,
-        IReadOnlyList<ColumnInfo>? ColumnInfos = null);
+        IReadOnlyList<ColumnInfo>? ColumnInfos = null,
+        // True when TotalCount came from catalog statistics rather than an exact COUNT(*).
+        bool TotalIsEstimate = false);
 
     /// <summary>
     /// Identifies a single row by the values it had when it was last read. Same column order as TableRows.Columns.

@@ -26,7 +26,11 @@ namespace KRINT.Infrastructure.Services
             offset = Math.Max(0, offset);
 
             var collection = Connect(target).GetDatabase(database).GetCollection<BsonDocument>(table);
-            var total = await collection.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken: cancellationToken);
+            // Collection metadata count first (O(1)); the exact count scans, so it only runs when the
+            // collection is small or the metadata isn't available (e.g. a view).
+            var (total, totalIsEstimate) = await RowCountEstimate.ResolveAsync(
+                async () => await collection.EstimatedDocumentCountAsync(cancellationToken: cancellationToken),
+                async () => await collection.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken: cancellationToken));
 
             var docs = await collection.Find(FilterDefinition<BsonDocument>.Empty)
                 .Skip(offset)
@@ -38,7 +42,7 @@ namespace KRINT.Infrastructure.Services
                 .Select(d => (IReadOnlyList<string?>)new[] { d.ToJson(new MongoDB.Bson.IO.JsonWriterSettings { Indent = false }) })
                 .ToList();
 
-            return new TableRows(new[] { "document" }, rows, total);
+            return new TableRows(new[] { "document" }, rows, total, TotalIsEstimate: totalIsEstimate);
         }
 
         public async Task UpdateRowAsync(InnerDatabaseTarget target, string database, string table, UpdateRowRequest request, CancellationToken cancellationToken = default)

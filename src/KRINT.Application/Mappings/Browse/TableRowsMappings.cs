@@ -16,6 +16,7 @@ namespace KRINT.Application.Mappings.Browse
             Columns = rows.Columns,
             Rows = rows.Rows,
             TotalCount = rows.TotalCount,
+            TotalIsEstimate = rows.TotalIsEstimate,
             ColumnInfos = rows.ColumnInfos?.Select(c => new ColumnInfoDto
             {
                 Name = c.Name,

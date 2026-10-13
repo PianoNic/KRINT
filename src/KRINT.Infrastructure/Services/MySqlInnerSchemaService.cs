@@ -36,12 +36,22 @@ namespace KRINT.Infrastructure.Services
 
             await using var conn = await OpenAsync(target, database, cancellationToken);
 
-            long? total = null;
-            await using (var countCmd = new MySqlCommand($"SELECT COUNT(*) FROM `{table}`", conn))
-            {
-                var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
-                if (raw is not null && raw is not DBNull) total = Convert.ToInt64(raw, CultureInfo.InvariantCulture);
-            }
+            var (total, totalIsEstimate) = await RowCountEstimate.ResolveAsync(
+                async () =>
+                {
+                    // InnoDB's TABLE_ROWS is a statistics estimate (NULL for views).
+                    await using var estCmd = new MySqlCommand("SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @table", conn);
+                    estCmd.Parameters.AddWithValue("@schema", database);
+                    estCmd.Parameters.AddWithValue("@table", table);
+                    var raw = await estCmd.ExecuteScalarAsync(cancellationToken);
+                    return raw is null or DBNull ? null : Convert.ToInt64(raw, CultureInfo.InvariantCulture);
+                },
+                async () =>
+                {
+                    await using var countCmd = new MySqlCommand($"SELECT COUNT(*) FROM `{table}`", conn);
+                    var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
+                    return raw is null or DBNull ? null : Convert.ToInt64(raw, CultureInfo.InvariantCulture);
+                });
 
             var columnInfos = await FetchColumnInfosAsync(conn, database, table, cancellationToken);
 
@@ -70,7 +80,7 @@ namespace KRINT.Infrastructure.Services
                 }
                 rows.Add(row);
             }
-            return new TableRows(columns, rows, total, columnInfos);
+            return new TableRows(columns, rows, total, columnInfos, totalIsEstimate);
         }
 
         private static async Task<IReadOnlyList<ColumnInfo>> FetchColumnInfosAsync(MySqlConnection conn, string database, string table, CancellationToken cancellationToken)

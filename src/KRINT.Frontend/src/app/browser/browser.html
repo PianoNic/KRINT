@@ -177,7 +177,12 @@
           </div>
           <span class="text-muted-foreground text-[11px]">
             @if (rows()?.totalCount != null) {
-              {{ offset() + 1 }}-{{ offset() + (rows()?.rows?.length ?? 0) }} of {{ rows()?.totalCount }}
+              {{ offset() + 1 }}-{{ offset() + (rows()?.rows?.length ?? 0) }} of
+              @if (rows()?.totalIsEstimate) {
+                <span title="Estimated from table statistics">~{{ rows()?.totalCount }}</span>
+              } @else {
+                {{ rows()?.totalCount }}
+              }
             } @else if (table()) {
               Showing up to {{ limit() }} {{ rowTerm() }}s
             }

@@ -176,7 +176,10 @@ export class Browser {
     const r = this.rows();
     if (!r) return false;
     const seenSoFar = this.offset() + r.rows.length;
-    return r.totalCount != null ? seenSoFar < Number(r.totalCount) : r.rows.length === this.limit();
+    // An estimated total can be off either way, so it can't decide whether another page exists.
+    return r.totalCount != null && !r.totalIsEstimate
+      ? seenSoFar < Number(r.totalCount)
+      : r.rows.length === this.limit();
   });
 
   constructor() {
