@@ -65,6 +65,16 @@ namespace KRINT.API
                     continue;
                 }
 
+                // The instance is gone (deleted before schedules were cleaned up with it): the
+                // schedule can never succeed again, so drop it instead of erroring every tick.
+                if (!await db.DatabaseInstances.AnyAsync(d => d.Id == schedule.InstanceId, cancellationToken))
+                {
+                    log.LogWarning("Schedule {Id} points at missing instance {InstanceId} - removing it.", schedule.Id, schedule.InstanceId);
+                    db.BackupSchedules.Remove(schedule);
+                    await db.SaveChangesAsync(cancellationToken);
+                    continue;
+                }
+
                 try
                 {
                     await mediator.Send(new CreateBackupCommand(schedule.InstanceId), cancellationToken);
