@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using KRINT.API.Extensions;
+using KRINT.API.Nodes;
 using KRINT.Application;
 using KRINT.Application.Command.InnerDatabase;
 using KRINT.Application.Command.InnerUser;
@@ -64,8 +65,24 @@ namespace KRINT.API
                 return;
             }
 
+            // An entry without a usable display_name can never be matched to its row, so it would
+            // be provisioned again on every restart. Skip it loudly instead.
+            var valid = new List<ConfigInstance>();
+            foreach (var spec in config.Instances)
+            {
+                try
+                {
+                    spec.DisplayName = DisplayNameValidator.Normalize(spec.DisplayName);
+                    valid.Add(spec);
+                }
+                catch (ArgumentException ex)
+                {
+                    log.LogError("Skipping instances file entry (engine={Engine}): {Reason}", spec.Engine, ex.Message);
+                }
+            }
+
             // Reject duplicate displayNames up front - they'd silently merge otherwise.
-            var dupes = config.Instances
+            var dupes = valid
                 .GroupBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1)
                 .Select(g => g.Key)
@@ -75,6 +92,59 @@ namespace KRINT.API
                 log.LogError("Instances file has duplicate display_name entries: {Names}. Reconcile aborted.", string.Join(", ", dupes));
                 return;
             }
+
+            // Clear flag on rows previously declared in config but now absent. They become
+            // user-managed again so the UI lets them be edited or deleted.
+            using (var scope = services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<KrintDbContext>();
+                var configNames = new HashSet<string>(valid.Select(i => i.DisplayName), StringComparer.OrdinalIgnoreCase);
+                var orphans = await db.DatabaseInstances
+                    .Where(e => e.IsConfigManaged)
+                    .ToListAsync(stoppingToken);
+                orphans = orphans.Where(e => !configNames.Contains(e.DisplayName)).ToList();
+                foreach (var orphan in orphans)
+                {
+                    orphan.IsConfigManaged = false;
+                    log.LogInformation("Cleared IsConfigManaged on '{Name}' (no longer in instances file).", orphan.DisplayName);
+                }
+                if (orphans.Count > 0) await db.SaveChangesAsync(stoppingToken);
+            }
+
+            // Entries placed on a node that is not connected yet (common right after a restart,
+            // before the node agent reconnects) are retried with backoff instead of dropped.
+            var pending = valid;
+            for (var attempt = 0; pending.Count > 0; attempt++)
+            {
+                var offline = await ReconcileEntriesAsync(pending, stoppingToken);
+                if (offline.Count == 0 || stoppingToken.IsCancellationRequested) break;
+                if (attempt >= NodeOfflineRetryDelays.Length)
+                {
+                    log.LogError("Gave up on {Names}: their node is still offline after {Attempts} retries. Restart KRINT once the node is connected.",
+                        string.Join(", ", offline.Select(s => s.DisplayName)), NodeOfflineRetryDelays.Length);
+                    break;
+                }
+
+                var delay = NodeOfflineRetryDelays[attempt];
+                log.LogWarning("Node offline for {Names}; retrying in {Delay}.", string.Join(", ", offline.Select(s => s.DisplayName)), delay);
+                try { await Task.Delay(delay, stoppingToken); }
+                catch (OperationCanceledException) { return; }
+                pending = offline;
+            }
+
+            log.LogInformation("Instance reconciliation finished against {Path} ({Count} declared).", configPath, valid.Count);
+        }
+
+        private static readonly TimeSpan[] NodeOfflineRetryDelays =
+        [
+            TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10),
+        ];
+
+        /// <summary>Reconciles each entry in a fresh scope and returns the ones that failed only
+        /// because their node was offline.</summary>
+        private async Task<List<ConfigInstance>> ReconcileEntriesAsync(IReadOnlyList<ConfigInstance> specs, CancellationToken stoppingToken)
+        {
+            var offline = new List<ConfigInstance>();
 
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<KrintDbContext>();
@@ -89,27 +159,25 @@ namespace KRINT.API
             var existing = await db.DatabaseInstances.ToListAsync(stoppingToken);
             var existingByName = existing
                 .Where(e => !string.IsNullOrEmpty(e.DisplayName))
-                .GroupBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(e => e.DisplayName.Trim(), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-            var configNames = new HashSet<string>(config.Instances.Select(i => i.DisplayName), StringComparer.OrdinalIgnoreCase);
 
-            // Clear flag on rows previously declared in config but now absent. They become
-            // user-managed again so the UI lets them be edited or deleted.
-            var orphans = existing.Where(e => e.IsConfigManaged && !configNames.Contains(e.DisplayName)).ToList();
-            foreach (var orphan in orphans)
+            foreach (var spec in specs)
             {
-                orphan.IsConfigManaged = false;
-                log.LogInformation("Cleared IsConfigManaged on '{Name}' (no longer in instances file).", orphan.DisplayName);
-            }
-            if (orphans.Count > 0) await db.SaveChangesAsync(stoppingToken);
-
-            foreach (var spec in config.Instances)
-            {
-                if (stoppingToken.IsCancellationRequested) return;
+                if (stoppingToken.IsCancellationRequested) break;
                 try
                 {
                     if (existingByName.TryGetValue(spec.DisplayName, out var row))
                     {
+                        // Matching is by name only; a different engine means the file and the
+                        // database disagree about what this instance is. Never "fix" that by
+                        // touching the row - the operator has to rename one side.
+                        if (!string.Equals(row.Engine, spec.Engine?.Trim(), StringComparison.OrdinalIgnoreCase))
+                        {
+                            log.LogError("Skipping '{Name}': instances file declares engine '{SpecEngine}' but the existing instance runs '{RowEngine}'. Rename one of them.",
+                                spec.DisplayName, spec.Engine, row.Engine);
+                            continue;
+                        }
                         await ReconcileExistingAsync(row, spec, db, mediator, vault, innerUsers, stoppingToken);
                     }
                     else
@@ -117,13 +185,17 @@ namespace KRINT.API
                         await ProvisionFromConfigAsync(spec, db, mediator, stoppingToken);
                     }
                 }
+                catch (Exception ex) when (ex is NodeOfflineException || ex.InnerException is NodeOfflineException)
+                {
+                    offline.Add(spec);
+                }
                 catch (Exception ex)
                 {
                     log.LogError(ex, "Failed to reconcile '{Name}'. Continuing with other entries.", spec.DisplayName);
                 }
             }
 
-            log.LogInformation("Instance reconciliation finished against {Path} ({Count} declared).", configPath, config.Instances.Count);
+            return offline;
         }
 
         private async Task ProvisionFromConfigAsync(ConfigInstance spec, KrintDbContext db, IMediator mediator, CancellationToken cancellationToken)
@@ -160,6 +232,8 @@ namespace KRINT.API
             };
 
             var result = await mediator.Send(new ProvisionDatabaseCommand(request), cancellationToken);
+            foreach (var warning in result.Warnings)
+                log.LogWarning("Provisioned '{Name}' with a failed step: {Warning} It is retried on the next restart.", spec.DisplayName, warning);
 
             var row = await db.DatabaseInstances.FirstAsync(d => d.Id == result.Instance.Id, cancellationToken);
             row.IsConfigManaged = true;

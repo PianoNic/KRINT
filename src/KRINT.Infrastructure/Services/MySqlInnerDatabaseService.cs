@@ -42,6 +42,10 @@ namespace KRINT.Infrastructure.Services
             {
                 throw new InvalidOperationException($"Refusing to drop system schema '{name}'.");
             }
+            if (string.Equals(name, target.DefaultDatabase, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Refusing to drop the instance's default database '{name}'.");
+            }
 
             await using var conn = await OpenAsync(target, cancellationToken);
             await using var cmd = new MySqlCommand($"DROP DATABASE IF EXISTS `{name}`", conn);
