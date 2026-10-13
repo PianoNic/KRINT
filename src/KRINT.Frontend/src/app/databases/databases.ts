@@ -49,6 +49,7 @@ import {
 } from '../shared/icons/custom-icons';
 import { DatabaseInstanceDto } from '../api/model/databaseInstanceDto';
 import { DatabasesStore } from '../shared/stores/databases.store';
+import { lanExposureWarning } from '../shared/engine-auth';
 import { DatabaseService } from '../api/api/database.service';
 import { NodesService } from '../api/api/nodes.service';
 import { DatabaseDetailsDialog } from './database-details-dialog';
@@ -214,12 +215,14 @@ export class Databases {
   protected async toggleVisibility(db: DatabaseInstanceDto): Promise<void> {
     if (!db.isManaged || !db.containerName) return;
     const next = !db.isPublic;
+    const warning = lanExposureWarning(db.engine);
     const ok = await this.confirmService.open({
       title: next
         ? `Expose ${db.displayName} on the LAN?`
         : `Restrict ${db.displayName} to localhost?`,
       message:
-        'The container will be stopped and recreated in place. The data volume is preserved, but active connections will drop for a few seconds.',
+        'The container will be stopped and recreated in place. The data volume is preserved, but active connections will drop for a few seconds.' +
+        (next && warning ? ' ' + warning : ''),
       confirmLabel: next ? 'Expose publicly' : 'Lock to localhost',
       destructive: next, // exposing on the LAN is the "louder" action - mark it destructive for the red confirm.
     });

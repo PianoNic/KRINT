@@ -38,6 +38,7 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { ContentHeader } from '../shared/components/content-header/content-header';
 import { CopyButton } from '../shared/components/copy-button/copy-button';
 import { dockerNetworkComposeSnippet } from '../shared/docker-network-compose';
+import { lanExposureWarning } from '../shared/engine-auth';
 import {
   customAzurite,
   customMssql,
@@ -122,6 +123,7 @@ export class Create {
   protected readonly users = signal<WizardUser[]>([]);
   protected readonly selectedPlugins = signal<ReadonlySet<string>>(new Set());
   protected readonly isPublic = signal(false);
+  protected readonly lanWarning = computed(() => lanExposureWarning(this.engine()));
   // Target node for provisioning: null = the control plane's local Docker. Only online nodes are offered.
   protected readonly onlineNodes = signal<ReadonlyArray<NodeDto>>([]);
   protected readonly selectedNodeId = signal<string | null>(null);
