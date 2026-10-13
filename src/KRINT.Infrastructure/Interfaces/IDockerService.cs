@@ -53,10 +53,28 @@ namespace KRINT.Infrastructure.Interfaces
         /// the stream ends or is cancelled. Used to stream logs (locally, or on a node).</summary>
         IAsyncEnumerable<string> StreamLogsAsync(string containerId, int tailLines, CancellationToken cancellationToken = default);
 
-        /// <summary>Runs a command inside a running container and returns its stdout as raw bytes.</summary>
+        /// <summary>Runs a short command inside a running container and returns its stdout as raw bytes.
+        /// Capped at <see cref="ExecTimeouts.Default"/>.</summary>
         Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default);
 
-        /// <summary>Runs a command inside a container, streaming <paramref name="stdin"/> to its stdin and capturing stderr.</summary>
-        Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default);
+        /// <summary>Runs a long command (a dump) inside a running container, copying its stdout into
+        /// <paramref name="stdout"/> as it arrives instead of buffering it. Shell commands
+        /// ([sh|bash, -c, script, args...]) are killed inside the container when the timeout hits.</summary>
+        Task ExecToStreamAsync(string containerId, IList<string> command, Stream stdout, TimeSpan timeout, CancellationToken cancellationToken = default);
+
+        /// <summary>Runs a [sh|bash, -c, script, args...] command inside a container with
+        /// <paramref name="stdin"/> as the whole script's stdin. <paramref name="timeout"/> defaults to
+        /// <see cref="ExecTimeouts.LongRunning"/>.</summary>
+        Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, TimeSpan? timeout = null, CancellationToken cancellationToken = default);
+    }
+
+    public static class ExecTimeouts
+    {
+        /// <summary>Cap for short execs. Without one a stuck command would hang the request forever,
+        /// because the attached stream only ends when the server closes it.</summary>
+        public static readonly TimeSpan Default = TimeSpan.FromMinutes(2);
+
+        /// <summary>Cap for dumps and restores, which scale with the data size.</summary>
+        public static readonly TimeSpan LongRunning = TimeSpan.FromHours(2);
     }
 }

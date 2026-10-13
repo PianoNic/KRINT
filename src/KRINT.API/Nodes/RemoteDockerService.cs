@@ -67,7 +67,14 @@ namespace KRINT.API.Nodes
         public IAsyncEnumerable<string> StreamLogsAsync(string containerId, int tailLines, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("Log streaming to a node is handled by the node stream relay.");
 
-        public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default)
+        // Node RPC returns the whole stdout as one byte[]; the node applies its own exec timeout.
+        public async Task ExecToStreamAsync(string containerId, IList<string> command, Stream stdout, TimeSpan timeout, CancellationToken cancellationToken = default)
+        {
+            var bytes = await ExecCaptureAsync(containerId, command, cancellationToken);
+            await stdout.WriteAsync(bytes, cancellationToken);
+        }
+
+        public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             // The local implementation already buffers stdin fully in memory (dumps are bounded), so
             // sending the whole payload as one byte[] argument matches that and keeps the contract

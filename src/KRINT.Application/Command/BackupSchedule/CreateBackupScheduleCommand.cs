@@ -18,6 +18,11 @@ namespace KRINT.Application.Command.BackupSchedule
             var instance = await db.DatabaseInstances.FirstOrDefaultAsync(d => d.Id == command.Body.InstanceId, cancellationToken)
                 ?? throw new InstanceNotFoundException(command.Body.InstanceId);
 
+            // A backup execs inside the container, so a schedule for an instance without one would
+            // only ever fail.
+            if (instance.ContainerId is null || instance.ContainerName is null)
+                throw new ArgumentException("Backups require a Docker container - this database isn't reachable that way.", nameof(command));
+
             CronExpression parsed;
             try { parsed = CronExpression.Parse(command.Body.CronExpression); }
             catch (CronFormatException ex) { throw new ArgumentException($"Invalid cron expression: {ex.Message}", nameof(command)); }
