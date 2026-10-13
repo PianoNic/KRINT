@@ -42,12 +42,12 @@ namespace KRINT.API.Nodes
                 return Task.CompletedTask;
             }
 
-            // A stable id identifies this node across reconnects so provisioned instances keep pointing
-            // at it. Pin it via Node:Id; if unset we generate one but it won't survive a restart.
+            // The control plane derives a token-registered node's identity from its token, so this
+            // self-reported id only matters for legacy nodes on the static Node__Tokens allow-list.
             if (!Guid.TryParse(configuration["Node:Id"], out var nodeId))
             {
                 nodeId = Guid.NewGuid();
-                logger.LogWarning("Node:Id is not set; generated {NodeId} for this run. Set Node:Id to keep a stable identity across restarts.", nodeId);
+                logger.LogDebug("Node:Id is not set; generated {NodeId}. Only legacy Node__Tokens allow-list nodes need a stable Node:Id.", nodeId);
             }
             _nodeId = nodeId.ToString();
 
