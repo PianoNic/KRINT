@@ -59,6 +59,11 @@ if (string.Equals(builder.Configuration["Krint:Role"], "node", StringComparison.
 
 builder.Services.AddKrintConfig(builder.Environment);
 
+// No Vault__MasterKey configured: read it from (or generate it into) the data directory, so a
+// fresh clone boots with a key of its own instead of a shared one. Must run before anything
+// reads the key, the derived local-login signing key included.
+VaultKeyFile.Apply(builder);
+
 // No identity provider configured: run with local password login instead (see LocalLogin.cs).
 var localLogin = LocalLogin.IsEnabled(builder.Configuration);
 if (localLogin)
@@ -76,10 +81,12 @@ builder.Services.AddSignalR(options =>
 })
 .AddHubOptions<NodeHub>(options =>
 {
-    // Node RPC returns whole backup dumps and container logs as single messages, and a node is
-    // authenticated by a pre-shared token rather than a browser session. The cap is lifted for
-    // this hub alone (dumps are already fully buffered in memory).
-    options.MaximumReceiveMessageSize = null;
+    // Node RPC returns backup dumps and container logs as messages, so this hub gets a far larger
+    // cap than the browser hubs. It is still finite: /hubs/node is anonymous until the node's
+    // token is checked inside the hub, and an unbounded size let any caller make the server
+    // buffer arbitrary amounts. 64 MB is generous on purpose while backup transfer moves to
+    // chunked streaming; once it has, this can come down to a few MB.
+    options.MaximumReceiveMessageSize = 64L * 1024 * 1024;
 });
 
 builder.Services.AddOpenApi(options =>
@@ -164,6 +171,8 @@ builder.Services.AddRateLimiter(options =>
                 PermitLimit = 120,
                 Window = TimeSpan.FromMinutes(1),
             }));
+    // Local login's browser session endpoints: strict, since /login takes a password.
+    options.AddPolicy(LocalLoginSession.RateLimitPolicy, LocalLoginSession.Partition);
 });
 
 var app = builder.Build();

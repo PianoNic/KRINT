@@ -5,6 +5,9 @@
 
 # Bind-mounted runtime directories created by docker compose
 /backups/
+/data/
+# Generated vault key when the API runs from source without Vault:MasterKey
+/src/KRINT.API/data/
 
 # Claude Code runtime state (everything under .claude/ except CLAUDE.md)
 .claude/*

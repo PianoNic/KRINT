@@ -38,6 +38,8 @@ namespace KRINT.API
         /// ObjectDisposedException is one too but signals a bug, not a conflict.</summary>
         public static int? StatusFor(Exception exception) => exception switch
         {
+            // A secret that does not decrypt is an operator problem (wrong Vault__MasterKey), not a bug.
+            KRINT.Infrastructure.Services.VaultKeyMismatchException => StatusCodes.Status500InternalServerError,
             InstanceNotFoundException => StatusCodes.Status404NotFound,
             NodeOfflineException => StatusCodes.Status409Conflict,
             NotSupportedException => StatusCodes.Status400BadRequest,
@@ -51,6 +53,7 @@ namespace KRINT.API
         {
             StatusCodes.Status404NotFound => "Not found",
             StatusCodes.Status409Conflict => "Conflict",
+            StatusCodes.Status500InternalServerError => "Vault key mismatch",
             _ => "Bad request",
         };
     }
