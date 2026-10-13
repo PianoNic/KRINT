@@ -131,38 +131,36 @@ dotnet run --project src/KRINT.Tests
 
 TUnit 1.x test runner. Coverage:
 
-- **Unit**: `PingQueryTests`, `SecretGeneratorServiceTests`, `SecretsVaultServiceTests`. All use `Microsoft.EntityFrameworkCore.InMemory`: no Postgres required.
-- **E2E**: Browser-driven tests via Microsoft.Playwright. The suite boots its **own** ephemeral stack each session by driving `e2e/compose.e2e.yml` through Ductus.FluentDocker (Postgres + `mock-oauth2-server` + the bundled KRINT image built from this repo's Dockerfile). You don't need to run the dev stack manually. Spin it up by hand for debugging with `docker compose -f e2e/compose.e2e.yml up -d --build`.
+- **Unit**: services, commands and queries under `Commands/`, `Queries/` and `Services/`. They use `Microsoft.EntityFrameworkCore.InMemory`: no Postgres or Docker required.
+- **Integration**: API-level tests in `src/KRINT.Tests/Integration/`. The suite boots its **own** ephemeral stack each session by driving `integration/compose.yml` through Ductus.FluentDocker (Postgres + the bundled KRINT image built from this repo's Dockerfile, with local password login). Tests sign in through `POST /auth/session/login` and call the REST API and SignalR hubs with the bearer token; no browser is involved. Spin the stack up by hand for debugging with `docker compose -f integration/compose.yml up -d --build`.
 
-### Running the E2E suite
+### Running the integration suite
 
-Prereqs: Docker running on the host, plus (one-time) Playwright's Chromium build:
-
-```powershell
-dotnet build src/KRINT.Tests
-pwsh src/KRINT.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
-```
-
-Then:
+Prereq: Docker running on the host. Then:
 
 ```powershell
 dotnet run --project src/KRINT.Tests
 ```
 
+Only the integration tests:
+
+```powershell
+dotnet run --project src/KRINT.Tests -- --treenode-filter "/*/KRINT.Tests.Integration/*/*"
+```
+
+Only the unit tests (no Docker): set `KRINT_SKIP_INTEGRATION=1` (the older `KRINT_SKIP_E2E=1` still works) and the integration tests skip themselves.
+
 What happens on first run:
-1. **Image build** (~2 min): compose builds `src/KRINT.API/Dockerfile` (frontend via `bun build` + .NET API publish) into a single distroless Azure Linux image.
-2. **Stack boot** (~30 s): Postgres 18 on `localhost:15434`, `mock-oauth2-server` on `localhost:18080` (non-interactive, auto-issues signed JWTs from `e2e/mock-oauth2-config.json`), KRINT app on `localhost:18081`.
-3. **Browser tests**: each test opens a fresh browser context. The SPA redirects to the mock IdP, which auto-redirects straight back with a token. No login form, no credentials.
+1. **Image build** (~2 min): compose builds `src/KRINT.API/Dockerfile` (frontend via `bun build` + .NET API publish) into a single Azure Linux image.
+2. **Stack boot** (~30 s): Postgres 18 on the compose network, KRINT on `localhost:18081` with the admin account seeded from `LocalLogin__AdminUserName` / `LocalLogin__AdminPassword` in the compose file. Change the port in both `integration/compose.yml` and `KrintStack.cs` if it conflicts.
+3. **Tests**: each test provisions its own instances through `POST /api/Database/provision` and deletes them again, so runs are repeatable.
 
-Test files (`src/KRINT.Tests/E2E/`):
-- `KrintStack.cs`: drives `e2e/compose.e2e.yml` via Ductus.FluentDocker, exposes URLs
-- `KrintTestFixture.cs`: per-test browser context
-- `KrintSessionHooks.cs`: TUnit `[Before/After(TestSession)]` for stack lifecycle
-- `WizardHelper.cs`: drives the `/create` wizard
-- `NavigationTests`, `WizardTests`, `InstanceDialogTests`, `BackupTests`, `ActivityLogTests`, `InstanceLifecycleTests`
-- `EngineTests.cs` - provisions MySQL, MariaDB, MongoDB, Redis, Valkey and ClickHouse through the wizard and checks each comes up and lists.
-
-Headless by default. Set `KrintTestFixture.Headless = false` in `KrintSessionHooks.StartStack` for visible browser windows during local debugging.
+Test files (`src/KRINT.Tests/Integration/`):
+- `KrintStack.cs`, `KrintSessionHooks.cs`: stack lifecycle and the skip switch
+- `KrintApi.cs`: authenticated client, provision helper (deletes the instance on dispose), query and backup helpers
+- `DockerCli.cs`, `Postgres.cs`, `HubClient.cs`: docker CLI, psql inside an instance, SignalR hubs
+- `AuthTests`, `InstanceLifecycleTests`, `InnerDatabaseAndUserTests`, `BrowseTests`, `BackupTests`, `ActivityAndDashboardTests`, `EngineTests`, `MigrationTests`
+- `DataIntegrityTests`: Postgres backup/restore, visibility change and 17 to 18 upgrade keep rows, extra database and user; Redis keys survive restore and a container restart; SQL Server restore brings back a dropped table.
 
 ## 7. EF migrations
 
