@@ -1,4 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -11,9 +23,13 @@ import {
   lucideCheck,
   lucideDatabase,
   lucideKeyRound,
+  lucideCircleCheck,
   lucidePlus,
   lucideRocket,
+  lucideServer,
+  lucideTable,
   lucideTrash2,
+  lucideTriangleAlert,
 } from '@ng-icons/lucide';
 import {
   simpleApachecassandra,
@@ -51,6 +67,8 @@ import { NodeDto } from '../api/model/nodeDto';
 import { SupportedDatabaseDto } from '../api/model/supportedDatabaseDto';
 import { ProvisionResultDto } from '../api/model/provisionResultDto';
 import { ProvisionHubService } from './provision-hub.service';
+import { ProvisionProgress } from './provision-progress';
+import { ProvisionEvent, ProvisionPlan, formatElapsed } from './provision-steps';
 
 // PluginInstallMode.DockerImageSwap on the backend (enums serialize as numbers).
 const IMAGE_SWAP_INSTALL_MODE = 1;
@@ -70,6 +88,7 @@ type WizardUser = { name: string; grantDatabases: string[] };
     HlmLabelImports,
     HlmSelectImports,
     HlmTooltipImports,
+    ProvisionProgress,
     TitleCasePipe,
   ],
   providers: [
@@ -83,8 +102,12 @@ type WizardUser = { name: string; grantDatabases: string[] };
       lucideDatabase,
       lucideKeyRound,
       lucidePlus,
+      lucideCircleCheck,
       lucideRocket,
+      lucideServer,
+      lucideTable,
       lucideTrash2,
+      lucideTriangleAlert,
       simplePostgresql,
       simpleMysql,
       simpleMongodb,
@@ -145,9 +168,26 @@ export class Create {
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly result = signal<ProvisionResultDto | null>(null);
-  // What the server is doing right now, and everything it did before, while Launch runs.
-  protected readonly progressSteps = signal<ReadonlyArray<string>>([]);
-  protected readonly progressCurrent = computed(() => this.progressSteps().at(-1) ?? null);
+  // The launch view replaces the wizard from Launch until success, and stays up on failure so the
+  // user can retry or go back to the review step.
+  protected readonly launching = signal(false);
+  protected readonly launchError = signal<string | null>(null);
+  // Every raw progress line the server sent, stamped on arrival for the elapsed counters.
+  protected readonly progressEvents = signal<ReadonlyArray<ProvisionEvent>>([]);
+  protected readonly launchStartedAt = signal(0);
+  protected readonly launchDuration = signal<string | null>(null);
+  protected readonly launchPlan = computed<ProvisionPlan>(() => ({
+    plugins: this.selectedPlugins().size,
+    extraDatabases: this.supportsDatabaseNaming()
+      ? this.databases().filter((d) => d.trim() !== '').length
+      : 0,
+    users: this.users().length,
+  }));
+  protected readonly engineName = computed(
+    () => this.supported().find((s) => s.key === this.engine())?.displayName ?? this.engine() ?? 'database',
+  );
+  private readonly injector = inject(Injector);
+  private readonly resultHeading = viewChild<ElementRef<HTMLElement>>('resultHeading');
   // Credentials on the success screen stay masked until asked for; copying never needs the reveal.
   protected readonly revealSecrets = signal(false);
   protected readonly maskedConnectionString = computed(() => {
@@ -480,6 +520,9 @@ export class Create {
     if (!this.engine() || !this.version()) return;
     this.submitting.set(true);
     this.error.set(null);
+    this.launchError.set(null);
+    this.launchDuration.set(null);
+    this.launching.set(true);
 
     const payload = {
       engine: this.engine()!,
@@ -500,48 +543,82 @@ export class Create {
       nodeId: this.selectedNodeId(),
     };
 
-    this.progressSteps.set(['Submitting request']);
+    const startedAt = Date.now();
+    this.launchStartedAt.set(startedAt);
+    this.progressEvents.set([{ message: 'Submitting request', at: startedAt }]);
+    const report = (message: string) =>
+      this.progressEvents.update((s) => [...s, { message, at: Date.now() }]);
+
     let streamed = false;
     this.provisionHub.stream(payload).subscribe({
       next: (ev) => {
         streamed = true;
         if (ev.status === 'running') {
-          this.progressSteps.update((s) => [...s, ev.message]);
+          report(ev.message);
         } else if (ev.status === 'done' && ev.result) {
-          this.result.set(ev.result);
-          this.submitting.set(false);
+          this.succeed(ev.result);
         } else if (ev.status === 'failed') {
-          this.error.set(ev.error ?? ev.message);
-          this.submitting.set(false);
+          this.fail(ev.error ?? ev.message);
         }
       },
       error: (err) => {
         // A hub that never delivered anything (blocked WebSocket, old proxy) falls back to the
         // plain request; a stream that failed mid-way is reported as the failure it is.
         if (streamed) {
-          this.error.set(messageOf(err));
-          this.submitting.set(false);
+          this.fail(messageOf(err));
           return;
         }
-        this.progressSteps.update((s) => [...s, 'Live progress unavailable, waiting for the server']);
+        report('Live progress unavailable, waiting for the server');
         this.api.apiDatabaseProvisionPost(payload).subscribe({
-          next: (res) => {
-            this.result.set(res);
-            this.submitting.set(false);
-          },
-          error: (postErr) => {
-            this.error.set(messageOf(postErr));
-            this.submitting.set(false);
-          },
+          next: (res) => this.succeed(res),
+          error: (postErr) => this.fail(messageOf(postErr)),
         });
       },
       complete: () => {
-        if (this.submitting() && !this.result() && !this.error()) {
-          this.error.set('The server ended the provision without a result.');
-          this.submitting.set(false);
+        if (this.submitting() && !this.result() && !this.launchError()) {
+          this.fail('The server ended the provision without a result.');
         }
       },
     });
+  }
+
+  private succeed(res: ProvisionResultDto): void {
+    this.launchDuration.set(formatElapsed(Date.now() - this.launchStartedAt()));
+    this.result.set(res);
+    this.submitting.set(false);
+    this.launching.set(false);
+    // The progress view (and the focus inside it) is gone; land on the result's heading.
+    afterNextRender(() => this.resultHeading()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  private fail(message: string): void {
+    this.launchError.set(message);
+    this.submitting.set(false);
+  }
+
+  // Failure view: return to the review step with everything the user entered still in place.
+  protected backToReview(): void {
+    this.launching.set(false);
+    this.launchError.set(null);
+    this.step.set(6);
+  }
+
+  // Success view: start over for another instance of the same engine.
+  protected createAnother(): void {
+    this.result.set(null);
+    this.revealSecrets.set(false);
+    this.progressEvents.set([]);
+    this.displayName.set('');
+    this.displayNameTouched.set(false);
+    this.defaultDbName.set('');
+    this.databases.set([]);
+    this.users.set([]);
+    this.userPasswords.set([]);
+    this.customRootPassword.set('');
+    this.selectedPlugins.set(new Set());
+    this.isPublic.set(false);
+    this.engine.set(null);
+    this.step.set(1);
   }
 
   protected toggleReveal(): void {
@@ -550,6 +627,10 @@ export class Create {
 
   protected goToInstances(): void {
     this.router.navigateByUrl('/instances');
+  }
+
+  protected goToBrowser(): void {
+    this.router.navigateByUrl('/browser');
   }
 }
 

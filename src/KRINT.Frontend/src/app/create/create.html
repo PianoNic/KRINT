@@ -1,123 +1,189 @@
 <app-content-header />
 
-<section class="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
+<section class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6">
   @if (result(); as res) {
     <!-- ===== Success view ===== -->
-    <section hlmCard class="border-primary/30">
-      <div hlmCardHeader>
-        <h2 hlmCardTitle class="flex items-center gap-2">
-          <ng-icon name="lucideRocket" />
-          Instance ready
-        </h2>
-        <p hlmCardDescription>
-          @if (res.instance.nodeId) {
-            <code class="font-mono">{{ res.instance.containerName }}</code> is up on node
-            <code class="font-mono">{{ res.instance.nodeName ?? 'unknown' }}</code
-            >, listening on <code class="font-mono">{{ res.instance.port }}</code> on that node's
-            loopback.
-          } @else {
-            <code class="font-mono">{{ res.instance.containerName }}</code> is up on
-            <code class="font-mono">{{ res.instance.host }}:{{ res.instance.port }}</code
-            >.
-          }
-        </p>
+    <section hlmCard aria-labelledby="result-title">
+      <div hlmCardHeader class="flex flex-row items-start gap-4">
+        <span
+          class="flex size-12 shrink-0 items-center justify-center rounded-full bg-emerald-600/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-400"
+          aria-hidden="true"
+        >
+          <ng-icon name="lucideCircleCheck" size="26" />
+        </span>
+        <div class="flex min-w-0 flex-1 flex-col gap-1">
+          <h2
+            #resultHeading
+            id="result-title"
+            hlmCardTitle
+            tabindex="-1"
+            class="text-lg leading-tight outline-none"
+          >
+            Your {{ engineName() }} database is ready
+          </h2>
+          <p hlmCardDescription>
+            <span class="text-foreground font-medium">{{ displayName().trim() || res.instance.containerName }}</span>
+            @if (res.instance.nodeId) {
+              is running on node
+              <code class="font-mono">{{ res.instance.nodeName ?? 'unknown' }}</code>, port
+              <code class="font-mono">{{ res.instance.port }}</code> on its loopback.
+            } @else {
+              is running on
+              <code class="font-mono">{{ res.instance.host }}:{{ res.instance.port }}</code>.
+            }
+            @if (launchDuration(); as took) {
+              Launched in {{ took }}.
+            }
+          </p>
+        </div>
       </div>
 
-      <div hlmCardContent class="flex flex-col gap-4">
+      <div hlmCardContent class="flex flex-col gap-6">
         @if (res.warnings?.length) {
           <div
             role="alert"
-            class="border-destructive/40 bg-destructive/5 flex flex-col gap-2 rounded-md border p-3"
+            class="flex flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/5 p-4"
           >
-            <p class="text-sm font-medium">
-              The instance is up, but some steps failed. Add what is missing from the instance
-              page.
+            <p class="flex items-center gap-2 text-sm font-medium">
+              <ng-icon name="lucideTriangleAlert" size="16" class="text-amber-700 dark:text-amber-400" />
+              Your database works, but a few extra steps did not finish
             </p>
-            <ul class="list-disc pl-5 text-sm">
+            <ul class="text-muted-foreground list-disc pl-10 text-sm">
               @for (warning of res.warnings; track $index) {
                 <li>{{ warning }}</li>
               }
             </ul>
+            <p class="text-muted-foreground pl-6 text-xs">
+              You can add what is missing from the Instances page.
+            </p>
           </div>
         }
+
         @if (res.instance.appConnectionString) {
-          <div class="border-primary/30 bg-primary/5 flex flex-col gap-2 rounded-md border p-3">
-            <span class="text-sm font-medium">
-              Connection string for your apps on {{ res.instance.nodeName ?? 'this machine' }}
-            </span>
-            <div class="flex items-start gap-2">
-              <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
+          <div
+            class="flex flex-col gap-3 rounded-xl border border-emerald-600/30 bg-emerald-600/5 p-4 dark:border-emerald-400/25 dark:bg-emerald-400/5"
+          >
+            <div class="flex flex-col gap-0.5">
+              <h3 class="text-sm font-semibold">Connect your app</h3>
+              <p class="text-xs text-emerald-900 dark:text-emerald-100">
+                Connection string for apps on {{ res.instance.nodeName ?? 'this machine' }}
+              </p>
+            </div>
+            <div class="bg-background flex items-center gap-2 rounded-lg border py-1 pr-1 pl-3">
+              <code class="flex-1 py-2 font-mono text-sm break-all">{{
                 res.instance.appConnectionString
               }}</code>
               <app-copy-button [value]="res.instance.appConnectionString" />
             </div>
-            <p class="text-muted-foreground text-xs">
-              Paste it into your app's compose file. It works from any container on the same host,
+            <p class="text-xs text-emerald-900 dark:text-emerald-100">
+              Paste it into your app's compose file. It works from any container on the same host
               with no network config, and nothing is reachable from outside the machine.
             </p>
           </div>
         }
 
-        <div class="flex flex-col gap-2">
-          <span class="text-muted-foreground text-sm">
-            @if (res.instance.nodeId) {
-              Connection string (root) from a shell on the node
-            } @else {
-              Connection string (root)
-            }
-          </span>
-          <div class="flex items-start gap-2">
-            <code class="bg-muted flex-1 break-all rounded-md p-3 font-mono text-xs">{{
-              maskedConnectionString()
-            }}</code>
-            <button hlmBtn variant="ghost" size="icon" type="button" [attr.aria-label]="revealSecrets() ? 'Hide passwords' : 'Show passwords'" (click)="toggleReveal()">
-              <ng-icon [name]="revealSecrets() ? 'lucideEyeOff' : 'lucideEye'" size="14" />
-            </button>
-            <app-copy-button [value]="res.instance.connectionString" />
+        <div class="flex flex-col gap-3">
+          <h3 class="text-sm font-semibold">Admin access</h3>
+          <div class="flex flex-col gap-2">
+            <span class="text-muted-foreground text-xs">
+              @if (res.instance.nodeId) {
+                Root connection string, from a shell on the node
+              } @else {
+                Root connection string
+              }
+            </span>
+            <div class="flex items-start gap-2">
+              <code class="bg-muted flex-1 rounded-md p-3 font-mono text-xs break-all">{{
+                maskedConnectionString()
+              }}</code>
+              <button
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                type="button"
+                [attr.aria-label]="revealSecrets() ? 'Hide passwords' : 'Show passwords'"
+                (click)="toggleReveal()"
+              >
+                <ng-icon [name]="revealSecrets() ? 'lucideEyeOff' : 'lucideEye'" size="14" />
+              </button>
+              <app-copy-button [value]="res.instance.connectionString" />
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <span class="text-muted-foreground"
+                >Root user <code class="text-foreground font-mono">{{ res.instance.username }}</code>,
+                password</span
+              >
+              <code class="font-mono">{{ revealSecrets() ? res.instance.password : '••••••••' }}</code>
+              <app-copy-button [value]="res.instance.password" />
+              <span class="flex-1"></span>
+              <span class="text-muted-foreground">Everything at once:</span>
+              <app-copy-button [value]="allCredentials()" />
+            </div>
           </div>
-          <div class="flex items-center gap-2 text-xs">
-            <span class="text-muted-foreground">Root user <code class="font-mono">{{ res.instance.username }}</code>, password</span>
-            <code class="font-mono">{{ revealSecrets() ? res.instance.password : '••••••••' }}</code>
-            <app-copy-button [value]="res.instance.password" />
-            <span class="flex-1"></span>
-            <span class="text-muted-foreground">Everything at once:</span>
-            <app-copy-button [value]="allCredentials()" />
-          </div>
+
+          @if (res.databases.length > 0) {
+            <div class="flex flex-col gap-2">
+              <span class="text-muted-foreground text-xs">Databases created</span>
+              <ul class="divide-border divide-y rounded-md border">
+                @for (db of res.databases; track db) {
+                  <li class="px-3 py-2 font-mono text-sm">{{ db }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (res.users.length > 0) {
+            <div class="flex flex-col gap-2">
+              <span class="text-muted-foreground text-xs"
+                >Users - save these passwords, they won't be shown again</span
+              >
+              <ul class="divide-border divide-y rounded-md border">
+                @for (u of res.users; track u.name) {
+                  <li class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm">
+                    <span class="font-mono">{{ u.name }}</span>
+                    <code class="font-mono text-xs break-all">{{
+                      revealSecrets() ? u.password : '••••••••'
+                    }}</code>
+                    <app-copy-button [value]="u.password" />
+                  </li>
+                }
+              </ul>
+            </div>
+          }
         </div>
-
-        @if (res.databases.length > 0) {
-          <div class="flex flex-col gap-2">
-            <span class="text-muted-foreground text-sm">Databases created</span>
-            <ul class="divide-border divide-y rounded-md border">
-              @for (db of res.databases; track db) {
-                <li class="px-3 py-2 font-mono text-sm">{{ db }}</li>
-              }
-            </ul>
-          </div>
-        }
-
-        @if (res.users.length > 0) {
-          <div class="flex flex-col gap-2">
-            <span class="text-muted-foreground text-sm"
-              >Users - save these passwords, they won't be shown again</span
-            >
-            <ul class="divide-border divide-y rounded-md border">
-              @for (u of res.users; track u.name) {
-                <li class="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm">
-                  <span class="font-mono">{{ u.name }}</span>
-                  <code class="font-mono break-all text-xs">{{ revealSecrets() ? u.password : '••••••••' }}</code>
-                  <app-copy-button [value]="u.password" />
-                </li>
-              }
-            </ul>
-          </div>
-        }
       </div>
 
-      <div hlmCardFooter class="justify-end gap-2">
-        <button hlmBtn variant="outline" (click)="goToInstances()">Go to Instances</button>
+      <div hlmCardFooter class="flex-wrap justify-between gap-2 border-t pt-4">
+        <button hlmBtn variant="ghost" type="button" (click)="createAnother()">
+          <ng-icon name="lucidePlus" size="16" />
+          Create another
+        </button>
+        <div class="flex flex-wrap gap-2">
+          <button hlmBtn variant="outline" type="button" (click)="goToBrowser()">
+            <ng-icon name="lucideTable" size="16" />
+            Open in Browser
+          </button>
+          <button hlmBtn type="button" (click)="goToInstances()">
+            <ng-icon name="lucideServer" size="16" />
+            Go to Instances
+          </button>
+        </div>
       </div>
     </section>
+  } @else if (launching()) {
+    <!-- ===== Launch progress / failure ===== -->
+    <app-provision-progress
+      [engineKey]="engine() ?? ''"
+      [engineName]="engineName()"
+      [engineIcon]="engineIcon(engine() ?? '')"
+      [displayName]="displayName().trim()"
+      [plan]="launchPlan()"
+      [events]="progressEvents()"
+      [startedAt]="launchStartedAt()"
+      [error]="launchError()"
+      (retry)="launch()"
+      (back)="backToReview()"
+    />
   } @else {
     <!-- ===== Stepper header ===== -->
     <ol class="flex items-center gap-2 text-sm">
@@ -606,21 +672,11 @@
         } @else {
           <button hlmBtn type="button" (click)="launch()" [disabled]="submitting()">
             <ng-icon name="lucideRocket" size="16" />
-            {{ submitting() ? 'Launching…' : 'Launch' }}
+            Launch
           </button>
         }
       </div>
 
-      @if (submitting() && progressSteps().length > 0) {
-        <div class="border-primary/30 bg-primary/5 mt-3 flex flex-col gap-1 rounded-md border p-3 text-sm" role="status" aria-live="polite">
-          @for (step of progressSteps(); track $index) {
-            <div class="flex items-center gap-2" [class.text-muted-foreground]="$index < progressSteps().length - 1">
-              <span class="font-mono text-xs">{{ $index < progressSteps().length - 1 ? '✓' : '…' }}</span>
-              <span>{{ step }}</span>
-            </div>
-          }
-        </div>
-      }
     </section>
   }
 </section>
