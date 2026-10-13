@@ -24,7 +24,7 @@ namespace KRINT.Application.Command.Backup
             if (instance.ContainerName is null || instance.ContainerId is null)
                 throw new InvalidOperationException("Backups require a Docker container - this database isn't reachable that way.");
 
-            var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance.ContainerName), cancellationToken)
+            var password = await vault.RetrieveAsync(ConnectionStringBuilder.VaultKeyFor(instance), cancellationToken)
                 ?? throw new InvalidOperationException($"Vault has no password for instance {instance.Id}.");
 
             var target = new BackupTarget(instance.ContainerId, instance.ContainerName, instance.Engine, instance.Username, password, instance.DatabaseName, instance.NodeId);
