@@ -1,7 +1,7 @@
 import { computed, inject } from '@angular/core';
 import { signalStore, withComputed, withHooks, withMethods, withState, patchState } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { EMPTY, forkJoin, pipe, switchMap, tap } from 'rxjs';
+import { EMPTY, catchError, merge, pipe, switchMap, tap } from 'rxjs';
 import { DatabaseService } from '../../api/api/database.service';
 import { CreateDatabaseDto } from '../../api/model/createDatabaseDto';
 import { DatabaseInstanceDto } from '../../api/model/databaseInstanceDto';
@@ -60,17 +60,24 @@ export const DatabasesStore = signalStore(
     load: rxMethod<void>(
       pipe(
         tap(() => patchState(store, { loading: true, error: null })),
+        // The instance list and the engine catalog load independently: the list shows as soon as
+        // it arrives instead of waiting on the (registry-backed, possibly slow) catalog.
         switchMap(() =>
-          forkJoin({
-            instances: api.apiDatabaseGet(),
-            supported: api.apiDatabaseSupportedGet(),
-          }).pipe(
-            tap({
-              next: ({ instances, supported }) =>
-                patchState(store, { instances, supported, loading: false }),
-              error: (err: unknown) =>
-                patchState(store, { loading: false, error: messageOf(err) }),
-            }),
+          merge(
+            api.apiDatabaseGet().pipe(
+              tap((instances) => patchState(store, { instances, loading: false })),
+              catchError((err: unknown) => {
+                patchState(store, { loading: false, error: messageOf(err) });
+                return EMPTY;
+              }),
+            ),
+            api.apiDatabaseSupportedGet().pipe(
+              tap((supported) => patchState(store, { supported })),
+              catchError((err: unknown) => {
+                patchState(store, { error: messageOf(err) });
+                return EMPTY;
+              }),
+            ),
           ),
         ),
       ),
