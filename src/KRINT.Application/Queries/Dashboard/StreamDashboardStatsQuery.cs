@@ -6,30 +6,26 @@ namespace KRINT.Application.Queries.Dashboard
 {
     public record StreamDashboardStatsQuery(int IntervalMs = 2500) : IStreamQuery<DashboardStatsDto>;
 
-    public class StreamDashboardStatsQueryHandler(IMediator mediator)
+    public class StreamDashboardStatsQueryHandler(DashboardStatsSampler sampler)
         : IStreamQueryHandler<StreamDashboardStatsQuery, DashboardStatsDto>
     {
         public async IAsyncEnumerable<DashboardStatsDto> Handle(StreamDashboardStatsQuery query, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            // Every viewer shares one sampler (see DashboardStatsSampler), which ticks at its own
+            // fixed interval. A viewer asking for a slower cadence just waits the difference
+            // between snapshots; it can't ask for a faster one than the sampler produces.
             var interval = TimeSpan.FromMilliseconds(Math.Clamp(query.IntervalMs, 1000, 60000));
+            var extraWait = interval - DashboardStatsSampler.Interval;
 
-            // Emit the first snapshot immediately so the page never sits empty waiting for the
-            // first tick. After that, wait `interval` between samples — the underlying query
-            // calls docker stats with stream=false which itself takes ~1s, so a 2.5s tick yields
-            // roughly 1.5s of idle time between samples.
-            while (!cancellationToken.IsCancellationRequested)
+            await foreach (var snapshot in sampler.SubscribeAsync(cancellationToken))
             {
-                DashboardStatsDto snapshot;
-                try
-                {
-                    snapshot = await mediator.Send(new GetDashboardStatsQuery(), cancellationToken);
-                }
-                catch (OperationCanceledException) { yield break; }
-
                 yield return snapshot;
 
-                try { await Task.Delay(interval, cancellationToken); }
-                catch (OperationCanceledException) { yield break; }
+                if (extraWait > TimeSpan.Zero)
+                {
+                    try { await Task.Delay(extraWait, cancellationToken); }
+                    catch (OperationCanceledException) { yield break; }
+                }
             }
         }
     }

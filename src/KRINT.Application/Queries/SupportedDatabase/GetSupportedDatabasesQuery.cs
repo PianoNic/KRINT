@@ -271,17 +271,21 @@ namespace KRINT.Application.Queries.SupportedDatabase
 
         public async ValueTask<IReadOnlyList<SupportedDatabaseDto>> Handle(GetSupportedDatabasesQuery query, CancellationToken cancellationToken)
         {
+            // All engines at once: the version service caches, shares in-flight lookups and bounds
+            // how many registry calls run concurrently, so a cold cache costs one round of fetches.
+            var allVersions = await Task.WhenAll(Engines.Select(e => versions.GetSupportedVersionsAsync(e.Key, cancellationToken)));
+
             var result = new List<SupportedDatabaseDto>(Engines.Length);
-            foreach (var (key, displayName, image, caps) in Engines)
+            for (var i = 0; i < Engines.Length; i++)
             {
-                var supportedVersions = await versions.GetSupportedVersionsAsync(key, cancellationToken);
+                var (key, displayName, image, caps) = Engines[i];
                 var plugins = PluginsByEngine.TryGetValue(key, out var p) ? p : Array.Empty<EnginePluginDto>();
                 result.Add(new SupportedDatabaseDto
                 {
                     Key = key,
                     DisplayName = displayName,
                     Image = image,
-                    Versions = supportedVersions,
+                    Versions = allVersions[i],
                     Capabilities = caps,
                     Plugins = plugins,
                 });

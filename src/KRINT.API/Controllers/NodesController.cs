@@ -28,7 +28,7 @@ namespace KRINT.API.Controllers
         public async Task<IActionResult> List(CancellationToken cancellationToken)
         {
             var online = registry.OnlineLastSeen();
-            var nodes = await db.Nodes.OrderBy(n => n.Name).ToListAsync(cancellationToken);
+            var nodes = await db.Nodes.AsNoTracking().OrderBy(n => n.Name).ToListAsync(cancellationToken);
             var result = nodes.Select(n => new NodeDto(
                 n.Id,
                 n.Name,

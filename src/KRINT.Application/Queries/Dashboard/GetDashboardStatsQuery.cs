@@ -18,36 +18,21 @@ namespace KRINT.Application.Queries.Dashboard
                 .Select(d => new { d.Engine, d.ContainerName, d.NodeId })
                 .ToListAsync(cancellationToken);
 
-            // Containers live on whichever daemon owns the instance (local or a node), so query each
-            // distinct target once and collect the running containers' ids paired with their node, so
-            // the stats call below hits the right daemon. An offline node / dead daemon just drops out.
-            var runningContainers = new List<(Guid? NodeId, string Id)>();
-            foreach (var group in instances.Where(i => i.ContainerName is not null).GroupBy(i => i.NodeId))
-            {
-                IList<Docker.DotNet.Models.ContainerListResponse> containers;
-                try { containers = await dockerResolver.Resolve(group.Key).ListContainersAsync(all: true, cancellationToken); }
-                catch { continue; }
+            // Containers live on whichever daemon owns the instance (local or a node). Each distinct
+            // target is queried in parallel under its own short timeout, so one slow or offline node
+            // can't stall the whole dashboard; it just drops out of this sample.
+            var perNode = await Task.WhenAll(instances
+                .Where(i => i.ContainerName is not null)
+                .GroupBy(i => i.NodeId)
+                .Select(g => SampleNodeAsync(g.Key, g.Select(i => i.ContainerName!).ToList(), cancellationToken)));
 
-                var stateByName = containers
-                    .SelectMany(c => (c.Names ?? new List<string>()).Select(n => (Name: n.TrimStart('/'), c.State, c.ID)))
-                    .ToDictionary(x => x.Name, x => (x.State, x.ID), StringComparer.OrdinalIgnoreCase);
-
-                foreach (var inst in group)
-                {
-                    if (inst.ContainerName is not null && stateByName.TryGetValue(inst.ContainerName, out var s)
-                        && string.Equals(s.State, "running", StringComparison.OrdinalIgnoreCase))
-                        runningContainers.Add((group.Key, s.ID));
-                }
-            }
-
-            // Per-container memory + CPU%, each computed on the daemon that owns it (the node computes
-            // its own so only primitives cross the wire). A null sample (transient error) contributes 0.
-            var samples = await Task.WhenAll(runningContainers.Select(rc => dockerResolver.Resolve(rc.NodeId).GetContainerResourceUsageAsync(rc.Id, cancellationToken)));
-            var totalMemoryBytes = samples.Where(s => s is not null).Sum(s => s!.MemoryBytes);
+            var runningCount = perNode.Sum(n => n.Running);
+            var samples = perNode.SelectMany(n => n.Samples).ToList();
+            var totalMemoryBytes = samples.Sum(s => s.MemoryBytes);
 
             // Summing each container's share of host CPU gives the share eaten by managed containers.
             // Bounded to 100 because rounding + multi-core jitter can push the sum a hair over.
-            var totalCpuPercent = Math.Round(Math.Clamp(samples.Where(s => s is not null).Sum(s => s!.CpuPercent), 0, 100), 1);
+            var totalCpuPercent = Math.Round(Math.Clamp(samples.Sum(s => s.CpuPercent), 0, 100), 1);
 
             var perEngine = instances
                 .GroupBy(i => i.Engine, StringComparer.OrdinalIgnoreCase)
@@ -57,6 +42,7 @@ namespace KRINT.Application.Queries.Dashboard
                 .ToList();
 
             var recentEntries = await db.ActivityEntries
+                .AsNoTracking()
                 .OrderByDescending(e => e.CreatedAt)
                 .Take(5)
                 .ToListAsync(cancellationToken);
@@ -65,12 +51,53 @@ namespace KRINT.Application.Queries.Dashboard
             return new DashboardStatsDto
             {
                 TotalInstances = instances.Count,
-                RunningInstances = runningContainers.Count,
+                RunningInstances = runningCount,
                 TotalMemoryBytes = totalMemoryBytes,
                 TotalCpuPercent = totalCpuPercent,
                 PerEngine = perEngine,
                 RecentActivity = recentActivity,
             };
+        }
+
+        /// <summary>How long one daemon (local or node) gets to list its containers and report their usage.</summary>
+        internal static readonly TimeSpan NodeTimeout = TimeSpan.FromSeconds(4);
+
+        private async Task<(int Running, List<ContainerResourceSample> Samples)> SampleNodeAsync(
+            Guid? nodeId, List<string> containerNames, CancellationToken cancellationToken)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(NodeTimeout);
+            IDockerService docker;
+            List<string> runningIds;
+            try
+            {
+                docker = dockerResolver.Resolve(nodeId);
+                var containers = await docker.ListContainersAsync(all: true, cts.Token).WaitAsync(cts.Token);
+                var stateByName = new Dictionary<string, (string State, string ID)>(StringComparer.OrdinalIgnoreCase);
+                foreach (var c in containers)
+                    foreach (var n in c.Names ?? new List<string>())
+                        stateByName[n.TrimStart('/')] = (c.State, c.ID);
+
+                runningIds = containerNames
+                    .Where(name => stateByName.TryGetValue(name, out var s)
+                        && string.Equals(s.State, "running", StringComparison.OrdinalIgnoreCase))
+                    .Select(name => stateByName[name].ID)
+                    .ToList();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch { return (0, []); }
+
+            // Per-container memory + CPU%, each computed on the daemon that owns it (the node computes
+            // its own so only primitives cross the wire). A null sample (transient error or timeout)
+            // contributes 0, but the container still counts as running.
+            var samples = await Task.WhenAll(runningIds.Select(async id =>
+            {
+                try { return await docker.GetContainerResourceUsageAsync(id, cts.Token).WaitAsync(cts.Token); }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch { return null; }
+            }));
+
+            return (runningIds.Count, samples.Where(s => s is not null).Select(s => s!).ToList());
         }
     }
 }

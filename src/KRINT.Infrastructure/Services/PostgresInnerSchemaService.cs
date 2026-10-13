@@ -36,12 +36,19 @@ namespace KRINT.Infrastructure.Services
 
             await using var conn = await OpenAsync(target, database, cancellationToken);
 
-            long? total = null;
-            await using (var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM {qualified}", conn))
-            {
-                var raw = await countCmd.ExecuteScalarAsync(cancellationToken);
-                if (raw is long l) total = l;
-            }
+            var (total, totalIsEstimate) = await RowCountEstimate.ResolveAsync(
+                async () =>
+                {
+                    // reltuples is the planner's row estimate (-1 = never analyzed, 0 for views).
+                    await using var estCmd = new NpgsqlCommand("SELECT c.reltuples::bigint FROM pg_class c WHERE c.oid = to_regclass(@q)", conn);
+                    estCmd.Parameters.AddWithValue("q", qualified);
+                    return await estCmd.ExecuteScalarAsync(cancellationToken) is long est ? est : null;
+                },
+                async () =>
+                {
+                    await using var countCmd = new NpgsqlCommand($"SELECT COUNT(*) FROM {qualified}", conn);
+                    return await countCmd.ExecuteScalarAsync(cancellationToken) is long l ? l : null;
+                });
 
             var columnInfos = await FetchColumnInfosAsync(conn, table, cancellationToken);
 
@@ -56,7 +63,7 @@ namespace KRINT.Infrastructure.Services
 
             await using var cmd = new NpgsqlCommand($"SELECT {selectList} FROM {qualified} LIMIT {limit.ToString(CultureInfo.InvariantCulture)} OFFSET {offset.ToString(CultureInfo.InvariantCulture)}", conn);
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-            return await ReadRowsAsync(reader, total, columnInfos, cancellationToken);
+            return (await ReadRowsAsync(reader, total, columnInfos, cancellationToken)) with { TotalIsEstimate = totalIsEstimate };
         }
 
         private static async Task<IReadOnlyList<ColumnInfo>> FetchColumnInfosAsync(NpgsqlConnection conn, string table, CancellationToken cancellationToken)

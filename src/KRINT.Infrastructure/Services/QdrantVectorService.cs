@@ -6,14 +6,14 @@ namespace KRINT.Infrastructure.Services
 {
     // Scrolls a Qdrant collection's points WITH vectors (the browse path uses with_vector=false).
     // Reuses QdrantHttp (api-key auth) from QdrantServices.
-    public class QdrantVectorService : IQdrantVectorService
+    public class QdrantVectorService(IHttpClientFactory httpFactory) : IQdrantVectorService
     {
         public async Task<IReadOnlyList<VectorPoint>> FetchAsync(InnerDatabaseTarget target, string collection, int limit, CancellationToken cancellationToken = default)
         {
             InnerDatabaseNameValidator.Require(collection);
             limit = Math.Clamp(limit, 1, 2000);
 
-            using var http = QdrantHttp.Build(target);
+            using var http = QdrantHttp.Build(httpFactory, target);
             var body = JsonSerializer.Serialize(new { limit, with_payload = true, with_vector = true });
             using var resp = await http.PostAsync(
                 $"/collections/{Uri.EscapeDataString(collection)}/points/scroll",

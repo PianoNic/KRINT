@@ -13,8 +13,19 @@ namespace KRINT.Infrastructure.Services
         public static IDriver Build(InnerDatabaseTarget target)
         {
             var uri = new Uri($"bolt://{target.Host}:{target.Port}");
-            return GraphDatabase.Driver(uri, AuthTokens.Basic(target.Username, target.Password));
+            return GraphDatabase.Driver(uri, AuthTokens.Basic(target.Username, target.Password),
+                // Idle pooled connections are checked before reuse, so a restarted container
+                // doesn't hand the next call a dead socket from the shared driver.
+                o => o.WithConnectionLivenessCheckTimeout(TimeSpan.FromSeconds(30)));
         }
+
+        // A driver owns a connection pool and is meant to live for the application's lifetime;
+        // one is kept per target instead of a new driver (and new connections) per call.
+        private static readonly TargetClientCache<IDriver> Drivers = new(
+            target => Task.FromResult(Build(target)),
+            driver => driver.DisposeAsync());
+
+        public static Task<TargetClientCache<IDriver>.Lease> AcquireAsync(InnerDatabaseTarget target) => Drivers.AcquireAsync(target);
     }
 
     public class Neo4jInnerDatabaseService : IInnerDatabaseService
@@ -23,7 +34,8 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<IReadOnlyList<string>> ListAsync(InnerDatabaseTarget target, CancellationToken cancellationToken = default)
         {
-            using var driver = Neo4jConnect.Build(target);
+            using var lease = await Neo4jConnect.AcquireAsync(target);
+            var driver = lease.Client;
             await using var session = driver.AsyncSession();
             // SHOW DATABASES is enterprise-only; Community has just "neo4j" + "system".
             try
@@ -69,7 +81,8 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<IReadOnlyList<TableSummary>> ListTablesAsync(InnerDatabaseTarget target, string database, CancellationToken cancellationToken = default)
         {
-            using var driver = Neo4jConnect.Build(target);
+            using var lease = await Neo4jConnect.AcquireAsync(target);
+            var driver = lease.Client;
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
             var result = await session.RunAsync("CALL db.labels() YIELD label RETURN label ORDER BY label");
             var records = await result.ToListAsync(cancellationToken);
@@ -80,7 +93,8 @@ namespace KRINT.Infrastructure.Services
         {
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
-            using var driver = Neo4jConnect.Build(target);
+            using var lease = await Neo4jConnect.AcquireAsync(target);
+            var driver = lease.Client;
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
 
             long? total = null;
@@ -133,7 +147,8 @@ namespace KRINT.Infrastructure.Services
         public async Task InsertRowAsync(InnerDatabaseTarget target, string database, string table, InsertRowRequest request, CancellationToken cancellationToken = default)
         {
             var props = PropsFromJson(request.Values[Idx(request.Columns, "properties")]);
-            using var driver = Neo4jConnect.Build(target);
+            using var lease = await Neo4jConnect.AcquireAsync(target);
+            var driver = lease.Client;
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
             InnerDatabaseNameValidator.Require(table);
             await session.RunAsync($"CREATE (n:`{table}`) SET n = $props", new { props });
@@ -144,7 +159,8 @@ namespace KRINT.Infrastructure.Services
             var id = request.OriginalValues[Idx(request.Columns, "_id")];
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Node elementId is required to update.");
             var props = PropsFromJson(request.NewValues[Idx(request.Columns, "properties")]);
-            using var driver = Neo4jConnect.Build(target);
+            using var lease = await Neo4jConnect.AcquireAsync(target);
+            var driver = lease.Client;
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
             await session.RunAsync("MATCH (n) WHERE elementId(n) = $id SET n = $props", new { id, props });
         }
@@ -153,7 +169,8 @@ namespace KRINT.Infrastructure.Services
         {
             var id = request.OriginalValues[Idx(request.Columns, "_id")];
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Node elementId is required to delete.");
-            using var driver = Neo4jConnect.Build(target);
+            using var lease = await Neo4jConnect.AcquireAsync(target);
+            var driver = lease.Client;
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
             await session.RunAsync("MATCH (n) WHERE elementId(n) = $id DETACH DELETE n", new { id });
         }
@@ -161,7 +178,8 @@ namespace KRINT.Infrastructure.Services
         public async Task DropTableAsync(InnerDatabaseTarget target, string database, string table, CancellationToken cancellationToken = default)
         {
             // Drop = remove the label from every matching node. The label itself "vanishes" once no nodes carry it.
-            using var driver = Neo4jConnect.Build(target);
+            using var lease = await Neo4jConnect.AcquireAsync(target);
+            var driver = lease.Client;
             await using var session = driver.AsyncSession(o => o.WithDatabase(database));
             InnerDatabaseNameValidator.Require(table);
             await session.RunAsync($"MATCH (n:`{table}`) DETACH DELETE n");

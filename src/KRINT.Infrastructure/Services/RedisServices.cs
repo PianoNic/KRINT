@@ -32,6 +32,14 @@ namespace KRINT.Infrastructure.Services
             return ConnectionMultiplexer.ConnectAsync(options).ContinueWith(t => (IConnectionMultiplexer)t.Result);
         }
 
+        // A multiplexer is built to be shared and reconnects on its own; one is kept per target
+        // (callers always pass the database number explicitly) instead of a handshake per call.
+        private static readonly TargetClientCache<IConnectionMultiplexer> Multiplexers = new(
+            target => ConnectAsync(target),
+            mux => mux.DisposeAsync());
+
+        public static Task<TargetClientCache<IConnectionMultiplexer>.Lease> AcquireAsync(InnerDatabaseTarget target) => Multiplexers.AcquireAsync(target);
+
         public static int ParseDatabaseNumber(string database)
         {
             if (!int.TryParse(database, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) || n < 0 || n > 15)
@@ -60,7 +68,8 @@ namespace KRINT.Infrastructure.Services
         {
             // FLUSHDB on the given DB number - wipes keys but the DB number itself remains.
             var n = RedisConnection.ParseDatabaseNumber(name);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var server = conn.GetServers().First();
             await server.FlushDatabaseAsync(n);
         }
@@ -108,7 +117,8 @@ namespace KRINT.Infrastructure.Services
             limit = Math.Clamp(limit, 1, 500);
             offset = Math.Max(0, offset);
 
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var server = conn.GetServers().First();
             var db = conn.GetDatabase(dbNum);
 
@@ -160,7 +170,8 @@ namespace KRINT.Infrastructure.Services
             if (!string.Equals(key, origKey, StringComparison.Ordinal))
                 throw new ArgumentException("Renaming a Redis key is not supported via row edit. Delete and re-insert instead.");
             var dbNum = RedisConnection.ParseDatabaseNumber(database);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             await conn.GetDatabase(dbNum).StringSetAsync(key, newValue);
         }
 
@@ -168,7 +179,8 @@ namespace KRINT.Infrastructure.Services
         {
             var (key, value) = ParseKeyValue(request.Columns, request.Values);
             var dbNum = RedisConnection.ParseDatabaseNumber(database);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var db = conn.GetDatabase(dbNum);
             if (await db.KeyExistsAsync(key))
                 throw new InvalidOperationException($"Key '{key}' already exists. Edit it instead, or delete it first.");
@@ -180,7 +192,8 @@ namespace KRINT.Infrastructure.Services
             var key = ColumnValue(request.Columns, request.OriginalValues, "key")
                 ?? throw new ArgumentException("Missing 'key' column in delete request.");
             var dbNum = RedisConnection.ParseDatabaseNumber(database);
-            await using var conn = (ConnectionMultiplexer)await RedisConnection.ConnectAsync(target, dbNum);
+            using var lease = await RedisConnection.AcquireAsync(target);
+            var conn = lease.Client;
             var deleted = await conn.GetDatabase(dbNum).KeyDeleteAsync(key);
             if (!deleted) throw new InvalidOperationException($"Key '{key}' not found.");
         }

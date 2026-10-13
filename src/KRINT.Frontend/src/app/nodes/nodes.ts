@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { DatePipe } from '@angular/common';
-import { interval } from 'rxjs';
+import { DOCUMENT, DatePipe } from '@angular/common';
+import { filter, fromEvent, interval, merge } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideNetwork, lucideRefreshCw, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -155,8 +155,13 @@ export class Nodes {
   constructor() {
     this.reload();
     // Nodes connect/drop in real time, so refresh on a light cadence to keep the list current.
-    interval(5000)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    // A hidden tab skips the poll and catches up as soon as it becomes visible again.
+    const document = inject(DOCUMENT);
+    merge(interval(5000), fromEvent(document, 'visibilitychange'))
+      .pipe(
+        filter(() => document.visibilityState === 'visible'),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(() => this.reload(true));
   }
 

@@ -17,6 +17,9 @@ namespace KRINT.API
             services.AddHealthChecks()
                 .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"])
                 .AddCheck<DockerHealthCheck>("docker", tags: ["ready"]);
+            // The shared dashboard sampler sits with the other runtime-status services: one docker
+            // stats loop for all dashboard viewers, idle while nobody is watching.
+            services.AddSingleton<KRINT.Application.Queries.Dashboard.DashboardStatsSampler>();
             return services;
         }
 
