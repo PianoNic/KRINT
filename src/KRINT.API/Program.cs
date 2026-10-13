@@ -106,6 +106,9 @@ builder.Services.AddHostedService<KrintStartupCheck>();
 builder.Services.AddKrintHealthChecks();
 // Unhandled exceptions become RFC 9457 problem details (no stack trace) instead of an empty 500.
 builder.Services.AddProblemDetails();
+// Not-found / bad-request / conflict exceptions map to 404 / 400 / 409 in one place, so
+// controllers don't each repeat the same try/catch.
+builder.Services.AddExceptionHandler<KrintExceptionHandler>();
 
 builder.Services.AddDocker(builder.Configuration);
 
@@ -190,8 +193,9 @@ if (builder.Configuration.GetValue("Krint:TrustForwardedHeaders", false))
     app.UseForwardedHeaders(forwarded);
 }
 
-if (!app.Environment.IsDevelopment())
-    app.UseExceptionHandler();
+// Always on: KrintExceptionHandler turns expected failures into 4xx in development too, where
+// they would otherwise show as the developer exception page with a 500.
+app.UseExceptionHandler();
 
 app.UseSecurityHeaders(builder.Configuration["Oidc:Authority"]);
 
@@ -234,32 +238,6 @@ app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Surface node-routing failures as clean 4xx instead of opaque 500s: an offline node is a transient
-// conflict; an unsupported-on-node operation is a bad request. Hubs handle their own errors, so this
-// only ever fires for controller calls (response not yet started).
-app.Use(async (context, next) =>
-{
-    try { await next(); }
-    catch (NodeOfflineException ex) when (!context.Response.HasStarted)
-    {
-        context.Response.StatusCode = StatusCodes.Status409Conflict;
-        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
-    catch (NotSupportedException ex) when (!context.Response.HasStarted)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
-    // A secret that does not decrypt is an operator problem (wrong Vault__MasterKey), not a bug:
-    // say so instead of an empty 500. The boot-time canary catches the common case earlier.
-    catch (KRINT.Infrastructure.Services.VaultKeyMismatchException ex) when (!context.Response.HasStarted)
-    {
-        context.RequestServices.GetRequiredService<ILogger<Program>>().LogError(ex, "Vault decryption failed.");
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
-});
 
 app.MapControllers();
 app.MapKrintHealth();

@@ -52,6 +52,9 @@ import { SupportedDatabaseDto } from '../api/model/supportedDatabaseDto';
 import { ProvisionResultDto } from '../api/model/provisionResultDto';
 import { ProvisionHubService } from './provision-hub.service';
 
+// PluginInstallMode.DockerImageSwap on the backend (enums serialize as numbers).
+const IMAGE_SWAP_INSTALL_MODE = 1;
+
 type WizardUser = { name: string; grantDatabases: string[] };
 
 @Component({
@@ -336,8 +339,19 @@ export class Create {
   protected togglePlugin(key: string): void {
     this.selectedPlugins.update((curr) => {
       const next = new Set(curr);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+        return next;
+      }
+      // Image-swap plugins (pgvector, PostGIS) each replace the container image, so only one can
+      // be active - picking one deselects the other.
+      const plugins = this.availablePlugins();
+      if (plugins.find((p) => p.key === key)?.installMode === IMAGE_SWAP_INSTALL_MODE) {
+        for (const p of plugins) {
+          if (p.installMode === IMAGE_SWAP_INSTALL_MODE) next.delete(p.key);
+        }
+      }
+      next.add(key);
       return next;
     });
   }

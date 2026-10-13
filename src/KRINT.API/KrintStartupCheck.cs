@@ -80,7 +80,7 @@ namespace KRINT.API
             if (string.IsNullOrWhiteSpace(authority))
                 logger.LogInformation("Oidc__Authority is not set: running with local password login. Set it to your identity provider's issuer URL to use OIDC instead.");
 
-            if (krintOptions.Value.PortRanges.Count == 0)
+            if (krintOptions.Value.PortRanges is not { Count: > 0 })
                 logger.LogWarning("No port ranges configured (krint.yaml -> krint.port_ranges). Provisioning will refuse every engine until they are.");
 
             // Docker is required for everything KRINT does, but a missing socket is recoverable

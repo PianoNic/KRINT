@@ -20,7 +20,9 @@ namespace KRINT.Infrastructure.Services
         // GTID bookkeeping is left out. mariadb-dump does not know the flag, so MariaDB clears it.
         protected virtual string DumpExtraArgs => "--set-gtid-purged=OFF";
 
-        public async Task<BackupOutput> DumpAsync(BackupTarget target, CancellationToken cancellationToken = default)
+        public string FileExtension => "sql";
+
+        public Task DumpToAsync(BackupTarget target, Stream output, CancellationToken cancellationToken = default)
         {
             // dump --all-databases, consistent snapshot via single-transaction. Pick whichever
             // client binary the image actually has.
@@ -33,11 +35,10 @@ namespace KRINT.Infrastructure.Services
                 $"MYSQL_PWD=\"$1\" {bin} -h 127.0.0.1 -u \"$2\" --single-transaction --all-databases {DumpExtraArgs}".TrimEnd(),
                 "krint", target.Password, target.Username,
             };
-            var bytes = await dockerResolver.Resolve(target.NodeId).ExecCaptureAsync(target.ContainerId, cmd, cancellationToken);
-            return new BackupOutput(bytes, "sql");
+            return dockerResolver.Resolve(target.NodeId).ExecToStreamAsync(target.ContainerId, cmd, output, target.Timeout, cancellationToken);
         }
 
-        public async Task RestoreAsync(BackupTarget target, Stream dump, CancellationToken cancellationToken = default)
+        public Task RestoreAsync(BackupTarget target, Stream dump, CancellationToken cancellationToken = default)
         {
             // Pipe the SQL dump into the client over stdin - it replays statements from --all-databases.
             var bin = $"$(command -v {RestoreBinary} || command -v {RestoreFallback})";
@@ -47,7 +48,7 @@ namespace KRINT.Infrastructure.Services
                 $"MYSQL_PWD=\"$1\" {bin} -h 127.0.0.1 -u \"$2\"",
                 "krint", target.Password, target.Username,
             };
-            await dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, cancellationToken);
+            return dockerResolver.Resolve(target.NodeId).ExecWithStdinAsync(target.ContainerId, cmd, dump, target.Timeout, cancellationToken);
         }
     }
 }

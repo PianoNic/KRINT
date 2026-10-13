@@ -30,7 +30,7 @@ namespace KRINT.Application.Command.DatabaseInstance
 
             ValidateString(req.Engine, nameof(req.Engine));
             ValidateString(req.Version, nameof(req.Version));
-            ValidateString(req.DisplayName, nameof(req.DisplayName));
+            var displayName = DisplayNameValidator.Normalize(req.DisplayName);
             ValidateString(req.Host, nameof(req.Host));
             await KRINT.Infrastructure.Services.ProbeHostGuard.RequireAsync(req.Host, cancellationToken);
             ValidateString(req.Username, nameof(req.Username));
@@ -141,7 +141,7 @@ namespace KRINT.Application.Command.DatabaseInstance
                 Id = Guid.NewGuid(),
                 Engine = req.Engine,
                 Version = req.Version,
-                DisplayName = req.DisplayName,
+                DisplayName = displayName,
                 ContainerName = adoptedContainerName,
                 ContainerId = adoptedContainerId,
                 Host = req.Host,
