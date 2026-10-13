@@ -108,8 +108,22 @@ namespace KRINT.API.Controllers
             if (node is null) return NotFound();
             if (node.IsConfigManaged) return Conflict("This node is managed by krint.yaml; remove it there.");
 
+            // Instances on this node would be orphaned: their NodeId would point nowhere and every
+            // container operation on them would fail. Make the operator move or delete them first.
+            var hosted = await db.DatabaseInstances.CountAsync(d => d.NodeId == id, cancellationToken);
+            if (hosted > 0)
+                return Problem(
+                    title: "Node still hosts instances",
+                    detail: $"{hosted} database instance(s) run on node '{node.Name}'. Delete or migrate them before removing the node.",
+                    statusCode: StatusCodes.Status409Conflict);
+
             db.Nodes.Remove(node);
             await db.SaveChangesAsync(cancellationToken);
+
+            // The token is revoked with the row; also drop the live connection now, otherwise the
+            // node would keep executing RPCs until it happened to reconnect.
+            registry.Disconnect(id);
+
             await activity.LogAsync("node.delete", node.Name, cancellationToken: cancellationToken);
             return NoContent();
         }

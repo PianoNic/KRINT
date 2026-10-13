@@ -151,7 +151,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
         {
             Key = "vector",
             DisplayName = "pgvector",
-            Description = "Vector similarity search - pgvector extension. Image swaps to pgvector/pgvector.",
+            Description = "Vector similarity search - pgvector extension. Image swaps to pgvector/pgvector. Can't be combined with PostGIS.",
             InstallMode = PluginInstallMode.DockerImageSwap,
             Payload = "pgvector/pgvector",
         };
@@ -159,7 +159,7 @@ namespace KRINT.Application.Queries.SupportedDatabase
         {
             Key = "postgis",
             DisplayName = "PostGIS",
-            Description = "Geospatial types and indexes. Image swaps to postgis/postgis.",
+            Description = "Geospatial types and indexes. Image swaps to postgis/postgis. Can't be combined with pgvector.",
             InstallMode = PluginInstallMode.DockerImageSwap,
             Payload = "postgis/postgis",
         };
@@ -226,10 +226,15 @@ namespace KRINT.Application.Queries.SupportedDatabase
         private static readonly IReadOnlyDictionary<string, EnginePluginDto[]> PluginsByEngine = new Dictionary<string, EnginePluginDto[]>
         {
             ["postgres"] = new[] { PgVector, PgPostgis, PgTrgm, PgUuid, PgHstore },
-            ["timescaledb"] = new[] { PgPostgis, PgTrgm, PgUuid, PgHstore },
+            // No PostGIS: its image swap would replace the TimescaleDB image and drop the extension.
+            ["timescaledb"] = new[] { PgTrgm, PgUuid, PgHstore },
             ["redis"] = new[] { RedisStack },
             ["neo4j"] = new[] { Neo4jApoc, Neo4jGds },
         };
+
+        /// <summary>The plugins an engine offers; empty when it has none.</summary>
+        public static IReadOnlyList<EnginePluginDto> PluginsFor(string engine) =>
+            PluginsByEngine.TryGetValue(engine, out var plugins) ? plugins : Array.Empty<EnginePluginDto>();
 
         // Engine order drives the Create wizard tile grid. Headlining engines (PostgreSQL,
         // MariaDB, MongoDB) come first; the rest are grouped by storage shape (relational,

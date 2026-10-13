@@ -46,7 +46,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task CreateAsync(InnerDatabaseTarget target, string name, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
+            InnerDatabaseNameValidator.RequireDatabaseForEngine(Engine, name);
             using var http = CouchDbHttp.Build(httpFactory, target);
             var resp = await http.PutAsync($"/{Uri.EscapeDataString(name)}", null, cancellationToken);
             resp.EnsureSuccessStatusCode();

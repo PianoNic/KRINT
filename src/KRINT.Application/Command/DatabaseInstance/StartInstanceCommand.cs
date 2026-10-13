@@ -32,7 +32,11 @@ namespace KRINT.Application.Command.DatabaseInstance
             if (instance.ContainerId is null)
                 throw new InvalidOperationException("This instance has no Docker container - nothing to start.");
 
-            await dockerResolver.Resolve(instance.NodeId).StartContainerAsync(instance.ContainerId, cancellationToken);
+            var docker = dockerResolver.Resolve(instance.NodeId);
+            await ContainerIdResolver.RefreshAsync(db, instance, docker, cancellationToken);
+            await docker.StartContainerAsync(instance.ContainerId, cancellationToken);
+            // Routes probed while the container was down are stale now.
+            InnerDatabaseTargetLoader.ForgetInstance(instance.ContainerName, instance.Port);
 
             // Block until the engine accepts a query. Same envelope as create/visibility:
             // JVM-heavy engines get 180s, the rest 60s. If the container starts but the

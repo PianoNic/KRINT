@@ -28,7 +28,7 @@ namespace KRINT.Infrastructure.Services
 
         public async Task CreateAsync(InnerDatabaseTarget target, string name, string password, CancellationToken cancellationToken = default)
         {
-            InnerDatabaseNameValidator.Require(name);
+            InnerDatabaseNameValidator.RequireUserForEngine(Engine, name);
             SafePasswordGuard.Require(password);
             await using var conn = await OpenAsync(target, cancellationToken);
             await using var cmd = new MySqlCommand($"CREATE USER `{name}`@'%' IDENTIFIED BY '{password}'", conn);

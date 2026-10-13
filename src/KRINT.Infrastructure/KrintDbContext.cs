@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Toamaisutaa.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using KRINT.Domain;
 using KRINT.Infrastructure.Extensions;
 
@@ -23,6 +24,26 @@ namespace KRINT.Infrastructure
             // deployment that authenticates against an identity provider.
             modelBuilder.ApplyToamaisutaaConfiguration();
         }
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            // Every timestamp KRINT stores is UTC, but SQLite (and Postgres "timestamp" reads in some
+            // paths) hand DateTimes back as Unspecified, which serialize without the trailing "Z" and
+            // get parsed as local time by the browser. Stamp them Utc on the way in and out.
+            configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
+            configurationBuilder.Properties<DateTime?>().HaveConversion<NullableUtcDateTimeConverter>();
+        }
+
+        private sealed class UtcDateTimeConverter() : ValueConverter<DateTime, DateTime>(
+            v => ToUtc(v),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        private sealed class NullableUtcDateTimeConverter() : ValueConverter<DateTime?, DateTime?>(
+            v => v.HasValue ? ToUtc(v.Value) : v,
+            v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        private static DateTime ToUtc(DateTime value) =>
+            value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {

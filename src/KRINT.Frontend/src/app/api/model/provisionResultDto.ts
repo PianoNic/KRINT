@@ -15,5 +15,6 @@ export interface ProvisionResultDto {
     instance: ProvisionedDatabaseDto;
     databases: Array<string>;
     users: Array<InnerUserPasswordDto>;
+    warnings?: Array<string>;
 }
 

@@ -34,6 +34,33 @@ namespace KRINT.API
                     $"{ex.Message} Set Vault__MasterKey to 32 random bytes, base64 encoded (openssl rand -base64 32).", ex);
             }
 
+            if (VaultKeyFile.Generated)
+                logger.LogWarning(
+                    "Vault__MasterKey is not set: generated a new vault key in {KeyFile}. Back this file up; stored database passwords cannot be read without it.",
+                    VaultKeyFile.KeyFilePath);
+            else if (VaultKeyFile.KeyFilePath is not null)
+                logger.LogInformation("Vault key loaded from {KeyFile}.", VaultKeyFile.KeyFilePath);
+
+            if (VaultKeyFile.IsRetiredDemoKey(configuration["Vault:MasterKey"]))
+                logger.LogWarning(
+                    "Vault__MasterKey is the public demo key older compose.yml files shipped. Anyone can decrypt secrets stored with it. " +
+                    "Use it only to read an old demo stack, and move real data to a deployment with its own key.");
+
+            using var scope = scopeFactory.CreateScope();
+
+            // A key that decodes but is not the one the secrets were written with would otherwise
+            // surface as a 500 on the first database click. Check it against the stored secrets now.
+            try
+            {
+                await scope.ServiceProvider.GetRequiredService<ISecretsVaultService>().VerifyMasterKeyAsync(cancellationToken);
+            }
+            catch (VaultKeyMismatchException ex)
+            {
+                throw new InvalidOperationException(
+                    $"{ex.Message} If this deployment ran the old clone-and-run compose.yml, set Vault__MasterKey={VaultKeyFile.RetiredDemoKey} (in .env) to read its data.",
+                    ex);
+            }
+
             var provider = configuration.GetDatabaseProvider();
             var authority = configuration["Oidc:Authority"];
             var publicUrl = configuration["Krint:PublicUrl"];
@@ -53,12 +80,11 @@ namespace KRINT.API
             if (string.IsNullOrWhiteSpace(authority))
                 logger.LogInformation("Oidc__Authority is not set: running with local password login. Set it to your identity provider's issuer URL to use OIDC instead.");
 
-            if (krintOptions.Value.PortRanges.Count == 0)
+            if (krintOptions.Value.PortRanges is not { Count: > 0 })
                 logger.LogWarning("No port ranges configured (krint.yaml -> krint.port_ranges). Provisioning will refuse every engine until they are.");
 
             // Docker is required for everything KRINT does, but a missing socket is recoverable
             // (mount it and restart), so this is a loud error rather than a refusal to start.
-            using var scope = scopeFactory.CreateScope();
             var docker = scope.ServiceProvider.GetRequiredService<IDockerService>();
             if (await docker.PingAsync(cancellationToken))
             {

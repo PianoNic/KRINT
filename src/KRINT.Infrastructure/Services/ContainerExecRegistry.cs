@@ -67,11 +67,14 @@ namespace KRINT.Infrastructure.Services
 
             var session = new ContainerExecSession(exec.ID, transport, docker);
             _sessions[session.Id] = session;
-            session.Start();
-            session.Exited += async code =>
+            // Exited fires from inside the pump, so dispose off that path (DisposeAsync awaits the
+            // pump). Without this an exited session kept its socket and CTS alive forever. The
+            // caller subscribes its own handlers and then calls Start().
+            session.Exited += code =>
             {
-                _sessions.TryRemove(session.Id, out _);
-                await Task.CompletedTask;
+                if (_sessions.TryRemove(session.Id, out var exited))
+                    _ = Task.Run(async () => await exited.DisposeAsync());
+                return Task.CompletedTask;
             };
             return session;
         }
@@ -131,7 +134,9 @@ namespace KRINT.Infrastructure.Services
         {
             var body = Encoding.UTF8.GetBytes("{\"Detach\":false,\"Tty\":true}");
             var header = new StringBuilder();
-            header.Append($"POST /v1.41/exec/{execId}/start HTTP/1.1\r\n");
+            // No /vX.YY prefix: the daemon then uses its own current API version. A pinned old
+            // version breaks on Docker 29+, which rejects anything below 1.44 by default.
+            header.Append($"POST /exec/{execId}/start HTTP/1.1\r\n");
             header.Append("Host: docker\r\n");
             header.Append("Content-Type: application/json\r\n");
             header.Append($"Content-Length: {body.Length}\r\n");
@@ -185,6 +190,7 @@ namespace KRINT.Infrastructure.Services
 
         public void Start()
         {
+            if (_disposed != 0 || _pump is not null) return;
             _pump = Task.Run(PumpAsync);
         }
 
