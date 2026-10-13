@@ -57,7 +57,8 @@ namespace KRINT.Infrastructure.Services
             JOIN sys.server_principals m ON m.principal_id = rm.member_principal_id
             WHERE m.type = 'S' AND m.name NOT LIKE '##%' AND m.name <> 'sa' AND m.name <> SUSER_SNAME();
             EOF
-              sq -b -h -1 -y 0 -i "$d/q.sql" -o "$d/logins.sql"
+              # -y 0 (unlimited width) can't be combined with -h -1; 8000 fits every CREATE LOGIN line.
+              sq -b -h -1 -y 8000 -i "$d/q.sql" -o "$d/logins.sql"
               rm -f "$d/q.sql"
             else
               printf '%s\n' "$3" > "$d/databases"
