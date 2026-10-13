@@ -15,13 +15,33 @@ namespace KRINT.API
         /// <summary>Readable by the page; says only that a session cookie was set.</summary>
         public const string MarkerCookieName = "krint.session.present";
         private const string Path = "/auth/session";
+        /// <summary>Rate-limit policy for the anonymous session endpoints (registered in Program.cs).</summary>
+        public const string RateLimitPolicy = "session";
 
         public record SessionLoginRequest(string Identifier, string Password);
         public record SessionTokenResponse(string AccessToken, int ExpiresIn);
 
+        /// <summary>
+        /// Per caller address and per endpoint: login is a password-guessing target, so it gets a
+        /// tight window; refresh fires on every reload and from every open tab, so a little more.
+        /// The library's own /auth/* endpoints throttle themselves; these are KRINT's and do not.
+        /// </summary>
+        public static System.Threading.RateLimiting.RateLimitPartition<string> Partition(HttpContext context)
+        {
+            var address = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var isLogin = context.Request.Path.Value?.EndsWith("/login", StringComparison.OrdinalIgnoreCase) == true;
+            return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                $"{(isLogin ? "login" : "session")}:{address}",
+                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = isLogin ? 10 : 30,
+                    Window = TimeSpan.FromMinutes(1),
+                });
+        }
+
         public static void MapKrintLocalSession(this WebApplication app)
         {
-            var group = app.MapGroup(Path).WithTags("Authentication").AllowAnonymous();
+            var group = app.MapGroup(Path).WithTags("Authentication").AllowAnonymous().RequireRateLimiting(RateLimitPolicy);
 
             group.MapPost("/login", async (SessionLoginRequest body, HttpContext http, IPasswordSignInService signIn, CancellationToken ct) =>
             {

@@ -51,6 +51,8 @@ namespace KRINT.Infrastructure.Migrations.Sqlite.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedAt");
+
                     b.ToTable("ActivityEntries");
                 });
 
@@ -90,6 +92,8 @@ namespace KRINT.Infrastructure.Migrations.Sqlite.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("InstanceId");
+
                     b.ToTable("BackupEntries");
                 });
 
@@ -115,6 +119,9 @@ namespace KRINT.Infrastructure.Migrations.Sqlite.Migrations
 
                     b.Property<Guid>("InstanceId")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("KeepLast")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("LastError")
                         .HasColumnType("TEXT");
@@ -182,10 +189,16 @@ namespace KRINT.Infrastructure.Migrations.Sqlite.Migrations
                     b.Property<Guid?>("NodeId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Plugins")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Port")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("PreviousVersion")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StorageBind")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")

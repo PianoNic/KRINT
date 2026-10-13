@@ -33,13 +33,13 @@ services:
       Database__Provider: "Postgres"
       ConnectionStrings__KrintDatabase: "Host=db;Port=5432;Database=krint;Username=postgres;Password=d4vpas8w0rd13!!!"
       # No Oidc__Authority: KRINT runs with local password login and seeds this admin account.
+      # Its password is generated on first boot and printed once: docker logs krint.
       # Set Oidc__* (see docs/self-host.md) to use your own identity provider instead.
       LocalLogin__AdminUserName: admin
-      LocalLogin__AdminPassword: krint-admin
       Cors__AllowedOrigins__0: "http://localhost:56722"
       Krint__PublicUrl: "http://localhost:56722"
-      # Demo key for this local stack only. Real deployments generate their own (openssl rand -base64 32).
-      Vault__MasterKey: "2P+vvGUw5v3weZdFU04YOicpVNs9eIyRKo6NliiDR4c="
+      # No Vault__MasterKey here: KRINT generates one on first boot into ./data/vault.key (mounted
+      # below). Back that file up. To manage the key yourself, set Vault__MasterKey in .env.
     depends_on:
       db:
         condition: service_healthy
@@ -48,6 +48,7 @@ services:
     volumes:
       - //var/run/docker.sock:/var/run/docker.sock
       - ./backups:/app/backups
+      - ./data:/app/data
       - ./krint.yaml:/app/krint.yaml:ro
 
 volumes:

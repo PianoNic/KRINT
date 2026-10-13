@@ -43,5 +43,23 @@ namespace KRINT.Tests.Services
             var host = InnerDatabaseTargetLoader.ResolveTargetHost("db.example.com", isManaged: false, isPublic: true);
             await Assert.That(host).IsEqualTo("db.example.com");
         }
+
+        [Test]
+        [Arguments("Localhost")]
+        [Arguments(" LOCALHOST ")]
+        [Arguments("::1")]
+        [Arguments("[::1]")]
+        public async Task LoopbackVariants_AreRewritten(string input)
+        {
+            await Assert.That(InnerDatabaseTargetLoader.ResolveTargetHost(input, isManaged: false, isPublic: false)).IsEqualTo("host.docker.internal");
+            await Assert.That(InnerDatabaseTargetLoader.ResolveTargetHost(input, isManaged: true, isPublic: false)).IsEqualTo("127.0.0.1");
+        }
+
+        [Test]
+        public async Task RemoteHost_IsTrimmed()
+        {
+            var host = InnerDatabaseTargetLoader.ResolveTargetHost(" db.example.com ", isManaged: false, isPublic: true);
+            await Assert.That(host).IsEqualTo("db.example.com");
+        }
     }
 }

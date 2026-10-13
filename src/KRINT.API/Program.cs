@@ -59,6 +59,11 @@ if (string.Equals(builder.Configuration["Krint:Role"], "node", StringComparison.
 
 builder.Services.AddKrintConfig(builder.Environment);
 
+// No Vault__MasterKey configured: read it from (or generate it into) the data directory, so a
+// fresh clone boots with a key of its own instead of a shared one. Must run before anything
+// reads the key, the derived local-login signing key included.
+VaultKeyFile.Apply(builder);
+
 // No identity provider configured: run with local password login instead (see LocalLogin.cs).
 var localLogin = LocalLogin.IsEnabled(builder.Configuration);
 if (localLogin)
@@ -76,10 +81,12 @@ builder.Services.AddSignalR(options =>
 })
 .AddHubOptions<NodeHub>(options =>
 {
-    // Node RPC returns whole backup dumps and container logs as single messages, and a node is
-    // authenticated by a pre-shared token rather than a browser session. The cap is lifted for
-    // this hub alone (dumps are already fully buffered in memory).
-    options.MaximumReceiveMessageSize = null;
+    // Node RPC returns backup dumps and container logs as messages, so this hub gets a far larger
+    // cap than the browser hubs. It is still finite: /hubs/node is anonymous until the node's
+    // token is checked inside the hub, and an unbounded size let any caller make the server
+    // buffer arbitrary amounts. 64 MB is generous on purpose while backup transfer moves to
+    // chunked streaming; once it has, this can come down to a few MB.
+    options.MaximumReceiveMessageSize = 64L * 1024 * 1024;
 });
 
 builder.Services.AddOpenApi(options =>
@@ -99,6 +106,9 @@ builder.Services.AddHostedService<KrintStartupCheck>();
 builder.Services.AddKrintHealthChecks();
 // Unhandled exceptions become RFC 9457 problem details (no stack trace) instead of an empty 500.
 builder.Services.AddProblemDetails();
+// Not-found / bad-request / conflict exceptions map to 404 / 400 / 409 in one place, so
+// controllers don't each repeat the same try/catch.
+builder.Services.AddExceptionHandler<KrintExceptionHandler>();
 
 builder.Services.AddDocker(builder.Configuration);
 
@@ -161,6 +171,8 @@ builder.Services.AddRateLimiter(options =>
                 PermitLimit = 120,
                 Window = TimeSpan.FromMinutes(1),
             }));
+    // Local login's browser session endpoints: strict, since /login takes a password.
+    options.AddPolicy(LocalLoginSession.RateLimitPolicy, LocalLoginSession.Partition);
 });
 
 var app = builder.Build();
@@ -181,8 +193,9 @@ if (builder.Configuration.GetValue("Krint:TrustForwardedHeaders", false))
     app.UseForwardedHeaders(forwarded);
 }
 
-if (!app.Environment.IsDevelopment())
-    app.UseExceptionHandler();
+// Always on: KrintExceptionHandler turns expected failures into 4xx in development too, where
+// they would otherwise show as the developer exception page with a 500.
+app.UseExceptionHandler();
 
 app.UseSecurityHeaders(builder.Configuration["Oidc:Authority"]);
 
@@ -225,24 +238,6 @@ app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Surface node-routing failures as clean 4xx instead of opaque 500s: an offline node is a transient
-// conflict; an unsupported-on-node operation is a bad request. Hubs handle their own errors, so this
-// only ever fires for controller calls (response not yet started).
-app.Use(async (context, next) =>
-{
-    try { await next(); }
-    catch (NodeOfflineException ex) when (!context.Response.HasStarted)
-    {
-        context.Response.StatusCode = StatusCodes.Status409Conflict;
-        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
-    catch (NotSupportedException ex) when (!context.Response.HasStarted)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
-    }
-});
 
 app.MapControllers();
 app.MapKrintHealth();

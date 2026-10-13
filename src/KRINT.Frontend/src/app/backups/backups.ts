@@ -227,13 +227,18 @@ import { BackupScheduleDialogService } from './backup-schedule-dialog';
                         }
                       </td>
                       <td hlmTableCell class="font-mono text-xs">{{ instanceNameFor(s.instanceId) }}</td>
-                      <td hlmTableCell class="text-sm">{{ s.description }}</td>
+                      <td hlmTableCell class="text-sm">
+                        {{ s.description }}
+                        @if (s.keepLast) {
+                          <span class="text-muted-foreground block text-xs">Keeps the last {{ s.keepLast }}</span>
+                        }
+                      </td>
                       <td hlmTableCell class="font-mono text-xs">{{ s.cronExpression }}</td>
                       <td hlmTableCell class="text-muted-foreground font-mono text-xs">
-                        {{ s.nextRunAt ? (s.nextRunAt | date: 'yyyy-MM-dd HH:mm') + ' UTC' : ' - ' }}
+                        {{ s.nextRunAt ? (s.nextRunAt | date: 'yyyy-MM-dd HH:mm' : 'UTC') + ' UTC' : ' - ' }}
                       </td>
                       <td hlmTableCell class="text-muted-foreground font-mono text-xs">
-                        {{ s.lastRunAt ? (s.lastRunAt | date: 'yyyy-MM-dd HH:mm') + ' UTC' : 'never' }}
+                        {{ s.lastRunAt ? (s.lastRunAt | date: 'yyyy-MM-dd HH:mm' : 'UTC') + ' UTC' : 'never' }}
                       </td>
                       <td hlmTableCell class="text-right">
                         <div class="flex items-center justify-end gap-1">

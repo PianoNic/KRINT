@@ -64,7 +64,7 @@ namespace KRINT.API.Nodes
         public async Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default)
         {
             using var buffer = new MemoryStream();
-            await ExecToStreamAsync(containerId, command, buffer, cancellationToken);
+            await ExecToStreamAsync(containerId, command, buffer, Timeout.InfiniteTimeSpan, cancellationToken);
             return buffer.ToArray();
         }
 
@@ -79,7 +79,7 @@ namespace KRINT.API.Nodes
         /// the destination with backpressure. Completes once every byte is written; throws the node's
         /// exec error (non-zero exit + stderr) otherwise. Map a future stream-based
         /// <see cref="IDockerService"/> capture method onto this.</summary>
-        public async Task ExecToStreamAsync(string containerId, IList<string> command, Stream destination, CancellationToken cancellationToken = default)
+        public async Task ExecToStreamAsync(string containerId, IList<string> command, Stream destination, TimeSpan timeout, CancellationToken cancellationToken = default)
         {
             var node = StreamingNode("streamed backups");
             var (transferId, transfer) = relay.Transfers.Open(nodeId, NodeTransferDirection.Upload, destination, cancellationToken);
@@ -97,7 +97,7 @@ namespace KRINT.API.Nodes
         /// <summary>Runs <paramref name="command"/> on the node with <paramref name="stdin"/> as its
         /// input. The node GETs <c>/api/nodes/transfers/{id}</c> and the control plane copies the
         /// stream to it chunk by chunk, so the restore input is never buffered here.</summary>
-        public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default)
+        public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
         {
             var node = StreamingNode("streamed restores");
             var (transferId, transfer) = relay.Transfers.Open(nodeId, NodeTransferDirection.Download, stdin, cancellationToken);

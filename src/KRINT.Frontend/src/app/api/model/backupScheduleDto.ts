@@ -19,6 +19,7 @@ export interface BackupScheduleDto {
     lastStatus?: string | null;
     lastError?: string | null;
     nextRunAt?: string | null;
+    keepLast?: number | null;
     createdAt: string;
 }
 

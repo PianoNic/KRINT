@@ -63,24 +63,21 @@ namespace KRINT.Application.Command.Database
             var databaseName = ResolveDatabaseName(spec, command.DatabaseName);
 
             // Resolve selected plugins. DockerImageSwap replaces the image; EnvFlag appends env;
-            // PgExtension / ContainerExec are applied later after readiness.
-            var selectedPlugins = ResolvePlugins(command.Plugins);
+            // PgExtension / ContainerExec are applied later after readiness. Two image swaps (or a
+            // plugin the engine doesn't offer) are rejected here, before anything is pulled.
+            var selectedPlugins = InstanceContainerBuilder.ResolvePlugins(command.Plugins);
+            InstanceContainerBuilder.RequireSupportedByEngine(command.Engine, selectedPlugins);
+            var enablesVector = string.Equals(command.Engine, "pgvector", StringComparison.OrdinalIgnoreCase)
+                || selectedPlugins.Any(p => string.Equals(p.Key, "vector", StringComparison.OrdinalIgnoreCase));
 
             // Plugins/engines that need a direct SQL connection from the control plane to install
             // (pgvector's CREATE EXTENSION, PgExtension plugins) can't run against a node-hosted DB
             // yet - the control plane has no socket to it. Block them clearly rather than half-provision.
             if (command.NodeId is not null &&
-                (string.Equals(command.Engine, "pgvector", StringComparison.OrdinalIgnoreCase) ||
-                 selectedPlugins.Any(p => p.InstallMode == PluginInstallMode.PgExtension)))
+                (enablesVector || selectedPlugins.Any(p => p.InstallMode == PluginInstallMode.PgExtension)))
             {
                 throw new NotSupportedException("pgvector and Postgres-extension plugins are not supported on remote nodes yet.");
             }
-
-            var imageOverride = selectedPlugins.FirstOrDefault(p => p.InstallMode == PluginInstallMode.DockerImageSwap)?.Payload;
-            var extraEnv = selectedPlugins
-                .Where(p => p.InstallMode == PluginInstallMode.EnvFlag)
-                .Select(p => p.Payload)
-                .ToList();
 
             var instanceId = Guid.NewGuid();
             var instanceIdShort = instanceId.ToString("N")[..8];
@@ -92,6 +89,8 @@ namespace KRINT.Application.Command.Database
             if (!string.IsNullOrEmpty(command.Password))
             {
                 KRINT.Infrastructure.Services.SafePasswordGuard.Require(command.Password);
+                if (string.Equals(command.Engine, "mssql", StringComparison.OrdinalIgnoreCase))
+                    RequireMsSqlPasswordComplexity(command.Password);
                 password = command.Password;
             }
             else
@@ -99,45 +98,14 @@ namespace KRINT.Application.Command.Database
                 password = secretGenerator.Generate();
             }
 
-            var imageName = imageOverride ?? spec.Image;
-            // pgvector/pgvector publishes tags as pg<major> (pg15..pg18), not as the upstream
-            // Postgres tag (e.g. 18.4). When the swap is active, translate the picked Postgres
-            // version to the matching pgvector tag - otherwise the pull 404s.
-            var imageTag = imageOverride == "pgvector/pgvector"
-                ? PgVectorTagFor(command.Version)
-                : command.Version;
-            command.Progress?.Report($"Pulling image {imageName}:{imageTag} (first time can take a while)");
-            await docker.PullImageAsync(imageName, imageTag, cancellationToken);
+            var (imageName, imageTag) = InstanceContainerBuilder.ResolveImage(command.Engine, command.Version, selectedPlugins);
 
-            var hostPort = await AllocateHostPortAsync(command.Engine, command.NodeId, docker, cancellationToken);
-
-            var env = BuildEnv(command.Engine, password, databaseName, spec.DefaultDatabase);
-            env.AddRange(extraEnv);
-
-            var createParams = new CreateContainerParameters
-            {
-                Image = $"{imageName}:{imageTag}",
-                Name = containerName,
-                Env = env,
-                Cmd = spec.CmdFactory?.Invoke(password),
-                ExposedPorts = new Dictionary<string, EmptyStruct>
-                {
-                    [$"{spec.InternalPort}/tcp"] = default,
-                },
-                HostConfig = new HostConfig
-                {
-                    PortBindings = new Dictionary<string, IList<PortBinding>>
-                    {
-                        // Leaving HostIP unset is Docker's default and binds to 0.0.0.0
-                        // (visible on the LAN). "127.0.0.1" restricts to loopback. Node-hosted
-                        // containers are always loopback-only - nothing connects to a node directly.
-                        [$"{spec.InternalPort}/tcp"] = new List<PortBinding> { new() { HostPort = hostPort.ToString(), HostIP = command.NodeId is not null || !command.IsPublic ? "127.0.0.1" : "" } },
-                    },
-                    Binds = new List<string> { bindSpec },
-                    RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
-                },
-                Labels = Containers.KrintContainerLabels.For(command.Engine, instanceId, command.DisplayName),
-            };
+            // Reserve a host port before the (possibly long) image pull so a parallel create on the
+            // same node+engine can't pick the same one. The reservation is held until this handler
+            // finishes; by then the instance row (or nothing) records the port.
+            var portKey = PortKey(command.NodeId, command.Engine);
+            var triedPorts = new HashSet<int>();
+            var hostPort = await ReserveHostPortAsync(command.Engine, command.NodeId, docker, triedPorts, cancellationToken);
 
             // From here on, any exception means we may own a half-provisioned container that the
             // caller never sees. Track success and clean up in a finally, otherwise stale
@@ -148,9 +116,36 @@ namespace KRINT.Application.Command.Database
             Docker.DotNet.Models.CreateContainerResponse? createResult = null;
             try
             {
-                command.Progress?.Report($"Starting container {containerName} on port {hostPort}");
-                createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
-                await docker.StartContainerAsync(createResult.ID, cancellationToken);
+                await InstanceContainerBuilder.EnsureImageAsync(docker, imageName, imageTag, command.Progress, cancellationToken);
+
+                // Another process (or a container KRINT can't see yet) can still grab the port
+                // between reservation and start. Docker then refuses with "port is already
+                // allocated" - skip that port and try the next one, a bounded number of times.
+                for (var attempt = 1; ; attempt++)
+                {
+                    var createParams = InstanceContainerBuilder.Build(new InstanceContainerSpec(
+                        command.Engine, command.Version, instanceId, command.DisplayName, containerName, password, databaseName,
+                        selectedPlugins, hostPort,
+                        // Node-hosted containers are always loopback-only - nothing connects to a node directly.
+                        LoopbackOnly: command.NodeId is not null || !command.IsPublic,
+                        bindSpec));
+
+                    command.Progress?.Report($"Starting container {containerName} on port {hostPort}");
+                    createResult = await docker.CreateContainerAsync(createParams, cancellationToken);
+                    try
+                    {
+                        await docker.StartContainerAsync(createResult.ID, cancellationToken);
+                        break;
+                    }
+                    catch (Exception ex) when (attempt < MaxPortAttempts && IsPortInUse(ex) && !cancellationToken.IsCancellationRequested)
+                    {
+                        try { await docker.RemoveContainerAsync(createResult.ID, force: true, CancellationToken.None); } catch { }
+                        createResult = null;
+                        ReleasePort(portKey, hostPort);
+                        hostPort = await ReserveHostPortAsync(command.Engine, command.NodeId, docker, triedPorts, cancellationToken);
+                    }
+                }
+
                 await vault.StoreAsync(ConnectionStringBuilder.VaultKeyFor(containerName), password, cancellationToken);
 
                 // Some engines don't create the default database from a container env var (unlike
@@ -209,8 +204,9 @@ namespace KRINT.Application.Command.Database
                     await innerDbs.Resolve(command.Engine).CreateAsync(readinessTarget, databaseName, cancellationToken);
                 }
 
-                // pgvector engine entry: enable the extension once the container accepts connections.
-                if (string.Equals(command.Engine, "pgvector", StringComparison.OrdinalIgnoreCase))
+                // pgvector engine entry or the vector plugin: the image only ships the extension,
+                // enable it once the container accepts connections.
+                if (enablesVector)
                 {
                     await RunPgInitSqlAsync(readinessTarget, "CREATE EXTENSION IF NOT EXISTS vector", cancellationToken);
                 }
@@ -246,11 +242,16 @@ namespace KRINT.Application.Command.Database
                     DatabaseName = databaseName,
                     IsPublic = command.IsPublic,
                     NodeId = command.NodeId,
+                    Plugins = InstanceContainerBuilder.SerializePluginKeys(selectedPlugins),
+                    StorageBind = bindSpec,
                 };
                 db.DatabaseInstances.Add(instance);
                 await db.SaveChangesAsync(cancellationToken);
+                // The row is committed: the container is now owned by it and must survive whatever
+                // happens below, including the caller going away. Nothing after this point cancels.
+                provisionedOk = true;
 
-                await activity.LogAsync("instance.create", containerName, instance.Id, command.Engine, $"version={command.Version}, port={hostPort}", cancellationToken);
+                await activity.LogAsync("instance.create", containerName, instance.Id, command.Engine, $"version={command.Version}, port={hostPort}", CancellationToken.None);
 
                 var connectionString = ConnectionStringBuilder.Build(command.Engine, instance.Host, hostPort, instance.Username, password, instance.DatabaseName);
 
@@ -261,7 +262,7 @@ namespace KRINT.Application.Command.Database
                 IEnumerable<string>? networks = null;
                 try
                 {
-                    var inspect = await docker.InspectContainerAsync(createResult.ID, cancellationToken);
+                    var inspect = await docker.InspectContainerAsync(createResult.ID, CancellationToken.None);
                     networks = inspect.NetworkSettings?.Networks?.Keys.ToList();
                 }
                 catch
@@ -271,14 +272,14 @@ namespace KRINT.Application.Command.Database
                 }
 
                 var nodeName = command.NodeId is { } createdOnNodeId
-                    ? await db.Nodes.Where(n => n.Id == createdOnNodeId).Select(n => n.Name).FirstOrDefaultAsync(cancellationToken)
+                    ? await db.Nodes.Where(n => n.Id == createdOnNodeId).Select(n => n.Name).FirstOrDefaultAsync(CancellationToken.None)
                     : null;
 
-                provisionedOk = true;
                 return instance.ToProvisionedDto(password, connectionString, nodeName, networks);
             }
             finally
             {
+                ReleasePort(portKey, hostPort);
                 if (!provisionedOk)
                 {
                     // Tear down the container + vault entry + (if HostFolder mode) the data dir
@@ -563,17 +564,17 @@ namespace KRINT.Application.Command.Database
             }
         }
 
-        private static IReadOnlyList<EnginePluginDto> ResolvePlugins(IReadOnlyList<string>? keys)
+        /// <summary>SQL Server refuses to start when the SA password misses its policy: at least 8
+        /// characters from 3 of the 4 classes upper, lower, digit, symbol. Checked up front so a
+        /// weak custom password fails fast instead of after an image pull and a readiness timeout.</summary>
+        internal static void RequireMsSqlPasswordComplexity(string password)
         {
-            if (keys is null || keys.Count == 0) return Array.Empty<EnginePluginDto>();
-            var catalog = GetSupportedDatabasesQueryHandler.AllPluginsByKey;
-            var result = new List<EnginePluginDto>();
-            foreach (var key in keys.Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                if (catalog.TryGetValue(key, out var plugin)) result.Add(plugin);
-                // Unknown keys are silently dropped - the FE only exposes catalog plugins.
-            }
-            return result;
+            var classes = (password.Any(char.IsUpper) ? 1 : 0)
+                + (password.Any(char.IsLower) ? 1 : 0)
+                + (password.Any(char.IsDigit) ? 1 : 0)
+                + (password.Any(c => !char.IsLetterOrDigit(c)) ? 1 : 0);
+            if (password.Length < 8 || classes < 3)
+                throw new ArgumentException("SQL Server passwords need at least 8 characters and three of: uppercase, lowercase, digits, symbols.");
         }
 
         private static async Task RunPgInitSqlAsync(InnerDatabaseTarget target, string sql, CancellationToken cancellationToken)
@@ -594,28 +595,78 @@ namespace KRINT.Application.Command.Database
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        private async Task<int> AllocateHostPortAsync(string engine, Guid? nodeId, IDockerService docker, CancellationToken cancellationToken)
+        private const int MaxPortAttempts = 5;
+
+        // Ports handed out to creates that haven't recorded their instance row yet, per (node, engine).
+        // Guarded by the matching semaphore so two parallel creates can't pick the same free port.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> PortLocks = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<int>> ReservedPorts = new();
+
+        private static string PortKey(Guid? nodeId, string engine) => $"{nodeId?.ToString() ?? "local"}:{engine}";
+
+        private static void ReleasePort(string key, int port)
+        {
+            if (!ReservedPorts.TryGetValue(key, out var reserved)) return;
+            lock (reserved) reserved.Remove(port);
+        }
+
+        /// <summary>Docker's wording when a published port is taken: "port is already allocated"
+        /// (another container), "address already in use" (a host process, Linux) or the Windows
+        /// socket error. Remote nodes relay the same message text.</summary>
+        private static bool IsPortInUse(Exception ex)
+        {
+            for (var e = ex; e is not null; e = e.InnerException)
+            {
+                var m = e.Message;
+                if (m.Contains("port is already allocated", StringComparison.OrdinalIgnoreCase)
+                    || m.Contains("address already in use", StringComparison.OrdinalIgnoreCase)
+                    || m.Contains("Only one usage of each socket address", StringComparison.OrdinalIgnoreCase)
+                    || m.Contains("ports are not available", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>Picks the first free port of the engine's range on the target host and reserves
+        /// it. Serialized per (node, engine); <paramref name="tried"/> collects ports that already
+        /// failed to bind so a retry moves on.</summary>
+        private async Task<int> ReserveHostPortAsync(string engine, Guid? nodeId, IDockerService docker, HashSet<int> tried, CancellationToken cancellationToken)
         {
             var range = _options.GetPortRange(engine);
+            var key = PortKey(nodeId, engine);
+            var gate = PortLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+            var reserved = ReservedPorts.GetOrAdd(key, _ => new HashSet<int>());
 
-            // 1) Ports KRINT already recorded as in-use for this engine on the same target (port
-            //    ranges are per-host, so two different nodes can reuse the same range independently).
-            var usedInDb = await db.DatabaseInstances
-                .Where(d => d.Engine == engine && d.NodeId == nodeId && d.Port >= range.Start && d.Port <= range.End)
-                .Select(d => d.Port)
-                .ToHashSetAsync(cancellationToken);
-
-            // 2) Ports actually published by any container on the target Docker host - covers orphans
-            //    left over from a wiped krint DB, prior deploys, or anything else binding a port
-            //    in the configured range. The resolved docker service queries the local daemon or the
-            //    node's, matching where this instance will be created.
-            var dockerPorts = await GetPublishedHostPortsAsync(docker, cancellationToken);
-
-            for (var port = range.Start; port <= range.End; port++)
+            await gate.WaitAsync(cancellationToken);
+            try
             {
-                if (usedInDb.Contains(port)) continue;
-                if (dockerPorts.Contains(port)) continue;
-                return port;
+                // 1) Ports KRINT already recorded as in-use for this engine on the same target (port
+                //    ranges are per-host, so two different nodes can reuse the same range independently).
+                var usedInDb = await db.DatabaseInstances
+                    .Where(d => d.Engine == engine && d.NodeId == nodeId && d.Port >= range.Start && d.Port <= range.End)
+                    .Select(d => d.Port)
+                    .ToHashSetAsync(cancellationToken);
+
+                // 2) Ports actually published by any container on the target Docker host - covers orphans
+                //    left over from a wiped krint DB, prior deploys, or anything else binding a port
+                //    in the configured range. The resolved docker service queries the local daemon or the
+                //    node's, matching where this instance will be created.
+                var dockerPorts = await GetPublishedHostPortsAsync(docker, cancellationToken);
+
+                lock (reserved)
+                {
+                    for (var port = range.Start; port <= range.End; port++)
+                    {
+                        if (usedInDb.Contains(port) || dockerPorts.Contains(port) || reserved.Contains(port) || tried.Contains(port)) continue;
+                        reserved.Add(port);
+                        tried.Add(port);
+                        return port;
+                    }
+                }
+            }
+            finally
+            {
+                gate.Release();
             }
 
             throw new InvalidOperationException($"No free host port in range {range.Start}-{range.End} for engine '{engine}'.");

@@ -91,6 +91,29 @@ namespace KRINT.Infrastructure.Services
                 cancellationToken: cancellationToken);
         }
 
+        public async Task<bool> ImageExistsAsync(string image, string tag, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await client.Images.InspectImageAsync($"{image}:{tag}", cancellationToken);
+                return true;
+            }
+            catch (DockerApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return false;
+            }
+        }
+
+        public Task RenameContainerAsync(string id, string newName, CancellationToken cancellationToken = default)
+        {
+            return client.Containers.RenameContainerAsync(id, new ContainerRenameParameters { NewName = newName }, cancellationToken);
+        }
+
+        public Task ConnectNetworkAsync(string network, string containerId, CancellationToken cancellationToken = default)
+        {
+            return client.Networks.ConnectNetworkAsync(network, new NetworkConnectParameters { Container = containerId }, cancellationToken);
+        }
+
         public async Task<CreateContainerResponse> CreateContainerAsync(CreateContainerParameters parameters, CancellationToken cancellationToken = default)
         {
             var result = await client.Containers.CreateContainerAsync(parameters, cancellationToken);
@@ -190,10 +213,137 @@ namespace KRINT.Infrastructure.Services
 
         public async Task<byte[]> ExecCaptureAsync(string containerId, IList<string> command, CancellationToken cancellationToken = default)
         {
-            // Cap any single exec at 2 minutes. Without this a stuck pg_dump/mysqldump call would
-            // hang the request forever because MultiplexedStream.ReadOutputToEndAsync only returns
-            // when the server closes the stream.
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            using var stdout = new MemoryStream();
+            await ExecCoreAsync(containerId, command, stdout, ExecTimeouts.Default, pidFile: null, cancellationToken);
+            return stdout.ToArray();
+        }
+
+        public async Task ExecToStreamAsync(string containerId, IList<string> command, Stream stdout, TimeSpan timeout, CancellationToken cancellationToken = default)
+        {
+            if (!ExecScripts.IsShellCommand(command))
+            {
+                await ExecCoreAsync(containerId, command, stdout, timeout, pidFile: null, cancellationToken);
+                return;
+            }
+
+            var pidFile = $"/tmp/krint-exec-{Guid.NewGuid():N}.pid";
+            var rewritten = command.ToList();
+            rewritten[2] = ExecScripts.WithPidFile(command[2], pidFile);
+            try
+            {
+                await ExecCoreAsync(containerId, rewritten, stdout, timeout, pidFile, cancellationToken);
+            }
+            finally
+            {
+                await TryRemoveAsync(containerId, pidFile);
+            }
+        }
+
+        public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+        {
+            // The MultiplexedStream stdin path doesn't half-close reliably (pg_restore / mysql
+            // hang forever waiting on EOF). Sidestep it: push the input as a tar to /tmp inside
+            // the container, then rerun the script with stdin redirected from that file.
+            // Requires the caller to invoke the actual work via a shell (bash/sh -c "..." [args]),
+            // which every existing IBackupService.RestoreAsync does. Anything after the script is
+            // positional argv ($0, $1, ...) and is passed through untouched.
+            if (!ExecScripts.IsShellCommand(command))
+            {
+                throw new InvalidOperationException("ExecWithStdinAsync requires a [shell, -c, script, args...] command so the input can be redirected from a temp file.");
+            }
+
+            var limit = timeout ?? ExecTimeouts.LongRunning;
+            var started = DateTime.UtcNow;
+
+            var id = Guid.NewGuid().ToString("N");
+            var tmpName = $"krint-input-{id}.bin";
+            var tmpPath = $"/tmp/{tmpName}";
+            var pidFile = $"/tmp/krint-exec-{id}.pid";
+
+            try
+            {
+                using (var stageTimeout = new CancellationTokenSource(limit))
+                using (var stageCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stageTimeout.Token))
+                {
+                    try
+                    {
+                        await StageFileAsync(containerId, tmpName, stdin, stageCts.Token);
+                    }
+                    catch (OperationCanceledException) when (stageTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                    {
+                        throw new TimeoutException($"Uploading the input into {containerId} exceeded {Describe(limit)}.");
+                    }
+                }
+
+                // The whole script reads the staged file, e.g.
+                //   bash -c "cat > x && restore x" -> bash -c "{ cat > x && restore x\n} < /tmp/krint-input-xxx.bin"
+                var rewritten = command.ToList();
+                rewritten[2] = ExecScripts.WithPidFile(ExecScripts.RedirectStdin(command[2], tmpPath), pidFile);
+
+                var remaining = limit - (DateTime.UtcNow - started);
+                if (remaining <= TimeSpan.Zero)
+                    throw new TimeoutException($"docker exec on {containerId} exceeded {Describe(limit)} (command: {command.FirstOrDefault()}).");
+                await ExecCoreAsync(containerId, rewritten, Stream.Null, remaining, pidFile, cancellationToken);
+            }
+            finally
+            {
+                await TryRemoveAsync(containerId, tmpPath, pidFile);
+            }
+        }
+
+        // Writes the input as a single-entry tar into a host temp file (not memory: dumps can be
+        // gigabytes) and has the daemon extract it into /tmp. PAX lifts ustar's 8 GiB entry cap.
+        private async Task StageFileAsync(string containerId, string tmpName, Stream input, CancellationToken ct)
+        {
+            string? copyPath = null;
+            var tarPath = Path.GetTempFileName();
+            Stream data = input;
+            try
+            {
+                // TarWriter needs the entry length up front, i.e. a seekable stream read from 0.
+                if (!input.CanSeek || input.Position != 0)
+                {
+                    copyPath = Path.GetTempFileName();
+                    data = new FileStream(copyPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.Asynchronous);
+                    await input.CopyToAsync(data, 81920, ct);
+                    data.Position = 0;
+                }
+
+                await using var tar = new FileStream(tarPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.Asynchronous);
+                await using (var writer = new TarWriter(tar, TarEntryFormat.Pax, leaveOpen: true))
+                {
+                    // The archive is extracted by the daemon as root, so the file lands owned by root.
+                    // The shell that reads it runs as the image's user - "mssql" for SQL Server, root
+                    // for most others - so it has to be world-readable or the restore dies with
+                    // "Permission denied" before the engine ever sees the dump.
+                    var entry = new PaxTarEntry(TarEntryType.RegularFile, tmpName)
+                    {
+                        Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead,
+                        DataStream = data,
+                    };
+                    await writer.WriteEntryAsync(entry, ct);
+                }
+                tar.Position = 0;
+
+                await client.Containers.ExtractArchiveToContainerAsync(
+                    containerId,
+                    new ContainerPathStatParameters { Path = "/tmp", AllowOverwriteDirWithFile = false },
+                    tar, ct);
+            }
+            finally
+            {
+                if (copyPath is not null)
+                {
+                    await data.DisposeAsync();
+                    TryDeleteLocal(copyPath);
+                }
+                TryDeleteLocal(tarPath);
+            }
+        }
+
+        private async Task ExecCoreAsync(string containerId, IList<string> command, Stream stdout, TimeSpan timeout, string? pidFile, CancellationToken cancellationToken)
+        {
+            using var timeoutCts = new CancellationTokenSource(timeout);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             var ct = linkedCts.Token;
 
@@ -204,94 +354,58 @@ namespace KRINT.Infrastructure.Services
                 AttachStderr = true,
             }, ct);
 
-            using var stream = await client.Exec.StartAndAttachContainerExecAsync(exec.ID, tty: false, ct);
-
-            // Read directly from the multiplexed stream into MemoryStreams. This avoids
-            // ReadOutputToEndAsync's habit of occasionally not returning on subsequent execs
-            // against the same container (observed against postgres after a restore+backup pair).
-            using var stdout = new MemoryStream();
+            // Read directly from the multiplexed stream. This avoids ReadOutputToEndAsync's habit
+            // of occasionally not returning on subsequent execs against the same container
+            // (observed against postgres after a restore+backup pair).
             using var stderr = new MemoryStream();
             try
             {
+                using var stream = await client.Exec.StartAndAttachContainerExecAsync(exec.ID, tty: false, ct);
                 await stream.CopyOutputToAsync(null, stdout, stderr, ct);
             }
-            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
             {
-                // Only the program name: the argv may carry credentials, and this text reaches
-                // logs, the schedule's LastError column and the UI.
-                throw new TimeoutException($"docker exec on {containerId} exceeded 2 minutes (command: {command.FirstOrDefault()}).");
+                // Dropping the attached stream does not stop the process inside the container; a
+                // restore would keep running against the database. Kill it where we know its pid.
+                if (pidFile is not null) await TryKillAsync(containerId, pidFile);
+                if (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                {
+                    // Only the program name: the argv may carry credentials, and this text reaches
+                    // logs, the schedule's LastError column and the UI.
+                    throw new TimeoutException($"docker exec on {containerId} exceeded {Describe(timeout)} (command: {command.FirstOrDefault()}).");
+                }
+                throw;
             }
 
             var inspect = await client.Exec.InspectContainerExecAsync(exec.ID, ct);
             if (inspect.ExitCode != 0)
             {
-                var stderrText = System.Text.Encoding.UTF8.GetString(stderr.ToArray());
+                // Keep the tail: the useful error is at the end and stderr can be chatty.
+                var bytes = stderr.ToArray();
+                var start = Math.Max(0, bytes.Length - 8192);
+                var stderrText = System.Text.Encoding.UTF8.GetString(bytes, start, bytes.Length - start);
                 throw new InvalidOperationException($"exec exited with code {inspect.ExitCode}: {stderrText}");
             }
-            return stdout.ToArray();
         }
 
-        public async Task ExecWithStdinAsync(string containerId, IList<string> command, Stream stdin, CancellationToken cancellationToken = default)
+        private async Task TryKillAsync(string containerId, string pidFile)
         {
-            // The MultiplexedStream stdin path doesn't half-close reliably (pg_restore / mysql
-            // hang forever waiting on EOF). Sidestep it: push the input as a tar to /tmp inside
-            // the container, then rerun the command with stdin redirected from that file.
-            // Requires the caller to invoke the actual work via a shell (bash/sh -c "..." [args]),
-            // which every existing IBackupService.RestoreAsync does. Anything after the script is
-            // positional argv ($0, $1, ...) and is passed through untouched.
-            if (command.Count < 3 || command[1] != "-c" || (command[0] != "bash" && command[0] != "sh"))
-            {
-                throw new InvalidOperationException("ExecWithStdinAsync requires a [shell, -c, script, args...] command so the input can be redirected from a temp file.");
-            }
-
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-            var ct = linkedCts.Token;
-
-            var tmpName = $"krint-input-{Guid.NewGuid():N}.bin";
-            var tmpPath = $"/tmp/{tmpName}";
-
-            // Read all of stdin into memory (the dumps are bounded by what fits comfortably;
-            // streaming directly would re-introduce the original hang). Then tar it.
-            using var dumpCopy = new MemoryStream();
-            await stdin.CopyToAsync(dumpCopy, 81920, ct);
-            dumpCopy.Position = 0;
-
-            using var tar = new MemoryStream();
-            await using (var writer = new TarWriter(tar, TarEntryFormat.Ustar, leaveOpen: true))
-            {
-                // The archive is extracted by the daemon as root, so the file lands owned by root.
-                // The shell that reads it runs as the image's user - "mssql" for SQL Server, root
-                // for most others - so it has to be world-readable or the restore dies with
-                // "Permission denied" before the engine ever sees the dump.
-                var entry = new UstarTarEntry(TarEntryType.RegularFile, tmpName)
-                {
-                    Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead,
-                    DataStream = dumpCopy,
-                };
-                await writer.WriteEntryAsync(entry, ct);
-            }
-            tar.Position = 0;
-
-            await client.Containers.ExtractArchiveToContainerAsync(
-                containerId,
-                new ContainerPathStatParameters { Path = "/tmp", AllowOverwriteDirWithFile = false },
-                tar, ct);
-
-            // Rewrite the script to redirect stdin from the staged file. e.g.
-            //   bash -c "pg_restore ..." -> bash -c "pg_restore ... < /tmp/krint-input-xxx.bin"
-            var rewritten = command.ToList();
-            rewritten[2] = command[2] + " < " + tmpPath;
-
-            try
-            {
-                await ExecCaptureAsync(containerId, rewritten, ct);
-            }
-            finally
-            {
-                try { await ExecCaptureAsync(containerId, new[] { "rm", "-f", tmpPath }, CancellationToken.None); }
-                catch { /* best-effort cleanup */ }
-            }
+            try { await ExecCaptureAsync(containerId, new[] { "sh", "-c", ExecScripts.KillTreeScript, "krint", pidFile }, CancellationToken.None); }
+            catch { /* best effort - the container may be gone or have no /proc */ }
         }
+
+        private async Task TryRemoveAsync(string containerId, params string[] paths)
+        {
+            try { await ExecCaptureAsync(containerId, new[] { "rm", "-f" }.Concat(paths).ToList(), CancellationToken.None); }
+            catch { /* best-effort cleanup */ }
+        }
+
+        private static void TryDeleteLocal(string path)
+        {
+            try { File.Delete(path); } catch { /* temp dir cleanup picks it up */ }
+        }
+
+        private static string Describe(TimeSpan timeout)
+            => timeout.TotalMinutes >= 1 ? $"{timeout.TotalMinutes:0.#} minutes" : $"{timeout.TotalSeconds:0} seconds";
     }
 }
