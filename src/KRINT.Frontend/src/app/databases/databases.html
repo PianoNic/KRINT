@@ -170,6 +170,12 @@
 
                   <ng-template #rowMenu>
                     <hlm-dropdown-menu class="min-w-40">
+                      @if (canCreateApp(db)) {
+                        <button hlmDropdownMenuItem (click)="newAppDatabase(db)">
+                          <ng-icon name="lucidePlus" />
+                          New app {{ appCapable().get(db.engine)?.term }}
+                        </button>
+                      }
                       <button hlmDropdownMenuItem (click)="editInstance(db)">
                         <ng-icon name="lucidePencil" />
                         Edit
