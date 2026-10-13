@@ -71,11 +71,15 @@ pub fn run() {
                 // previous file so a crash from earlier in the day is still readable.
                 .max_file_size(4_000_000)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
-                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout))
-                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview))
-                .target(tauri_plugin_log::Target::new(
-                    tauri_plugin_log::TargetKind::LogDir { file_name: Some("krint".into()) },
-                ))
+                // `targets` replaces the plugin's default Stdout + LogDir pair; adding to it with
+                // `target` wrote every line twice (KRINT.log and krint.log are one file on Windows).
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("krint".into()),
+                    }),
+                ])
                 .build(),
         )
         .plugin(tauri_plugin_shell::init())

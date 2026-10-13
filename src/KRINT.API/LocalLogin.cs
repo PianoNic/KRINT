@@ -72,8 +72,28 @@ namespace KRINT.API
 
         public static void MapKrintLocalLogin(this WebApplication app)
         {
+            // The desktop shell signs in with a password it keeps in its own app-data dir. Changing
+            // or resetting it from inside KRINT would lock the desktop user out on the next launch,
+            // so the password endpoints refuse in desktop mode (the UI hides them as well).
+            if (DesktopShell.IsEnabled(app.Configuration))
+            {
+                app.Use(async (context, next) =>
+                {
+                    if (HttpMethods.IsPost(context.Request.Method)
+                        && context.Request.Path.StartsWithSegments("/auth/password", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                        await context.Response.WriteAsJsonAsync(new { error = DesktopPasswordManagedMessage });
+                        return;
+                    }
+                    await next();
+                });
+            }
             app.MapToamaisutaaPasswordEndpoints();
         }
+
+        public const string DesktopPasswordManagedMessage =
+            "The desktop account's password is managed by the desktop app and cannot be changed here.";
 
         /// <summary>
         /// Creates the first account when the user table is empty. The name and password come
