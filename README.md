@@ -10,6 +10,7 @@
   <a href="https://docs.krint.pianonic.ch/self-host"><img src="https://img.shields.io/badge/Self--Host-Instructions-0d1117.svg" alt="Self-hosting" /></a>
   <img src="https://img.shields.io/badge/.NET-10-0d1117.svg" alt=".NET 10" />
   <img src="https://img.shields.io/badge/Angular-21-0d1117.svg" alt="Angular 21" />
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-0d1117.svg" alt="PolyForm Noncommercial" /></a>
 </p>
 
 ---
@@ -96,9 +97,9 @@ Full documentation: **[docs.krint.pianonic.ch](https://docs.krint.pianonic.ch)**
 
 </details>
 
-## License
+## Licence
 
-TBD.
+[PolyForm Noncommercial 1.0.0](LICENSE.md).
 
 ---
 
