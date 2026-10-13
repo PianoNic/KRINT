@@ -18,6 +18,10 @@ namespace KRINT.API.Nodes
         ILogger<NodeAgentHostedService> logger) : IHostedService, IAsyncDisposable
     {
         private HubConnection? _connection;
+        // Moves backup/restore dumps to and from the control plane's /api/nodes/transfers endpoint.
+        private HttpClient? _transferClient;
+        // Cap for one streamed dump exec; a dump the size these are meant for takes minutes, not hours.
+        private static readonly TimeSpan TransferExecTimeout = TimeSpan.FromMinutes(60);
         private readonly CancellationTokenSource _shutdown = new();
         private string _nodeId = "";
         // Active log follows started by the control plane, so StopLogStream can cancel them.
@@ -56,6 +60,14 @@ namespace KRINT.API.Nodes
                 .WithUrl(hubUrl, options => options.Headers.Add(Infrastructure.Services.NodeTokenHasher.HeaderName, token))
                 .WithAutomaticReconnect()
                 .Build();
+
+            _transferClient = new HttpClient
+            {
+                BaseAddress = new Uri($"{controlPlaneUrl.TrimEnd('/')}/"),
+                // Dumps can take a while; the exec has its own cap (TransferExecTimeout).
+                Timeout = Timeout.InfiniteTimeSpan,
+            };
+            _transferClient.DefaultRequestHeaders.Add(Infrastructure.Services.NodeTokenHasher.HeaderName, token);
 
             // Server -> node calls. Ping is the phase-1 channel proof.
             _connection.On("Ping", () => "pong");
@@ -135,7 +147,8 @@ namespace KRINT.API.Nodes
                 Name: name,
                 MachineName: Environment.MachineName,
                 Os: RuntimeInformation.OSDescription,
-                DockerVersion: dockerVersion);
+                DockerVersion: dockerVersion,
+                ProtocolVersion: NodeProtocol.Current);
 
             try
             {
@@ -163,8 +176,21 @@ namespace KRINT.API.Nodes
             c.On<string, bool>("StopContainer", id => WithDocker(async d => { await d.StopContainerAsync(id); return true; }));
             c.On<string, bool, bool>("RemoveContainer", (id, force) => WithDocker(async d => { await d.RemoveContainerAsync(id, force); return true; }));
             c.On<string, bool, bool>("RemoveVolume", (name, force) => WithDocker(async d => { await d.RemoveVolumeAsync(name, force); return true; }));
+            // Legacy single-message dump RPCs, kept so an older control plane can still drive this agent.
             c.On<string, IList<string>, byte[]>("ExecCapture", (id, cmd) => WithDocker(d => d.ExecCaptureAsync(id, cmd)));
             c.On<string, IList<string>, byte[], bool>("ExecWithStdin", (id, cmd, data) => WithDocker(async d => { await d.ExecWithStdinAsync(id, cmd, new MemoryStream(data)); return true; }));
+
+            // Streamed dump transfer (NodeProtocol.StreamedTransfer): the RPC carries only a transfer id
+            // and the bytes move over HTTP, so the SignalR connection (and its heartbeats) stays free.
+            c.On<string, string, IList<string>, bool>("ExecCaptureUpload", UploadExecOutputAsync);
+            c.On<string, string, IList<string>, bool>("ExecWithStdinDownload", (transferId, id, cmd) => WithDocker(async d =>
+            {
+                using var response = await Transfers().GetAsync($"api/nodes/transfers/{transferId}", HttpCompletionOption.ResponseHeadersRead);
+                await EnsureTransferSucceededAsync(response);
+                await using var input = await response.Content.ReadAsStreamAsync();
+                await d.ExecWithStdinAsync(id, cmd, input);
+                return true;
+            }));
 
             // Log streaming: follow the container's logs locally and push each frame back; the control
             // plane relays them to the browser. Returns immediately - the follow runs in the background.
@@ -247,6 +273,37 @@ namespace KRINT.API.Nodes
                 if (_connection is not null)
                     try { await _connection.SendAsync("LogStreamCompleted", streamId, CancellationToken.None); } catch { }
             }
+        }
+
+        private HttpClient Transfers() =>
+            _transferClient ?? throw new InvalidOperationException("The node agent is not connected to a control plane.");
+
+        // Runs the exec and POSTs its stdout to the control plane as it is produced. On an exec
+        // failure the upload is aborted and the exec's own error (exit code + stderr) is what the
+        // control plane sees as the RPC result.
+        private async Task<bool> UploadExecOutputAsync(string transferId, string containerId, IList<string> command)
+        {
+            var content = new ExecOutputContent(services.GetRequiredService<Docker.DotNet.IDockerClient>(), containerId, command, TransferExecTimeout);
+            try
+            {
+                using var response = await Transfers().PostAsync($"api/nodes/transfers/{transferId}", content);
+                await EnsureTransferSucceededAsync(response);
+                return true;
+            }
+            catch (Exception) when (content.ExecError is not null)
+            {
+                throw content.ExecError;
+            }
+        }
+
+        private static async Task EnsureTransferSucceededAsync(HttpResponseMessage response)
+        {
+            if (response.IsSuccessStatusCode) return;
+            var body = await response.Content.ReadAsStringAsync();
+            if (body.Length > 500) body = body[..500];
+            throw new InvalidOperationException(
+                $"Dump transfer to the control plane failed with HTTP {(int)response.StatusCode}. " +
+                "Check that a reverse proxy in front of the control plane allows large, slow bodies on /api/nodes/transfers. " + body);
         }
 
         private async Task<T> WithDocker<T>(Func<IDockerService, Task<T>> work)
@@ -337,6 +394,7 @@ namespace KRINT.API.Nodes
         {
             _shutdown.Cancel();
             _shutdown.Dispose();
+            _transferClient?.Dispose();
             if (_connection is not null)
             {
                 await _connection.DisposeAsync();

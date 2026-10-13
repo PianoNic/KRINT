@@ -37,6 +37,9 @@ namespace KRINT.API.Nodes
         /// <summary>The node went offline: fail its log streams and forget its exec sessions. Returns
         /// the dropped sessions (session id, browser connection id) so the caller can tell the browsers.</summary>
         IReadOnlyList<(string SessionId, string BrowserConnectionId)> DropNode(Guid nodeId);
+
+        /// <summary>Pending backup/restore byte transfers served over <c>/api/nodes/transfers</c>.</summary>
+        NodeTransfers Transfers { get; }
     }
 
     public class NodeStreamRelay : INodeStreamRelay
@@ -50,6 +53,8 @@ namespace KRINT.API.Nodes
 
         private readonly ConcurrentDictionary<string, LogRoute> _logs = new();
         private readonly ConcurrentDictionary<string, ExecRoute> _execs = new();
+
+        public NodeTransfers Transfers { get; } = new();
 
         public ChannelReader<string> OpenLog(string streamId, Guid nodeId)
         {
