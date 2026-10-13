@@ -40,6 +40,52 @@ instances:
         }
 
         [Test]
+        public async Task Load_UnknownPluginKey_Fails()
+        {
+            using var tempDir = new TempDir();
+            await File.WriteAllTextAsync(Path.Combine(tempDir.Path, "instances.yaml"), """
+instances:
+  - engine: postgres
+    version: "18"
+    display_name: plugin-db
+    plugins:
+      - postgres-pg_stat_statements
+""");
+            var loader = new InstancesConfigLoader(tempDir.Path, "instances.yaml");
+            await Assert.That(() => loader.Load()).Throws<InvalidDataException>();
+        }
+
+        [Test]
+        public async Task Load_PluginOfAnotherEngine_Fails()
+        {
+            using var tempDir = new TempDir();
+            await File.WriteAllTextAsync(Path.Combine(tempDir.Path, "instances.yaml"), """
+instances:
+  - engine: mysql
+    version: "8"
+    display_name: plugin-db
+    plugins: [vector]
+""");
+            var loader = new InstancesConfigLoader(tempDir.Path, "instances.yaml");
+            await Assert.That(() => loader.Load()).Throws<InvalidDataException>();
+        }
+
+        [Test]
+        public async Task Load_KnownPluginKey_IsParsed()
+        {
+            using var tempDir = new TempDir();
+            await File.WriteAllTextAsync(Path.Combine(tempDir.Path, "instances.yaml"), """
+instances:
+  - engine: postgres
+    version: "18"
+    display_name: plugin-db
+    plugins: [pg_trgm, vector]
+""");
+            var config = new InstancesConfigLoader(tempDir.Path, "instances.yaml").Load();
+            await Assert.That(config.Instances[0].Plugins).IsEquivalentTo(new[] { "pg_trgm", "vector" });
+        }
+
+        [Test]
         public async Task Load_NodeName_IsParsed()
         {
             using var tempDir = new TempDir();
