@@ -341,6 +341,12 @@ namespace KRINT.Infrastructure.Services
             }
         }
 
+        /// <summary>Shell scripts live in C# raw strings, which carry CRLF when the source was checked
+        /// out on Windows. sh reads "\r" as part of each line ("pipefail\r: invalid option"), so every
+        /// exec argument is sent with LF endings.</summary>
+        public static IList<string> NormalizeLineEndings(IList<string> command) =>
+            command.Select(arg => arg.Replace("\r\n", "\n")).ToList();
+
         private async Task ExecCoreAsync(string containerId, IList<string> command, Stream stdout, TimeSpan timeout, string? pidFile, CancellationToken cancellationToken)
         {
             using var timeoutCts = new CancellationTokenSource(timeout);
@@ -349,7 +355,7 @@ namespace KRINT.Infrastructure.Services
 
             var exec = await client.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
             {
-                Cmd = command,
+                Cmd = NormalizeLineEndings(command),
                 AttachStdout = true,
                 AttachStderr = true,
             }, ct);
